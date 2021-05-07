@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package v1alpha1
+package v1alpha2
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,14 +28,10 @@ type InfrastructureConfig struct {
 	// +optional
 	ResourceGroup *ResourceGroup `json:"resourceGroup,omitempty"`
 	// Networks is the network configuration (VNet, subnets, etc.).
-	// +k8s:conversion-gen=false
 	Networks NetworkConfig `json:"networks"`
 	// Identity contains configuration for the assigned managed identity.
 	// +optional
 	Identity *IdentityConfig `json:"identity,omitempty"`
-	// Zoned indicates whether the cluster uses availability zones.
-	// +optional
-	Zoned bool `json:"zoned,omitempty"`
 }
 
 // ResourceGroup is azure resource group
@@ -45,18 +41,11 @@ type ResourceGroup struct {
 }
 
 // NetworkConfig holds information about the Kubernetes and infrastructure networks.
-// +k8s:conversion-gen=false
 type NetworkConfig struct {
 	// VNet indicates whether to use an existing VNet or create a new one.
 	VNet VNet `json:"vnet"`
-	// Workers is the worker subnet range to create (used for the VMs).
-	Workers string `json:"workers"`
-	// NatGateway contains the configuration for the NatGateway.
-	// +optional
-	NatGateway *NatGatewayConfig `json:"natGateway,omitempty"`
-	// ServiceEndpoints is a list of Azure ServiceEndpoints which should be associated with the worker subnet.
-	// +optional
-	ServiceEndpoints []string `json:"serviceEndpoints,omitempty"`
+	// Topology
+	Topology `json:",inline"`
 }
 
 // NatGatewayConfig contains configuration for the NAT gateway and the attached resources.
@@ -66,12 +55,11 @@ type NatGatewayConfig struct {
 	// IdleConnectionTimeoutMinutes specifies the idle connection timeout limit for NAT gateway in minutes.
 	// +optional
 	IdleConnectionTimeoutMinutes *int32 `json:"idleConnectionTimeoutMinutes,omitempty"`
-	// Zone specifies the zone in which the NAT gateway should be deployed to.
-	// +optional
-	Zone *int32 `json:"zone,omitempty"`
 	// IPAddresses is a list of ip addresses which should be assigned to the NAT gateway.
 	// +optional
 	IPAddresses []PublicIPReference `json:"ipAddresses,omitempty"`
+	// Zone specifies the zone in which the NAT gateway should be deployed to.
+	Zone *int32
 }
 
 // PublicIPReference contains information about a public ip.
@@ -107,7 +95,6 @@ type InfrastructureStatus struct {
 	Zoned bool `json:"zoned,omitempty"`
 	// NatGatewayPublicIPMigrated is an indicator if the Gardener managed public ip address is already migrated.
 	// TODO(natipmigration) This can be removed in future versions when the ip migration has been completed.
-	// +optional
 	NatGatewayPublicIPMigrated bool `json:"natGatewayPublicIpMigrated,omitempty"`
 }
 
@@ -136,6 +123,8 @@ type Subnet struct {
 	Name string `json:"name"`
 	// Purpose is the purpose for which the subnet was created.
 	Purpose Purpose `json:"purpose"`
+	//Zone
+	Zone *int32 `json:"zone,omitempty"`
 }
 
 // AvailabilitySet contains information about the azure availability set
@@ -211,4 +200,41 @@ type IdentityStatus struct {
 	ClientID string `json:"clientID"`
 	// ACRAccess specifies if the identity should be used by the Shoot worker nodes to pull from an Azure Container Registry.
 	ACRAccess bool `json:"acrAccess"`
+}
+
+type Topology struct {
+	// +optional
+	Regional *RegionalTopology `json:"regional,omitempty"`
+	// +optional
+	SingleSubnetZonal *SingleSubnetZonalTopology `json:"singleSubnet,omitempty"`
+	// +optional
+	Zonal *ZonalTopology `json:"zonal,omitempty"`
+}
+
+// RegionalTopology contains the configuration for a network setup that is not zone based.
+type RegionalTopology struct {
+	CIDR string `json:"cidr"`
+	ServiceEndpoints []string `json:"serviceEndpoints,omitempty"`
+}
+
+type SingleSubnetZonalTopology struct {
+	CIDR string `json:"cidr"`
+	ServiceEndpoints []string `json:"serviceEndpoints,omitempty"`
+	NatGateway *NatGatewayConfig `json:"natGateway,omitempty"`
+}
+
+// ZonalTopology contains the configuration for a network setup that is zone based. A ZonalTopology contains multiple subnets - one for each zone defined.
+type ZonalTopology struct {
+	Zones []Zone `json:"zones"`
+
+	// InternalCIDR
+	// +optional
+	InternalCIDR *string `json:"internal,omitempty"`
+}
+
+type Zone struct {
+	Name int32 `json:"name"`
+	CIDR string `json:"cidr"`
+	ServiceEndpoints []string `json:"serviceEndpoints,omitempty"`
+	NatGateway *NatGatewayConfig `json:"natGateway,omitempty"`
 }
