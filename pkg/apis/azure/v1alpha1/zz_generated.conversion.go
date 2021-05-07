@@ -105,16 +105,6 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*InfrastructureConfig)(nil), (*azure.InfrastructureConfig)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1alpha1_InfrastructureConfig_To_azure_InfrastructureConfig(a.(*InfrastructureConfig), b.(*azure.InfrastructureConfig), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*azure.InfrastructureConfig)(nil), (*InfrastructureConfig)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_azure_InfrastructureConfig_To_v1alpha1_InfrastructureConfig(a.(*azure.InfrastructureConfig), b.(*InfrastructureConfig), scope)
-	}); err != nil {
-		return err
-	}
 	if err := s.AddGeneratedConversionFunc((*InfrastructureStatus)(nil), (*azure.InfrastructureStatus)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1alpha1_InfrastructureStatus_To_azure_InfrastructureStatus(a.(*InfrastructureStatus), b.(*azure.InfrastructureStatus), scope)
 	}); err != nil {
@@ -175,16 +165,6 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*NetworkConfig)(nil), (*azure.NetworkConfig)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1alpha1_NetworkConfig_To_azure_NetworkConfig(a.(*NetworkConfig), b.(*azure.NetworkConfig), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*azure.NetworkConfig)(nil), (*NetworkConfig)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_azure_NetworkConfig_To_v1alpha1_NetworkConfig(a.(*azure.NetworkConfig), b.(*NetworkConfig), scope)
-	}); err != nil {
-		return err
-	}
 	if err := s.AddGeneratedConversionFunc((*NetworkStatus)(nil), (*azure.NetworkStatus)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1alpha1_NetworkStatus_To_azure_NetworkStatus(a.(*NetworkStatus), b.(*azure.NetworkStatus), scope)
 	}); err != nil {
@@ -240,11 +220,6 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*azure.Subnet)(nil), (*Subnet)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_azure_Subnet_To_v1alpha1_Subnet(a.(*azure.Subnet), b.(*Subnet), scope)
-	}); err != nil {
-		return err
-	}
 	if err := s.AddGeneratedConversionFunc((*VNet)(nil), (*azure.VNet)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1alpha1_VNet_To_azure_VNet(a.(*VNet), b.(*azure.VNet), scope)
 	}); err != nil {
@@ -282,6 +257,26 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddGeneratedConversionFunc((*azure.WorkerStatus)(nil), (*WorkerStatus)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_azure_WorkerStatus_To_v1alpha1_WorkerStatus(a.(*azure.WorkerStatus), b.(*WorkerStatus), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddConversionFunc((*azure.InfrastructureConfig)(nil), (*InfrastructureConfig)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_azure_InfrastructureConfig_To_v1alpha1_InfrastructureConfig(a.(*azure.InfrastructureConfig), b.(*InfrastructureConfig), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddConversionFunc((*azure.NetworkConfig)(nil), (*NetworkConfig)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_azure_NetworkConfig_To_v1alpha1_NetworkConfig(a.(*azure.NetworkConfig), b.(*NetworkConfig), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddConversionFunc((*azure.Subnet)(nil), (*Subnet)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_azure_Subnet_To_v1alpha1_Subnet(a.(*azure.Subnet), b.(*Subnet), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddConversionFunc((*InfrastructureConfig)(nil), (*azure.InfrastructureConfig)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_InfrastructureConfig_To_azure_InfrastructureConfig(a.(*InfrastructureConfig), b.(*azure.InfrastructureConfig), scope)
 	}); err != nil {
 		return err
 	}
@@ -454,17 +449,10 @@ func Convert_azure_IdentityStatus_To_v1alpha1_IdentityStatus(in *azure.IdentityS
 
 func autoConvert_v1alpha1_InfrastructureConfig_To_azure_InfrastructureConfig(in *InfrastructureConfig, out *azure.InfrastructureConfig, s conversion.Scope) error {
 	out.ResourceGroup = (*azure.ResourceGroup)(unsafe.Pointer(in.ResourceGroup))
-	if err := Convert_v1alpha1_NetworkConfig_To_azure_NetworkConfig(&in.Networks, &out.Networks, s); err != nil {
-		return err
-	}
+	// INFO: in.Networks opted out of conversion generation
 	out.Identity = (*azure.IdentityConfig)(unsafe.Pointer(in.Identity))
-	out.Zoned = in.Zoned
+	// WARNING: in.Zoned requires manual conversion: does not exist in peer-type
 	return nil
-}
-
-// Convert_v1alpha1_InfrastructureConfig_To_azure_InfrastructureConfig is an autogenerated conversion function.
-func Convert_v1alpha1_InfrastructureConfig_To_azure_InfrastructureConfig(in *InfrastructureConfig, out *azure.InfrastructureConfig, s conversion.Scope) error {
-	return autoConvert_v1alpha1_InfrastructureConfig_To_azure_InfrastructureConfig(in, out, s)
 }
 
 func autoConvert_azure_InfrastructureConfig_To_v1alpha1_InfrastructureConfig(in *azure.InfrastructureConfig, out *InfrastructureConfig, s conversion.Scope) error {
@@ -473,13 +461,7 @@ func autoConvert_azure_InfrastructureConfig_To_v1alpha1_InfrastructureConfig(in 
 		return err
 	}
 	out.Identity = (*IdentityConfig)(unsafe.Pointer(in.Identity))
-	out.Zoned = in.Zoned
 	return nil
-}
-
-// Convert_azure_InfrastructureConfig_To_v1alpha1_InfrastructureConfig is an autogenerated conversion function.
-func Convert_azure_InfrastructureConfig_To_v1alpha1_InfrastructureConfig(in *azure.InfrastructureConfig, out *InfrastructureConfig, s conversion.Scope) error {
-	return autoConvert_azure_InfrastructureConfig_To_v1alpha1_InfrastructureConfig(in, out, s)
 }
 
 func autoConvert_v1alpha1_InfrastructureStatus_To_azure_InfrastructureStatus(in *InfrastructureStatus, out *azure.InfrastructureStatus, s conversion.Scope) error {
@@ -648,41 +630,21 @@ func Convert_azure_NatGatewayConfig_To_v1alpha1_NatGatewayConfig(in *azure.NatGa
 	return autoConvert_azure_NatGatewayConfig_To_v1alpha1_NatGatewayConfig(in, out, s)
 }
 
-func autoConvert_v1alpha1_NetworkConfig_To_azure_NetworkConfig(in *NetworkConfig, out *azure.NetworkConfig, s conversion.Scope) error {
-	if err := Convert_v1alpha1_VNet_To_azure_VNet(&in.VNet, &out.VNet, s); err != nil {
-		return err
-	}
-	out.Workers = in.Workers
-	out.NatGateway = (*azure.NatGatewayConfig)(unsafe.Pointer(in.NatGateway))
-	out.ServiceEndpoints = *(*[]string)(unsafe.Pointer(&in.ServiceEndpoints))
-	return nil
-}
-
-// Convert_v1alpha1_NetworkConfig_To_azure_NetworkConfig is an autogenerated conversion function.
-func Convert_v1alpha1_NetworkConfig_To_azure_NetworkConfig(in *NetworkConfig, out *azure.NetworkConfig, s conversion.Scope) error {
-	return autoConvert_v1alpha1_NetworkConfig_To_azure_NetworkConfig(in, out, s)
-}
-
-func autoConvert_azure_NetworkConfig_To_v1alpha1_NetworkConfig(in *azure.NetworkConfig, out *NetworkConfig, s conversion.Scope) error {
-	if err := Convert_azure_VNet_To_v1alpha1_VNet(&in.VNet, &out.VNet, s); err != nil {
-		return err
-	}
-	out.Workers = in.Workers
-	out.NatGateway = (*NatGatewayConfig)(unsafe.Pointer(in.NatGateway))
-	out.ServiceEndpoints = *(*[]string)(unsafe.Pointer(&in.ServiceEndpoints))
-	return nil
-}
-
-// Convert_azure_NetworkConfig_To_v1alpha1_NetworkConfig is an autogenerated conversion function.
-func Convert_azure_NetworkConfig_To_v1alpha1_NetworkConfig(in *azure.NetworkConfig, out *NetworkConfig, s conversion.Scope) error {
-	return autoConvert_azure_NetworkConfig_To_v1alpha1_NetworkConfig(in, out, s)
-}
-
 func autoConvert_v1alpha1_NetworkStatus_To_azure_NetworkStatus(in *NetworkStatus, out *azure.NetworkStatus, s conversion.Scope) error {
 	if err := Convert_v1alpha1_VNetStatus_To_azure_VNetStatus(&in.VNet, &out.VNet, s); err != nil {
 		return err
 	}
-	out.Subnets = *(*[]azure.Subnet)(unsafe.Pointer(&in.Subnets))
+	if in.Subnets != nil {
+		in, out := &in.Subnets, &out.Subnets
+		*out = make([]azure.Subnet, len(*in))
+		for i := range *in {
+			if err := Convert_v1alpha1_Subnet_To_azure_Subnet(&(*in)[i], &(*out)[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Subnets = nil
+	}
 	return nil
 }
 
@@ -695,7 +657,17 @@ func autoConvert_azure_NetworkStatus_To_v1alpha1_NetworkStatus(in *azure.Network
 	if err := Convert_azure_VNetStatus_To_v1alpha1_VNetStatus(&in.VNet, &out.VNet, s); err != nil {
 		return err
 	}
-	out.Subnets = *(*[]Subnet)(unsafe.Pointer(&in.Subnets))
+	if in.Subnets != nil {
+		in, out := &in.Subnets, &out.Subnets
+		*out = make([]Subnet, len(*in))
+		for i := range *in {
+			if err := Convert_azure_Subnet_To_v1alpha1_Subnet(&(*in)[i], &(*out)[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Subnets = nil
+	}
 	return nil
 }
 
@@ -806,12 +778,8 @@ func Convert_v1alpha1_Subnet_To_azure_Subnet(in *Subnet, out *azure.Subnet, s co
 func autoConvert_azure_Subnet_To_v1alpha1_Subnet(in *azure.Subnet, out *Subnet, s conversion.Scope) error {
 	out.Name = in.Name
 	out.Purpose = Purpose(in.Purpose)
+	// WARNING: in.Zone requires manual conversion: does not exist in peer-type
 	return nil
-}
-
-// Convert_azure_Subnet_To_v1alpha1_Subnet is an autogenerated conversion function.
-func Convert_azure_Subnet_To_v1alpha1_Subnet(in *azure.Subnet, out *Subnet, s conversion.Scope) error {
-	return autoConvert_azure_Subnet_To_v1alpha1_Subnet(in, out, s)
 }
 
 func autoConvert_v1alpha1_VNet_To_azure_VNet(in *VNet, out *azure.VNet, s conversion.Scope) error {

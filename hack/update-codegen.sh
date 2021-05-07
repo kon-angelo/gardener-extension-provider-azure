@@ -27,7 +27,7 @@ bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh 
   github.com/gardener/gardener-extension-provider-azure/pkg/client \
   github.com/gardener/gardener-extension-provider-azure/pkg/apis \
   github.com/gardener/gardener-extension-provider-azure/pkg/apis \
-  "azure:v1alpha1" \
+  "azure:v1alpha1,v1alpha2" \
   --go-header-file "${PROJECT_ROOT}/vendor/github.com/gardener/gardener/hack/LICENSE_BOILERPLATE.txt"
 
 bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
@@ -35,8 +35,8 @@ bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh 
   github.com/gardener/gardener-extension-provider-azure/pkg/client \
   github.com/gardener/gardener-extension-provider-azure/pkg/apis \
   github.com/gardener/gardener-extension-provider-azure/pkg/apis \
-  "azure:v1alpha1" \
-  --extra-peer-dirs=github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure,github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/conversion,k8s.io/apimachinery/pkg/runtime \
+  "azure:v1alpha1,v1alpha2" \
+  --extra-peer-dirs=github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure,github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha2,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/conversion,k8s.io/apimachinery/pkg/runtime \
   --go-header-file "${PROJECT_ROOT}/vendor/github.com/gardener/gardener/hack/LICENSE_BOILERPLATE.txt"
 
 bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \

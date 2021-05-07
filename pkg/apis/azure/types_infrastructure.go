@@ -29,8 +29,6 @@ type InfrastructureConfig struct {
 	Networks NetworkConfig
 	// Identity contains configuration for the assigned managed identity.
 	Identity *IdentityConfig
-	// Zoned indicates whether the cluster uses zones
-	Zoned bool
 }
 
 // ResourceGroup is azure resource group
@@ -43,12 +41,7 @@ type ResourceGroup struct {
 type NetworkConfig struct {
 	// VNet indicates whether to use an existing VNet or create a new one.
 	VNet VNet
-	// Workers is the worker subnet range to create (used for the VMs).
-	Workers string
-	// NatGateway contains the configuration for the NatGateway.
-	NatGateway *NatGatewayConfig
-	// ServiceEndpoints is a list of Azure ServiceEndpoints which should be associated with the worker subnet.
-	ServiceEndpoints []string
+	Topology
 }
 
 // NatGatewayConfig contains configuration for the NAT gateway and the attached resources.
@@ -121,6 +114,8 @@ type Subnet struct {
 	Name string
 	// Purpose is the purpose for which the subnet was created.
 	Purpose Purpose
+	// Zone
+	Zone *int32 `json:"zone,omitempty"`
 }
 
 // AvailabilitySet contains information about the azure availability set
@@ -190,3 +185,38 @@ type IdentityStatus struct {
 	// ACRAccess specifies if the identity should be used by the Shoot worker nodes to pull from an Azure Container Registry.
 	ACRAccess bool
 }
+
+type Topology struct {
+	// +optional
+	Regional *RegionalTopology
+	// +optional
+	SingleSubnetZonal *SingleSubnetZonalTopology
+	// +optional
+	Zonal *ZonalTopology
+}
+
+// RegionalTopology contains the configuration for a network setup that is not zone based.
+type RegionalTopology struct {
+	CIDR string
+	ServiceEndpoints []string
+}
+
+type SingleSubnetZonalTopology struct {
+	CIDR string
+	ServiceEndpoints []string
+	NatGateway *NatGatewayConfig
+}
+
+// ZonalTopology contains the configuration for a network setup that is zone based. A ZonalTopology contains multiple subnets - one for each zone defined.
+type ZonalTopology struct {
+	Zones []Zone
+	InternalCIDR *string
+}
+
+type Zone struct {
+	Name int32
+	CIDR string
+	ServiceEndpoints []string
+	NatGateway *NatGatewayConfig
+}
+
