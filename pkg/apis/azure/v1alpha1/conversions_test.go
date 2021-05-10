@@ -16,6 +16,7 @@ package v1alpha1
 
 import (
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -31,52 +32,44 @@ var _ = Describe("Conversions", func() {
 		Expect(AddToScheme(scheme)).NotTo(HaveOccurred())
 	})
 
-	Context("#Infrastructure conversions", func() {
-		Context("#Convert_v1alpha1_InfrastructureConfig_To_azure_InfrastructureConfig", func() {
-			Describe("Regional", func() {
-				var (
-					cidr      = "1.1.1.1/24"
-					endpoints = []string{"ep1", "ep2"}
+	Context("#InfrastructureConfig", func() {
+		var (
+			cidr              = "1.1.1.1/24"
+			endpoints         = []string{"ep1", "ep2"}
+			zone        int32 = 2
+			idleTimeout int32 = 5
+		)
 
-					out = &api.InfrastructureConfig{}
-					in  = &InfrastructureConfig{
-						Networks: NetworkConfig{
-							VNet: VNet{
-								CIDR: &cidr,
-							},
-							Workers:          cidr,
-							ServiceEndpoints: endpoints,
+		DescribeTable("Convert_v1alpha1_InfrastructureConfig_To_azure_InfrastructureConfig", func(in *InfrastructureConfig, expected *api.InfrastructureConfig) {
+			out := &api.InfrastructureConfig{}
+			err := scheme.Convert(in, out, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(out).To(Equal(expected))
+		},
+			Entry("should succeed - regional",
+				&InfrastructureConfig{
+					Networks: NetworkConfig{
+						VNet: VNet{
+							CIDR: &cidr,
 						},
-					}
-				)
-
-				It("#should correctly convert", func() {
-					Expect(scheme.Convert(in, out, nil)).NotTo(HaveOccurred())
-					Expect(out).To(Equal(&api.InfrastructureConfig{
-						Networks: api.NetworkConfig{
-							VNet: api.VNet{
-								CIDR: &cidr,
-							},
-							Topology: api.Topology{
-								Regional: &api.RegionalTopology{
-									CIDR:             cidr,
-									ServiceEndpoints: endpoints,
-								},
+						Workers:          cidr,
+						ServiceEndpoints: endpoints,
+					},
+				}, &api.InfrastructureConfig{
+					Networks: api.NetworkConfig{
+						VNet: api.VNet{
+							CIDR: &cidr,
+						},
+						Topology: api.Topology{
+							Regional: &api.RegionalTopology{
+								CIDR:             cidr,
+								ServiceEndpoints: endpoints,
 							},
 						},
-					}))
-				})
-			})
-
-			Describe("SingleSubnetZonal", func() {
-				var (
-					cidr              = "1.1.1.1/24"
-					endpoints         = []string{"ep1", "ep2"}
-					zone        int32 = 2
-					idleTimeout int32 = 5
-
-					out    = &api.InfrastructureConfig{}
-					config = &InfrastructureConfig{
+					},
+				}),
+				Entry("should succeed - singleSubnetZonal without NAT",
+					&InfrastructureConfig{
 						Zoned: true,
 						Networks: NetworkConfig{
 							VNet: VNet{
@@ -85,28 +78,7 @@ var _ = Describe("Conversions", func() {
 							Workers:          cidr,
 							ServiceEndpoints: endpoints,
 						},
-					}
-
-					configWithNat = &InfrastructureConfig{
-						Zoned: true,
-						Networks: NetworkConfig{
-							VNet: VNet{
-								CIDR: &cidr,
-							},
-							Workers:          cidr,
-							ServiceEndpoints: endpoints,
-							NatGateway: &NatGatewayConfig{
-								Enabled:                      true,
-								Zone:                         &zone,
-								IdleConnectionTimeoutMinutes: &idleTimeout,
-							},
-						},
-					}
-				)
-
-				It("#should correctly convert", func() {
-					Expect(scheme.Convert(config, out, nil)).NotTo(HaveOccurred())
-					Expect(out).To(Equal(&api.InfrastructureConfig{
+					},&api.InfrastructureConfig{
 						Networks: api.NetworkConfig{
 							VNet: api.VNet{
 								CIDR: &cidr,
@@ -119,139 +91,179 @@ var _ = Describe("Conversions", func() {
 								},
 							},
 						},
-					}))
-				})
-
-				It("#should correctly convert config with NATGateway", func() {
-					Expect(scheme.Convert(configWithNat, out, nil)).NotTo(HaveOccurred())
-					Expect(out).To(Equal(&api.InfrastructureConfig{
-						Networks: api.NetworkConfig{
-							VNet: api.VNet{
-								CIDR: &cidr,
-							},
-							Topology: api.Topology{
-								SingleSubnetZonal: &api.SingleSubnetZonalTopology{
-									CIDR:             cidr,
-									ServiceEndpoints: endpoints,
-									NatGateway: &api.NatGatewayConfig{
-										Enabled:                      true,
-										Zone:                         &zone,
-										IdleConnectionTimeoutMinutes: &idleTimeout,
-									},
+					}),
+			Entry("should succeed - singleSubnetZonal with NAT",
+				&InfrastructureConfig{
+					Zoned: true,
+					Networks: NetworkConfig{
+						VNet: VNet{
+							CIDR: &cidr,
+						},
+						Workers:          cidr,
+						ServiceEndpoints: endpoints,
+						NatGateway: &NatGatewayConfig{
+							Enabled:                      true,
+							Zone:                         &zone,
+						},
+					},
+				},&api.InfrastructureConfig{
+					Networks: api.NetworkConfig{
+						VNet: api.VNet{
+							CIDR: &cidr,
+						},
+						Topology: api.Topology{
+							SingleSubnetZonal: &api.SingleSubnetZonalTopology{
+								CIDR:             cidr,
+								ServiceEndpoints: endpoints,
+								NatGateway:       &api.NatGatewayConfig{
+									Enabled:                      true,
+									Zone:                         &zone,
 								},
 							},
 						},
-					}))
-				})
-			})
-		})
+					},
+				}),
+		)
 
-		Describe("#Convert_azure_InfrastructureConfig_To_v1alpha1_InfrastructureConfig", func() {
-			Context("Regional", func(){
-				var (
-					cidr      = "1.1.1.1/24"
-					endpoints = []string{"ep1", "ep2"}
-					in        = &api.InfrastructureConfig{
-						Networks: api.NetworkConfig{
-							VNet: api.VNet{
-								CIDR: &cidr,
+		DescribeTable("#Convert_azure_InfrastructureConfig_To_v1alpha1_InfrastructureConfig", func(in *api.InfrastructureConfig, expected *InfrastructureConfig, expError bool) {
+			out := &InfrastructureConfig{}
+			err := scheme.Convert(in, out, nil)
+			if expError {
+				Expect(err).To(HaveOccurred())
+			} else {
+				Expect(err).NotTo(HaveOccurred())
+				Expect(out).To(Equal(expected))
+			}
+		},
+			Entry("should succeed - regional",
+				&api.InfrastructureConfig{
+					Networks: api.NetworkConfig{
+						VNet: api.VNet{
+							CIDR: &cidr,
+						},
+						Topology: api.Topology{
+							Regional: &api.RegionalTopology{
+								CIDR:             cidr,
+								ServiceEndpoints: endpoints,
 							},
-							Topology: api.Topology{
-								Regional: &api.RegionalTopology{
-									CIDR:             cidr,
-									ServiceEndpoints: endpoints,
+						},
+					},
+				}, &InfrastructureConfig{
+					Networks: NetworkConfig{
+						VNet: VNet{
+							CIDR: &cidr,
+						},
+						Workers:          cidr,
+						ServiceEndpoints: endpoints,
+					},
+					Zoned: false,
+				}, false),
+			Entry("should succeed - singleSubnetZonal without NAT",
+				&api.InfrastructureConfig{
+					Networks: api.NetworkConfig{
+						VNet: api.VNet{
+							CIDR: &cidr,
+						},
+						Topology: api.Topology{
+							SingleSubnetZonal: &api.SingleSubnetZonalTopology{
+								CIDR:             cidr,
+								ServiceEndpoints: endpoints,
+							},
+						},
+					},
+				}, &InfrastructureConfig{
+					Networks: NetworkConfig{
+						VNet: VNet{
+							CIDR: &cidr,
+						},
+						Workers:          cidr,
+						ServiceEndpoints: endpoints,
+					},
+					Zoned: true,
+				}, false),
+			Entry("should succeed - singleSubnetZonal with NAT enabled",
+				&api.InfrastructureConfig{
+					Networks: api.NetworkConfig{
+						VNet: api.VNet{
+							CIDR: &cidr,
+						},
+						Topology: api.Topology{
+							SingleSubnetZonal: &api.SingleSubnetZonalTopology{
+								CIDR:             cidr,
+								ServiceEndpoints: endpoints,
+								NatGateway: &api.NatGatewayConfig{
+									Enabled:                      true,
+									IdleConnectionTimeoutMinutes: &idleTimeout,
+									Zone:                         &zone,
 								},
 							},
 						},
-					}
-					out = &InfrastructureConfig{}
-				)
-
-				It("#should correctly convert", func() {
-					Expect(scheme.Convert(in, out, nil)).NotTo(HaveOccurred())
-					Expect(out).To(Equal(&InfrastructureConfig{
-						Networks: NetworkConfig{
-							VNet: VNet{
-								CIDR: &cidr,
-							},
-							Workers:          cidr,
-							ServiceEndpoints: endpoints,
+					},
+				},
+				&InfrastructureConfig{
+					Networks: NetworkConfig{
+						VNet: VNet{
+							CIDR: &cidr,
 						},
-						Zoned: false,
-					}))
-				})
-			})
-
-			Context("SingleSubnetZonal", func(){
-				var (
-					cidr      = "1.1.1.1/24"
-					endpoints = []string{"ep1", "ep2"}
-					zone int32 = 2
-					config = &api.InfrastructureConfig{
-						Networks: api.NetworkConfig{
-							VNet: api.VNet{
-								CIDR: &cidr,
-							},
-							Topology: api.Topology{
-								SingleSubnetZonal: &api.SingleSubnetZonalTopology{
-									CIDR:             cidr,
-									ServiceEndpoints: endpoints,
+						Workers:          cidr,
+						ServiceEndpoints: endpoints,
+						NatGateway: &NatGatewayConfig{
+							Enabled:                      true,
+							IdleConnectionTimeoutMinutes: &idleTimeout,
+							Zone:                         &zone,
+						},
+					},
+					Zoned: true,
+				}, false),
+			Entry("singleSubnetRegional - NAT disabled",
+				&api.InfrastructureConfig{
+					Networks: api.NetworkConfig{
+						VNet: api.VNet{
+							CIDR: &cidr,
+						},
+						Topology: api.Topology{
+							SingleSubnetZonal: &api.SingleSubnetZonalTopology{
+								CIDR:             cidr,
+								ServiceEndpoints: endpoints,
+								NatGateway: &api.NatGatewayConfig{
+									Enabled:                      false,
+									IdleConnectionTimeoutMinutes: &idleTimeout,
+									Zone:                         &zone,
 								},
 							},
 						},
-					}
-					configWithNat = &api.InfrastructureConfig{
-						Networks: api.NetworkConfig{
-							VNet: api.VNet{
-								CIDR: &cidr,
-							},
-							Topology: api.Topology{
-								SingleSubnetZonal: &api.SingleSubnetZonalTopology{
-									CIDR:             cidr,
-									ServiceEndpoints: endpoints,
-									NatGateway: &api.NatGatewayConfig{
-										Enabled:                      true,
-										Zone:                         &zone,
-									},
+					},
+				},
+				&InfrastructureConfig{
+					Networks: NetworkConfig{
+						VNet: VNet{
+							CIDR: &cidr,
+						},
+						Workers:          cidr,
+						ServiceEndpoints: endpoints,
+						NatGateway: &NatGatewayConfig{
+							Enabled:                      false,
+							IdleConnectionTimeoutMinutes: &idleTimeout,
+							Zone:                         &zone,
+						},
+					},
+					Zoned: true,
+				}, false),
+			Entry("should fail converting Zonal setup",
+				&api.InfrastructureConfig{
+					Networks: api.NetworkConfig{
+						VNet: api.VNet{
+							CIDR: &cidr,
+						},
+						Topology: api.Topology{
+							Zonal: &api.ZonalTopology{
+								Zones: []api.Zone{
+									{Name: zone, CIDR: cidr},
 								},
 							},
 						},
-					}
-					out = &InfrastructureConfig{}
-				)
-
-				It("#should correctly convert", func() {
-					Expect(scheme.Convert(config, out, nil)).NotTo(HaveOccurred())
-					Expect(out).To(Equal(&InfrastructureConfig{
-						Networks: NetworkConfig{
-							VNet: VNet{
-								CIDR: &cidr,
-							},
-							Workers:          cidr,
-							ServiceEndpoints: endpoints,
-						},
-						Zoned: true,
-					}))
-				})
-
-				It("#should correctly convert - NATGateway", func() {
-					Expect(scheme.Convert(configWithNat, out, nil)).NotTo(HaveOccurred())
-					Expect(out).To(Equal(&InfrastructureConfig{
-						Networks: NetworkConfig{
-							VNet: VNet{
-								CIDR: &cidr,
-							},
-							Workers:          cidr,
-							ServiceEndpoints: endpoints,
-							NatGateway: &NatGatewayConfig{
-								Enabled:                      true,
-								Zone:                         &zone,
-							},
-						},
-						Zoned: true,
-					}))
-				})
-			})
-		})
+					},
+				}, nil, true),
+		)
 	})
 })

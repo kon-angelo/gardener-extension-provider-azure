@@ -105,6 +105,7 @@ func Convert_azure_NetworkConfig_To_v1alpha1_NetworkConfig(in *api.NetworkConfig
 		return nil
 	}
 
+	out.NatGateway = &NatGatewayConfig{}
 	if err := Convert_azure_NatGatewayConfig_To_v1alpha1_NatGatewayConfig(in.SingleSubnetZonal.NatGateway, out.NatGateway, s); err != nil {
 		return err
 	}
