@@ -7,7 +7,6 @@ create:
   resourceGroup: true
   vnet: true
   availabilitySet: false
-  natGateway: false
 
 # identity:
   # name: identity-name
@@ -36,6 +35,13 @@ clusterName: test-namespace
 
 networks:
   worker: 10.250.0.0/19
+  subnets:
+  -  cidr: "1.1.1.0/24"
+     natGateway:
+       enabled: false
+     zone: 1
+     serviceEndpoints: ["2.2.2.2","3.3.3.3"]
+
 
 outputKeys:
   resourceGroupName: resourceGroupName
