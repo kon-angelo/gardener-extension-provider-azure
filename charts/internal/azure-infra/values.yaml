@@ -34,12 +34,17 @@ resourceGroup:
 clusterName: test-namespace
 
 networks:
-  worker: 10.250.0.0/19
+  internal: 10.250.0.0/19
   subnets:
   -  cidr: "1.1.1.0/24"
      natGateway:
        enabled: false
      zone: 1
+     serviceEndpoints: ["2.2.2.2","3.3.3.3"]
+  -  cidr: "9.9.9.0/24"
+     natGateway:
+       enabled: false
+     zone: 2
      serviceEndpoints: ["2.2.2.2","3.3.3.3"]
 
 

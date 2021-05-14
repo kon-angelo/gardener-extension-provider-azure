@@ -26,7 +26,7 @@ resource "azurerm_nat_gateway_public_ip_association" "natip-association" {
 
 {{- define "natgateway-user-provided-public-ips" -}}
 # User provided public IPs to be attached to the NatGateway.
-{{ range $index, $ip := .Values.natGateway.ipAddresses -}}
+{{ range $index, $ip := .natGateway.ipAddresses -}}
 data "azurerm_public_ip" "natip-user-provided-{{ $index }}" {
   name                = "{{ $ip.name }}"
   resource_group_name = "{{ $ip.resourceGroup }}"
