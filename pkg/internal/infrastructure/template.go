@@ -43,3 +43,7 @@ func init() {
 		panic(err)
 	}
 }
+
+type terraformDTO struct {
+
+}
