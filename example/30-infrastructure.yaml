@@ -11,10 +11,10 @@ metadata:
   name: core-azure
 type: Opaque
 data:
-# clientID: base64(clientID)
-# clientSecret: base64(clientSecret)
-# subscriptionID: base64(subscriptionID)
-# tenantID: base64(tenantID)
+  clientID: base64(clientID)
+  clientSecret: base64(clientSecret)
+  subscriptionID: base64(subscriptionID)
+  tenantID: base64(tenantID)
 ---
 apiVersion: extensions.gardener.cloud/v1alpha1
 kind: Cluster
@@ -67,11 +67,15 @@ spec:
       # name: my-vnet
       # resourceGroup: my-vnet-group
         cidr: 10.250.0.0/16
-      workers: 10.250.0.0/19
+      subnetConfig:
+        simple:
+          workers: 10.250.0.0/19
+          natGateway:
+            enabled: true
     # natGateway:
     #   enabled: false
     # serviceEndpoints:
     # - entry1
-    zoned: false
+    # zoned: true
   # resourceGroup:
   #   name: mygroup

@@ -30,7 +30,7 @@ type InfrastructureConfig struct {
 	// Identity contains configuration for the assigned managed identity.
 	Identity *IdentityConfig
 	// Zoned indicates whether the cluster uses zones
-	Zoned bool
+	// Zoned bool
 }
 
 // ResourceGroup is azure resource group
@@ -43,12 +43,14 @@ type ResourceGroup struct {
 type NetworkConfig struct {
 	// VNet indicates whether to use an existing VNet or create a new one.
 	VNet VNet
-	// Workers is the worker subnet range to create (used for the VMs).
-	Workers string
-	// NatGateway contains the configuration for the NatGateway.
-	NatGateway *NatGatewayConfig
 	// ServiceEndpoints is a list of Azure ServiceEndpoints which should be associated with the worker subnet.
-	ServiceEndpoints []string
+	// ServiceEndpoints []string
+	SubnetConfig SubnetConfig
+	// // Workers is the worker subnet range to create (used for the VMs).
+	// Workers string
+	// // NatGateway contains the configuration for the NatGateway.
+	// NatGateway *NatGatewayConfig
+	// Zones []ZoneConfig
 }
 
 // NatGatewayConfig contains configuration for the NAT gateway and the attached resources.
@@ -92,6 +94,7 @@ type InfrastructureStatus struct {
 	Identity *IdentityStatus
 	// Zoned indicates whether the cluster uses zones
 	Zoned bool
+	Simple bool
 	// NatGatewayPublicIPMigrated is an indicator if the Gardener managed public ip address is already migrated.
 	// TODO(natipmigration) This can be removed in future versions when the ip migration has been completed.
 	NatGatewayPublicIPMigrated bool
@@ -121,6 +124,7 @@ type Subnet struct {
 	Name string
 	// Purpose is the purpose for which the subnet was created.
 	Purpose Purpose
+	Zone string
 }
 
 // AvailabilitySet contains information about the azure availability set
@@ -189,4 +193,33 @@ type IdentityStatus struct {
 	ClientID string
 	// ACRAccess specifies if the identity should be used by the Shoot worker nodes to pull from an Azure Container Registry.
 	ACRAccess bool
+}
+
+// ZoneConfig contains the configuration for a Zone
+type ZoneConfig struct {
+	Name string
+	Cidr string
+	ServiceEndpoints []string
+	NatGateway *NatGatewayConfig
+}
+
+type SubnetConfig struct {
+	Regional *Regional
+	Simple  *Simple
+	Complex *Complex
+}
+
+type Regional struct {
+	Workers string
+	ServiceEndpoints []string
+}
+
+type Simple struct {
+	Workers string
+	ServiceEndpoints []string
+	NatGateway *NatGatewayConfig
+}
+
+type Complex struct {
+	Zones []ZoneConfig
 }

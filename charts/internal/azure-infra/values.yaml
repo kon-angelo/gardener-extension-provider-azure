@@ -1,6 +1,6 @@
 azure:
-  subscriptionID: 81dde535-61b4-442a-96e6-6e30c6e55039
-  tenantID: e9ec4533-d130-4d00-a7c3-d85f1c750c5a
+  subscriptionID: 00d2caa5-cd29-46f7-845a-2f8ee0360ef5
+  tenantID: 42f7676c-f455-423c-82f6-dc2d99791af7
   region: westeurope
   countUpdateDomains: 5
   countFaultDomains: 2
@@ -26,24 +26,32 @@ create:
   #   resourceGroup: public-ip-1-resource-group
 
 resourceGroup:
-  name: my-resource-group
+  name: d071997-test-resource-group
   vnet:
     name: my-vnet
     # resourceGroup: vnet-resource-group
-    cidr: 10.10.10.10/6
+    cidr: 10.0.0.0/16
   subnet:
     serviceEndpoints: []
 
 clusterName: test-namespace
 
 networks:
-  worker: 10.250.0.0/19
+  # worker: 10.250.0.0/19
+  worker:
+  zones:
+    - name: "1"
+      cidr: 10.0.10.0/24
+      natGateway:
+        zone: 1
+    - name: "2"
+      cidr: 10.0.11.0/24
+      natGateway:
 
 outputKeys:
   resourceGroupName: resourceGroupName
   vnetName: vnetName
   # vnetResourceGroup: vnet-resource-group
-  subnetName: subnetName
   availabilitySetID: availabilitySetID
   availabilitySetName: availabilitySetName
   countFaultDomains: countFaultDomains
@@ -52,3 +60,5 @@ outputKeys:
   securityGroupName: securityGroupName
   # identityID: managedIdentityID
   # identityClientID: managedIdentityClientID
+  subnetName: subnetName
+  subnetNamePrefix: subnet_nodes_z

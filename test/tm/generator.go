@@ -80,9 +80,9 @@ func main() {
 			VNet: v1alpha1.VNet{
 				CIDR: &cfg.networkVnetCidr,
 			},
-			Workers: cfg.networkWorkerCidr,
+			// Workers: cfg.networkWorkerCidr,
 		},
-		Zoned: cfg.zoned,
+		// Zoned: cfg.zoned,
 	}
 
 	cp := v1alpha1.ControlPlaneConfig{

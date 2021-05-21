@@ -4,7 +4,7 @@ location: "{{ .Values.region }}"
 resourceGroup: "{{ .Values.resourceGroup }}"
 routeTableName: "{{ .Values.routeTableName }}"
 securityGroupName: "{{ .Values.securityGroupName }}"
-subnetName: "{{ .Values.subnetName }}"
+{{/*subnetName: "{{ .Values.subnetName }}"*/}}
 vnetName: "{{ .Values.vnetName }}"
 {{- if hasKey .Values "vnetResourceGroup" }}
 vnetResourceGroup: "{{ .Values.vnetResourceGroup }}"

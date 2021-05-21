@@ -40,7 +40,25 @@ data "azurerm_virtual_network" "vnet" {
 }
 {{- end }}
 
+# RouteTable
+resource "azurerm_route_table" "workers" {
+  name                = "worker_route_table"
+  location            = "{{ required "azure.region is required" .Values.azure.region }}"
+  resource_group_name = {{ template "resource-group-reference" . }}
+}
+
+# SecurityGroup
+resource "azurerm_network_security_group" "workers" {
+  name                = "{{ required "clusterName is required" .Values.clusterName }}-workers"
+  location            = "{{ required "azure.region is required" .Values.azure.region }}"
+  resource_group_name = {{ template "resource-group-reference" . }}
+}
+
+###################### OLD STUFF ##########################
+###################### OLD STUFF ##########################
+###################### OLD STUFF ##########################
 # Subnet
+{{ if .Values.networks.worker -}}
 resource "azurerm_subnet" "workers" {
   name                      = "{{ required "clusterName is required" .Values.clusterName }}-nodes"
   {{ if .Values.create.vnet -}}
@@ -54,26 +72,18 @@ resource "azurerm_subnet" "workers" {
   service_endpoints         = [{{range $index, $serviceEndpoint := .Values.resourceGroup.subnet.serviceEndpoints}}{{if $index}},{{end}}"{{$serviceEndpoint}}"{{end}}]
 }
 
-# RouteTable
-resource "azurerm_route_table" "workers" {
-  name                = "worker_route_table"
-  location            = "{{ required "azure.region is required" .Values.azure.region }}"
-  resource_group_name = {{ template "resource-group-reference" . }}
-}
 resource "azurerm_subnet_route_table_association" "workers-rt-subnet-association" {
   subnet_id      = azurerm_subnet.workers.id
   route_table_id = azurerm_route_table.workers.id
 }
 
-# SecurityGroup
-resource "azurerm_network_security_group" "workers" {
-  name                = "{{ required "clusterName is required" .Values.clusterName }}-workers"
-  location            = "{{ required "azure.region is required" .Values.azure.region }}"
-  resource_group_name = {{ template "resource-group-reference" . }}
-}
 resource "azurerm_subnet_network_security_group_association" "workers-nsg-subnet-association" {
   subnet_id                 = azurerm_subnet.workers.id
   network_security_group_id = azurerm_network_security_group.workers.id
+}
+
+output "{{ .Values.outputKeys.subnetName }}" {
+  value = azurerm_subnet.workers.name
 }
 
 {{ if .Values.create.natGateway -}}
@@ -114,6 +124,91 @@ resource "azurerm_subnet_nat_gateway_association" "nat-worker-subnet-association
 {{ template "natgateway-managed-ip" . }}
 {{- end }}
 {{- end }}
+{{- end }}
+
+###################### NEW STUFF ##########################
+###################### NEW STUFF ##########################
+###################### NEW STUFF ##########################
+{{- range $zIndex, $zone := .Values.networks.zones }}
+
+# Subnet
+
+{{ $subnet := printf "nodes-z-%d" $zIndex }}
+resource "azurerm_subnet" "{{ $subnet }}" {
+  name                      = "{{ required "clusterName is required" $.Values.clusterName }}-z-{{ required "zone is required" $zIndex }}"
+  {{ if $.Values.create.vnet -}}
+  virtual_network_name      = azurerm_virtual_network.vnet.name
+  resource_group_name       = azurerm_virtual_network.vnet.resource_group_name
+  {{- else -}}
+  virtual_network_name      = data.azurerm_virtual_network.vnet.name
+  resource_group_name       = data.azurerm_virtual_network.vnet.resource_group_name
+  natGatewayConfig{{- end }}
+  address_prefixes          = ["{{ required "networks.worker is required" $zone.cidr }}"]
+  service_endpoints         = [{{range $index, $serviceEndpoint := $zone.serviceEndpoints}}{{if $index}},{{end}}"{{$serviceEndpoint}}"{{end}}]
+}
+
+resource "azurerm_subnet_route_table_association" "{{ $subnet }}-rt-subnet-association" {
+  subnet_id      = azurerm_subnet.{{ $subnet }}.id
+  route_table_id = azurerm_route_table.workers.id
+}
+
+resource "azurerm_subnet_network_security_group_association" "{{ $subnet }}-nsg-subnet-association" {
+  subnet_id      = azurerm_subnet.{{ $subnet }}.id
+  network_security_group_id = azurerm_network_security_group.workers.id
+}
+
+output "{{ $.Values.outputKeys.subnetNamePrefix }}{{ $zIndex }}" {
+  value = azurerm_subnet.{{ $subnet }}.name
+}
+
+{{- if hasKey $zone "natGateway" }}
+#===============================================
+#= NAT Gateway
+#===============================================
+
+{{ $nat := printf "nat-z-%d" $zIndex -}}
+resource "azurerm_nat_gateway" "{{ $nat }}" {
+  name                    = "{{ required "clusterName is required" $.Values.clusterName }}-z{{ required "zone name is required" $zIndex }}-nat-gateway"
+  location                = "{{ required "azure.region is required" $.Values.azure.region }}"
+  sku_name                = "Standard"
+  resource_group_name     = {{ template "resource-group-reference" $ }}
+  {{- if $zone.natGateway }}
+  {{ if hasKey $zone.natGateway "idleConnectionTimeoutMinutes" -}}
+  idle_timeout_in_minutes = {{ $zone.natGateway.idleConnectionTimeoutMinutes }}
+  {{- end }}
+  {{- if and (hasKey $zone.natGateway "zone") $zone.natGateway.zone }}
+  zones                   = ["{{ $zone.natGateway.zone }}"]
+  {{- else }}
+  zones                   = ["{{ $zone.name }}"]
+  {{- end }}
+  {{- end }}
+}
+
+resource "azurerm_subnet_nat_gateway_association" "{{ $nat }}-subnet-association" {
+  subnet_id                 = azurerm_subnet.{{ $subnet }}.id
+  nat_gateway_id            = azurerm_nat_gateway.{{ $nat }}.id
+}
+
+resource "azurerm_public_ip" "{{ $nat }}-pip" {
+  name                    = "{{ required "clusterName is required" $.Values.clusterName }}-nat-ip-z{{ $zIndex }}"
+  location                = "{{ required "azure.region is required" $.Values.azure.region }}"
+  resource_group_name     = {{ template "resource-group-reference" $ }}
+  allocation_method       = "Static"
+  sku                     = "Standard"
+  {{- if $zone.natGateway }}
+  {{- if and (hasKey $zone.natGateway "zone") $zone.natGateway.zone }}
+  zones                   = ["{{ $zone.natGateway.zone }}"]
+  {{- else }}
+  zones                   = ["{{ $zone.name }}"]
+  {{- end }}
+  {{- end }}
+}
+resource "azurerm_nat_gateway_public_ip_association" "{{ $nat }}-pip-association" {
+  nat_gateway_id            = azurerm_nat_gateway.{{ $nat }}.id
+  public_ip_address_id      = azurerm_public_ip.{{ $nat }}-pip.id
+}
+{{- end -}}
+{{- end -}}
 
 {{ if .Values.identity -}}
 #===============================================
@@ -162,10 +257,6 @@ output "{{ .Values.outputKeys.vnetResourceGroup }}" {
   value = data.azurerm_virtual_network.vnet.resource_group_name
 }
 {{- end}}
-
-output "{{ .Values.outputKeys.subnetName }}" {
-  value = azurerm_subnet.workers.name
-}
 
 output "{{ .Values.outputKeys.routeTableName }}" {
   value = azurerm_route_table.workers.name

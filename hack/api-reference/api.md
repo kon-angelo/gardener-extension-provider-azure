@@ -222,18 +222,6 @@ IdentityConfig
 <p>Identity contains configuration for the assigned managed identity.</p>
 </td>
 </tr>
-<tr>
-<td>
-<code>zoned</code></br>
-<em>
-bool
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>Zoned indicates whether the cluster uses availability zones.</p>
-</td>
-</tr>
 </tbody>
 </table>
 <h3 id="azure.provider.extensions.gardener.cloud/v1alpha1.WorkerStatus">WorkerStatus
@@ -405,6 +393,36 @@ map[string]bool
 <td>
 <em>(Optional)</em>
 <p>FeatureGates contains information about enabled feature gates.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="azure.provider.extensions.gardener.cloud/v1alpha1.Complex">Complex
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.SubnetConfig">SubnetConfig</a>)
+</p>
+<p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>zones</code></br>
+<em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.ZoneConfig">
+[]ZoneConfig
+</a>
+</em>
+</td>
+<td>
 </td>
 </tr>
 </tbody>
@@ -661,6 +679,16 @@ bool
 </tr>
 <tr>
 <td>
+<code>simple, omitempty</code></br>
+<em>
+bool
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
 <code>natGatewayPublicIpMigrated</code></br>
 <em>
 bool
@@ -906,7 +934,8 @@ bool
 </h3>
 <p>
 (<em>Appears on:</em>
-<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.NetworkConfig">NetworkConfig</a>)
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.Simple">Simple</a>, 
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.ZoneConfig">ZoneConfig</a>)
 </p>
 <p>
 <p>NatGatewayConfig contains configuration for the NAT gateway and the attached resources.</p>
@@ -1002,39 +1031,17 @@ VNet
 </tr>
 <tr>
 <td>
-<code>workers</code></br>
+<code>subnetConfig</code></br>
 <em>
-string
-</em>
-</td>
-<td>
-<p>Workers is the worker subnet range to create (used for the VMs).</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>natGateway</code></br>
-<em>
-<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.NatGatewayConfig">
-NatGatewayConfig
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.SubnetConfig">
+SubnetConfig
 </a>
 </em>
 </td>
 <td>
 <em>(Optional)</em>
-<p>NatGateway contains the configuration for the NatGateway.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>serviceEndpoints</code></br>
-<em>
-[]string
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>ServiceEndpoints is a list of Azure ServiceEndpoints which should be associated with the worker subnet.</p>
+<p>ServiceEndpoints is a list of Azure ServiceEndpoints which should be associated with the worker subnet.
+ServiceEndpoints []string <code>json:&quot;serviceEndpoints,omitempty&quot;</code></p>
 </td>
 </tr>
 </tbody>
@@ -1148,6 +1155,46 @@ int32
 <p>
 <p>Purpose is a purpose of a subnet.</p>
 </p>
+<h3 id="azure.provider.extensions.gardener.cloud/v1alpha1.Regional">Regional
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.SubnetConfig">SubnetConfig</a>)
+</p>
+<p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>serviceEndpoints</code></br>
+<em>
+[]string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>ServiceEndpoints is a list of Azure ServiceEndpoints which should be associated with the worker subnet.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>workers</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+</td>
+</tr>
+</tbody>
+</table>
 <h3 id="azure.provider.extensions.gardener.cloud/v1alpha1.ResourceGroup">ResourceGroup
 </h3>
 <p>
@@ -1265,6 +1312,60 @@ string
 </tr>
 </tbody>
 </table>
+<h3 id="azure.provider.extensions.gardener.cloud/v1alpha1.Simple">Simple
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.SubnetConfig">SubnetConfig</a>)
+</p>
+<p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>workers</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>serviceEndpoints</code></br>
+<em>
+[]string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>ServiceEndpoints is a list of Azure ServiceEndpoints which should be associated with the worker subnet.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>natGateway</code></br>
+<em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.NatGatewayConfig">
+NatGatewayConfig
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>NatGateway</p>
+</td>
+</tr>
+</tbody>
+</table>
 <h3 id="azure.provider.extensions.gardener.cloud/v1alpha1.Subnet">Subnet
 </h3>
 <p>
@@ -1304,6 +1405,70 @@ Purpose
 </td>
 <td>
 <p>Purpose is the purpose for which the subnet was created.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>Zone</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="azure.provider.extensions.gardener.cloud/v1alpha1.SubnetConfig">SubnetConfig
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.NetworkConfig">NetworkConfig</a>)
+</p>
+<p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>regional</code></br>
+<em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.Regional">
+Regional
+</a>
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>simple</code></br>
+<em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.Simple">
+Simple
+</a>
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>complex</code></br>
+<em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.Complex">
+Complex
+</a>
+</em>
+</td>
+<td>
 </td>
 </tr>
 </tbody>
@@ -1453,6 +1618,69 @@ string
 </td>
 <td>
 <p>Name is the name of the VMO resource on Azure.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="azure.provider.extensions.gardener.cloud/v1alpha1.ZoneConfig">ZoneConfig
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.Complex">Complex</a>)
+</p>
+<p>
+<p>ZoneConfig contains the configuration for a Zone</p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>name</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>cidr</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>serviceEndpoints</code></br>
+<em>
+[]string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+</td>
+</tr>
+<tr>
+<td>
+<code>natGateway</code></br>
+<em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.NatGatewayConfig">
+NatGatewayConfig
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
 </td>
 </tr>
 </tbody>

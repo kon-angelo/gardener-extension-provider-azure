@@ -34,7 +34,7 @@ type InfrastructureConfig struct {
 	Identity *IdentityConfig `json:"identity,omitempty"`
 	// Zoned indicates whether the cluster uses availability zones.
 	// +optional
-	Zoned bool `json:"zoned,omitempty"`
+	// Zoned bool `json:"zoned,omitempty"`
 }
 
 // ResourceGroup is azure resource group
@@ -47,14 +47,17 @@ type ResourceGroup struct {
 type NetworkConfig struct {
 	// VNet indicates whether to use an existing VNet or create a new one.
 	VNet VNet `json:"vnet"`
-	// Workers is the worker subnet range to create (used for the VMs).
-	Workers string `json:"workers"`
-	// NatGateway contains the configuration for the NatGateway.
-	// +optional
-	NatGateway *NatGatewayConfig `json:"natGateway,omitempty"`
 	// ServiceEndpoints is a list of Azure ServiceEndpoints which should be associated with the worker subnet.
 	// +optional
-	ServiceEndpoints []string `json:"serviceEndpoints,omitempty"`
+	// ServiceEndpoints []string `json:"serviceEndpoints,omitempty"`
+	SubnetConfig SubnetConfig `json:"subnetConfig"`
+	// Workers is the worker subnet range to create (used for the VMs).
+	// Workers string `json:"workers"`
+	// NatGateway contains the configuration for the NatGateway.
+	// +optional
+	// NatGateway *NatGatewayConfig `json:"natGateway,omitempty"`
+	// Zones contains configuration for each worker zone.
+	// Zones []ZoneConfig `json:"zones,omitempty"`
 }
 
 // NatGatewayConfig contains configuration for the NAT gateway and the attached resources.
@@ -103,6 +106,7 @@ type InfrastructureStatus struct {
 	// Zoned indicates whether the cluster uses zones
 	// +optional
 	Zoned bool `json:"zoned,omitempty"`
+	Simple bool `json:"simple, omitempty"`
 	// NatGatewayPublicIPMigrated is an indicator if the Gardener managed public ip address is already migrated.
 	// TODO(natipmigration) This can be removed in future versions when the ip migration has been completed.
 	// +optional
@@ -134,6 +138,7 @@ type Subnet struct {
 	Name string `json:"name"`
 	// Purpose is the purpose for which the subnet was created.
 	Purpose Purpose `json:"purpose"`
+	Zone string `json: "zone"`
 }
 
 // AvailabilitySet contains information about the azure availability set
@@ -210,3 +215,41 @@ type IdentityStatus struct {
 	// ACRAccess specifies if the identity should be used by the Shoot worker nodes to pull from an Azure Container Registry.
 	ACRAccess bool `json:"acrAccess"`
 }
+
+type SubnetConfig struct {
+	Regional *Regional `json:"regional"`
+	Simple  *Simple `json:"simple"`
+	Complex *Complex `json:"complex"`
+}
+
+type Regional struct {
+	// ServiceEndpoints is a list of Azure ServiceEndpoints which should be associated with the worker subnet.
+	// +optional
+	ServiceEndpoints []string `json:"serviceEndpoints,omitempty"`
+	Workers string `json:"workers"`
+}
+
+type Simple struct {
+	Workers string `json:"workers"`
+	// ServiceEndpoints is a list of Azure ServiceEndpoints which should be associated with the worker subnet.
+	// +optional
+	ServiceEndpoints []string `json:"serviceEndpoints,omitempty"`
+	// NatGateway
+	// +optional
+	NatGateway *NatGatewayConfig `json:"natGateway"`
+}
+
+type Complex struct {
+	Zones []ZoneConfig `json:"zones"`
+}
+
+// ZoneConfig contains the configuration for a Zone
+type ZoneConfig struct {
+	Name string `json:"name"`
+	Cidr string `json:"cidr"`
+	// +optional
+	ServiceEndpoints []string `json:"serviceEndpoints,omitempty"`
+	// +optional
+	NatGateway *NatGatewayConfig `json:"natGateway,omitempty"`
+}
+

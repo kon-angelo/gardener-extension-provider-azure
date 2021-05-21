@@ -21,18 +21,19 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/gardener/gardener/extensions/pkg/controller"
+	"github.com/gardener/gardener/extensions/pkg/terraformer"
+	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
+	"github.com/gardener/gardener/pkg/chartrenderer"
+	"github.com/go-logr/logr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
+
 	api "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
 	apiv1alpha1 "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
-	"github.com/gardener/gardener/extensions/pkg/controller"
-	"github.com/gardener/gardener/extensions/pkg/terraformer"
-
-	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
-	"github.com/gardener/gardener/pkg/chartrenderer"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
 )
 
 const (
@@ -63,6 +64,8 @@ const (
 	TerraformerOutputKeyIdentityID = "identityID"
 	// TerraformerOutputKeyIdentityClientID is the key for the identityClientID output
 	TerraformerOutputKeyIdentityClientID = "identityClientID"
+
+	TerraformerOutputKeySubnetPrefix = "subnetNodes-z"
 )
 
 // StatusTypeMeta is the TypeMeta of the Azure InfrastructureStatus
@@ -72,9 +75,9 @@ var StatusTypeMeta = metav1.TypeMeta{
 }
 
 // RenderTerraformerChart renders the azure-infra chart with the given values.
-func RenderTerraformerChart(renderer chartrenderer.Interface, infra *extensionsv1alpha1.Infrastructure, clientAuth *internal.ClientAuth,
+func RenderTerraformerChart(logger logr.Logger, renderer chartrenderer.Interface, infra *extensionsv1alpha1.Infrastructure, clientAuth *internal.ClientAuth,
 	config *api.InfrastructureConfig, cluster *controller.Cluster) (*TerraformFiles, error) {
-	values, err := ComputeTerraformerChartValues(infra, clientAuth, config, cluster)
+	values, err := ComputeTerraformerChartValues(logger, infra, clientAuth, config, cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +95,7 @@ func RenderTerraformerChart(renderer chartrenderer.Interface, infra *extensionsv
 }
 
 // ComputeTerraformerChartValues computes the values for the Azure Terraformer chart.
-func ComputeTerraformerChartValues(infra *extensionsv1alpha1.Infrastructure, clientAuth *internal.ClientAuth,
+func ComputeTerraformerChartValues(logger logr.Logger, infra *extensionsv1alpha1.Infrastructure, clientAuth *internal.ClientAuth,
 	config *api.InfrastructureConfig, cluster *controller.Cluster) (map[string]interface{}, error) {
 	var (
 		createResourceGroup   = true
@@ -113,6 +116,7 @@ func ComputeTerraformerChartValues(infra *extensionsv1alpha1.Infrastructure, cli
 			"resourceGroupName": TerraformerOutputKeyResourceGroupName,
 			"vnetName":          TerraformerOutputKeyVNetName,
 			"subnetName":        TerraformerOutputKeySubnetName,
+			"subnetNamePrefix": TerraformerOutputKeySubnetPrefix,
 			"routeTableName":    TerraformerOutputKeyRouteTableName,
 			"securityGroupName": TerraformerOutputKeySecurityGroupName,
 		}
@@ -139,9 +143,9 @@ func ComputeTerraformerChartValues(infra *extensionsv1alpha1.Infrastructure, cli
 	} else if config.Networks.VNet.CIDR != nil {
 		// Apply a custom cidr for the vNet.
 		vnetConfig["cidr"] = *config.Networks.VNet.CIDR
-	} else {
-		// Use worker cidr as default for the vNet.
-		vnetConfig["cidr"] = config.Networks.Workers
+	// } else {
+	// 	// Use worker cidr as default for the vNet.
+	// 	vnetConfig["cidr"] = config.Networks.Workers
 	}
 
 	if primaryAvSetRequired {
@@ -158,16 +162,6 @@ func ComputeTerraformerChartValues(infra *extensionsv1alpha1.Infrastructure, cli
 		azureConfig["countUpdateDomains"] = count.updateDomains
 	}
 
-	natGatewayConfig, createNatGateway := generateNatGatewayValues(config)
-
-	// Checks if the Gardener managed NatGateway public ip needs to be migrated.
-	// TODO(natipmigration) This can be removed in future versions when the ip migration has been completed.
-	natGatewayIPMigrationRequired, err := isNatGatewayIPMigrationRequired(infra, config)
-	if err != nil {
-		return nil, err
-	}
-	natGatewayConfig["migrateNatGatewayToIPAssociation"] = natGatewayIPMigrationRequired
-
 	if config.Identity != nil && config.Identity.Name != "" && config.Identity.ResourceGroup != "" {
 		identityConfig = map[string]interface{}{
 			"name":          config.Identity.Name,
@@ -177,48 +171,98 @@ func ComputeTerraformerChartValues(infra *extensionsv1alpha1.Infrastructure, cli
 		outputKeys["identityClientID"] = TerraformerOutputKeyIdentityClientID
 	}
 
-	return map[string]interface{}{
+	var networks map[string]interface{}
+	if config.Networks.SubnetConfig.Regional != nil {
+		 networks =  map[string]interface{}{
+			"worker": config.Networks.SubnetConfig.Regional.Workers,
+			}
+	} else if config.Networks.SubnetConfig.Simple != nil {
+		natGatewayConfig, createNatGateway := generateNatGatewayValues(config.Networks.SubnetConfig.Simple.NatGateway)
+		if !createNatGateway {
+			natGatewayConfig = nil
+		}
+
+		var zones []map[string]interface{}
+		logger.Info(fmt.Sprintf("AAAAAAAAAAAAAAAAAAA USE Is %v", createNatGateway))
+		logger.Info(fmt.Sprintf("BBBBBBBBBBBBBBBBBB NAT Is %v", natGatewayConfig))
+
+		zoneConfig := map[string]interface{}{
+			"name": "1",
+			"cidr": config.Networks.SubnetConfig.Simple.Workers,
+			"serviceEndpoints": config.Networks.SubnetConfig.Simple.ServiceEndpoints,
+			"natGateway": natGatewayConfig,
+		}
+
+		zones = append(zones, zoneConfig)
+		networks = map[string]interface{}{
+			"zones": zones,
+		}
+	} else {
+		var zones []map[string]interface{}
+		for _, zone := range config.Networks.SubnetConfig.Complex.Zones {
+			natGatewayConfig, use := generateNatGatewayValues(zone.NatGateway)
+			logger.Info(fmt.Sprintf("DDDDDDDDDDDDDDD@@@@@@ USE Is %v", zone.NatGateway))
+			logger.Info(fmt.Sprintf("AAAAAAAAAAAAAAAAAAA@@@@@@ USE Is %v", use))
+			logger.Info(fmt.Sprintf("BBBBBBBBBBBBBBBBBB###### NAT Is %v", natGatewayConfig))
+			if !use {
+				natGatewayConfig = nil
+			}
+			zoneConfig := map[string]interface{}{
+				"name": zone.Name,
+				"cidr": zone.Cidr,
+				"serviceEndpoints": zone.ServiceEndpoints,
+				"natGateway": natGatewayConfig,
+			}
+
+			zones = append(zones, zoneConfig)
+			logger.Info(fmt.Sprintf("CCCCCCCCCCCC: %v\n", zone))
+		}
+		networks = map[string]interface{}{
+			"zones": zones,
+		}
+
+	}
+
+	result := map[string]interface{}{
 		"azure": azureConfig,
 		"create": map[string]interface{}{
 			"resourceGroup":   createResourceGroup,
 			"vnet":            createVNet,
 			"availabilitySet": createAvailabilitySet,
-			"natGateway":      createNatGateway,
+			// "natGateway":      createNatGateway,
 		},
 		"resourceGroup": map[string]interface{}{
 			"name": resourceGroupName,
 			"vnet": vnetConfig,
-			"subnet": map[string]interface{}{
-				"serviceEndpoints": config.Networks.ServiceEndpoints,
-			},
+			// "subnet": map[string]interface{}{
+			// 	"serviceEndpoints": config.Networks.ServiceEndpoints,
+			// },
 		},
 		"clusterName": infra.Namespace,
-		"networks": map[string]interface{}{
-			"worker": config.Networks.Workers,
-		},
 		"identity":   identityConfig,
-		"natGateway": natGatewayConfig,
 		"outputKeys": outputKeys,
-	}, nil
+		"networks": networks,
+	}
+	return result, nil
 }
 
-func generateNatGatewayValues(config *api.InfrastructureConfig) (map[string]interface{}, bool) {
+func generateNatGatewayValues(config *api.NatGatewayConfig) (map[string]interface{}, bool) {
 	var natGatewayConfig = make(map[string]interface{})
-	if config.Networks.NatGateway == nil || !config.Networks.NatGateway.Enabled {
+	if config == nil || !config.Enabled {
 		return natGatewayConfig, false
 	}
 
-	if config.Networks.NatGateway.IdleConnectionTimeoutMinutes != nil {
-		natGatewayConfig["idleConnectionTimeoutMinutes"] = *config.Networks.NatGateway.IdleConnectionTimeoutMinutes
+	if config.IdleConnectionTimeoutMinutes != nil {
+		natGatewayConfig["idleConnectionTimeoutMinutes"] = *config.IdleConnectionTimeoutMinutes
 	}
 
-	if config.Networks.NatGateway.Zone != nil {
-		natGatewayConfig["zone"] = *config.Networks.NatGateway.Zone
+	if config.Zone != nil {
+		natGatewayConfig["zone"] = *config.Zone
 	}
 
-	if len(config.Networks.NatGateway.IPAddresses) > 0 {
-		var ipAddresses = make([]map[string]interface{}, len(config.Networks.NatGateway.IPAddresses))
-		for i, ip := range config.Networks.NatGateway.IPAddresses {
+	if len(config.IPAddresses) > 0 {
+		var ipAddresses = make([]map[string]interface{}, len(config.IPAddresses))
+		for i, ip := range config.IPAddresses {
 			ipAddresses[i] = map[string]interface{}{
 				"name":          ip.Name,
 				"resourceGroup": ip.ResourceGroup,
@@ -253,8 +297,8 @@ type TerraformState struct {
 	CountUpdateDomains int
 	// AvailabilitySetName the ID for the created availability set .
 	AvailabilitySetName string
-	// SubnetName is the name of the created subnet.
-	SubnetName string
+	// // SubnetName is the name of the created subnet.
+	// SubnetName string
 	// RouteTableName is the name of the route table.
 	RouteTableName string
 	// SecurityGroupName is the name of the security group.
@@ -268,6 +312,7 @@ type TerraformState struct {
 	// NatGatewayIPMigrated is the indicator if the nat gateway ip is migrated.
 	// TODO(natipmigration) This can be removed in future versions when the ip migration has been completed.
 	NatGatewayIPMigrated string
+	SubnetNames []string
 }
 
 // ExtractTerraformState extracts the TerraformState from the given Terraformer.
@@ -277,10 +322,25 @@ func ExtractTerraformState(ctx context.Context, tf terraformer.Terraformer, infr
 			TerraformerOutputKeyResourceGroupName,
 			TerraformerOutputKeyRouteTableName,
 			TerraformerOutputKeySecurityGroupName,
-			TerraformerOutputKeySubnetName,
+			// TerraformerOutputKeySubnetName,
 			TerraformerOutputKeyVNetName,
 		}
 	)
+
+	var zoneLength int
+	if config.Networks.SubnetConfig.Regional != nil {
+		outputKeys = append(outputKeys, TerraformerOutputKeySubnetName)
+	} else if config.Networks.SubnetConfig.Simple != nil {
+		key := fmt.Sprintf("%s%d", TerraformerOutputKeySubnetPrefix, 0)
+		outputKeys = append(outputKeys, key)
+		zoneLength = 1
+	} else {
+		for i, _ := range config.Networks.SubnetConfig.Complex.Zones {
+			key := fmt.Sprintf("%s%d", TerraformerOutputKeySubnetPrefix, i)
+			outputKeys = append(outputKeys, key)
+		}
+		zoneLength = len(config.Networks.SubnetConfig.Complex.Zones)
+	}
 
 	primaryAvSetRequired, err := isPrimaryAvailabilitySetRequired(infra, config, cluster)
 	if err != nil {
@@ -309,7 +369,7 @@ func ExtractTerraformState(ctx context.Context, tf terraformer.Terraformer, infr
 		ResourceGroupName: vars[TerraformerOutputKeyResourceGroupName],
 		RouteTableName:    vars[TerraformerOutputKeyRouteTableName],
 		SecurityGroupName: vars[TerraformerOutputKeySecurityGroupName],
-		SubnetName:        vars[TerraformerOutputKeySubnetName],
+		// SubnetName:        vars[TerraformerOutputKeySubnetName],
 		Zoned:             false,
 	}
 
@@ -317,7 +377,7 @@ func ExtractTerraformState(ctx context.Context, tf terraformer.Terraformer, infr
 		tfState.VNetResourceGroupName = vars[TerraformerOutputKeyVNetResourceGroup]
 	}
 
-	if config.Zoned {
+	if config.Networks.SubnetConfig.Regional == nil {
 		tfState.Zoned = true
 	}
 
@@ -341,16 +401,22 @@ func ExtractTerraformState(ctx context.Context, tf terraformer.Terraformer, infr
 		tfState.IdentityClientID = vars[TerraformerOutputKeyIdentityClientID]
 	}
 
-	if config.Networks.NatGateway != nil && config.Networks.NatGateway.Enabled {
-		tfState.NatGatewayIPMigrated = "true"
-	}
+	tfState.NatGatewayIPMigrated = "true"
 
+	if tfState.Zoned && zoneLength > 0 {
+		for i := 0; i < zoneLength; i++ {
+			key := fmt.Sprintf("%s%d", TerraformerOutputKeySubnetPrefix, i)
+			tfState.SubnetNames = append(tfState.SubnetNames, vars[key])
+		}
+	}else {
+		tfState.SubnetNames = append(tfState.SubnetNames, vars[TerraformerOutputKeySubnetName])
+	}
 	return &tfState, nil
 }
 
 // StatusFromTerraformState computes an InfrastructureStatus from the given
 // Terraform variables.
-func StatusFromTerraformState(tfState *TerraformState) *apiv1alpha1.InfrastructureStatus {
+func StatusFromTerraformState(tfState *TerraformState, config *api.InfrastructureConfig) *apiv1alpha1.InfrastructureStatus {
 	var infraState = apiv1alpha1.InfrastructureStatus{
 		TypeMeta: StatusTypeMeta,
 		ResourceGroup: apiv1alpha1.ResourceGroup{
@@ -360,12 +426,12 @@ func StatusFromTerraformState(tfState *TerraformState) *apiv1alpha1.Infrastructu
 			VNet: apiv1alpha1.VNetStatus{
 				Name: tfState.VNetName,
 			},
-			Subnets: []apiv1alpha1.Subnet{
-				{
-					Purpose: apiv1alpha1.PurposeNodes,
-					Name:    tfState.SubnetName,
-				},
-			},
+			// Subnets: []apiv1alpha1.Subnet{
+			// 	{
+			// 		Purpose: apiv1alpha1.PurposeNodes,
+			// 		Name:    tfState.SubnetName,
+			// 	},
+			// },
 		},
 		AvailabilitySets: []apiv1alpha1.AvailabilitySet{},
 		RouteTables: []apiv1alpha1.RouteTable{
@@ -375,6 +441,25 @@ func StatusFromTerraformState(tfState *TerraformState) *apiv1alpha1.Infrastructu
 			{Name: tfState.SecurityGroupName, Purpose: apiv1alpha1.PurposeNodes},
 		},
 		Zoned: false,
+	}
+
+	if config.Networks.SubnetConfig.Simple != nil {
+		for _, subnet := range tfState.SubnetNames {
+			infraState.Networks.Subnets = append(infraState.Networks.Subnets, apiv1alpha1.Subnet{
+				Name:    subnet,
+				Purpose: apiv1alpha1.PurposeNodes,
+			})
+		}
+		infraState.Simple = true
+	}
+	if config.Networks.SubnetConfig.Complex != nil {
+		for i, subnet := range tfState.SubnetNames {
+			infraState.Networks.Subnets = append(infraState.Networks.Subnets, apiv1alpha1.Subnet{
+				Name:    subnet,
+				Purpose: apiv1alpha1.PurposeNodes,
+				Zone: config.Networks.SubnetConfig.Complex.Zones[i].Name,
+			})
+		}
 	}
 
 	if tfState.Zoned {
@@ -417,7 +502,7 @@ func ComputeStatus(ctx context.Context, tf terraformer.Terraformer, infra *exten
 	if err != nil {
 		return nil, err
 	}
-	status := StatusFromTerraformState(state)
+	status := StatusFromTerraformState(state, config)
 
 	// Check if ACR access should be configured.
 	if config.Identity != nil && config.Identity.ACRAccess != nil && *config.Identity.ACRAccess && status.Identity != nil {
@@ -485,7 +570,7 @@ func findDomainCounts(cluster *controller.Cluster, infra *extensionsv1alpha1.Inf
 
 // isPrimaryAvailabilitySetRequired determines if a cluster primary AvailabilitySet is required.
 func isPrimaryAvailabilitySetRequired(infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig, cluster *controller.Cluster) (bool, error) {
-	if config.Zoned {
+	if config.Networks.SubnetConfig.Regional == nil {
 		return false, nil
 	}
 	if cluster.Shoot == nil {
@@ -522,22 +607,22 @@ func isPrimaryAvailabilitySetRequired(infra *extensionsv1alpha1.Infrastructure, 
 
 // isNatGatewayIPMigrationRequired checks if the Gardener managed NatGateway public ip needs to be migrated.
 // TODO(natipmigration) This can be removed in future versions when the ip migration has been completed.
-func isNatGatewayIPMigrationRequired(infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig) (bool, error) {
-	if config.Networks.NatGateway == nil || !config.Networks.NatGateway.Enabled {
-		return false, nil
-	}
-
-	if infra.Status.ProviderStatus == nil {
-		return false, nil
-	}
-
-	infrastructureStatus, err := helper.InfrastructureStatusFromInfrastructure(infra)
-	if err != nil {
-		return false, err
-	}
-
-	if infrastructureStatus.NatGatewayPublicIPMigrated {
-		return false, nil
-	}
-	return true, nil
-}
+// func isNatGatewayIPMigrationRequired(infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig) (bool, error) {
+// 	if config.Networks.NatGateway == nil || !config.Networks.NatGateway.Enabled {
+// 		return false, nil
+// 	}
+//
+// 	if infra.Status.ProviderStatus == nil {
+// 		return false, nil
+// 	}
+//
+// 	infrastructureStatus, err := helper.InfrastructureStatusFromInfrastructure(infra)
+// 	if err != nil {
+// 		return false, err
+// 	}
+//
+// 	if infrastructureStatus.NatGatewayPublicIPMigrated {
+// 		return false, nil
+// 	}
+// 	return true, nil
+// }

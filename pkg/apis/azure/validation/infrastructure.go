@@ -33,52 +33,52 @@ const (
 func ValidateInfrastructureConfig(infra *apisazure.InfrastructureConfig, nodesCIDR, podsCIDR, servicesCIDR *string, hasVmoAlphaAnnotation bool, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	var (
-		nodes    cidrvalidation.CIDR
-		pods     cidrvalidation.CIDR
-		services cidrvalidation.CIDR
-	)
+	// var (
+	// 	nodes    cidrvalidation.CIDR
+	// 	pods     cidrvalidation.CIDR
+	// 	services cidrvalidation.CIDR
+	// )
+	//
+	// if nodesCIDR != nil {
+	// 	nodes = cidrvalidation.NewCIDR(*nodesCIDR, nil)
+	// }
+	// if podsCIDR != nil {
+	// 	pods = cidrvalidation.NewCIDR(*podsCIDR, nil)
+	// }
+	// if servicesCIDR != nil {
+	// 	services = cidrvalidation.NewCIDR(*servicesCIDR, nil)
+	// }
+	//
+	// // Currently, we will not allow deployments into existing resource groups or VNets although this functionality
+	// // is already implemented, because the Azure cloud provider is not cleaning up self-created resources properly.
+	// // This resources would be orphaned when the cluster will be deleted. We block these cases thereby that the Azure shoot
+	// // validation here will fail for those cases.
+	// // TODO: remove the following block and uncomment below blocks once deployment into existing resource groups works properly.
+	// if infra.ResourceGroup != nil {
+	// 	allErrs = append(allErrs, field.Invalid(fldPath.Child("resourceGroup"), infra.ResourceGroup, "specifying an existing resource group is not supported yet"))
+	// }
 
-	if nodesCIDR != nil {
-		nodes = cidrvalidation.NewCIDR(*nodesCIDR, nil)
-	}
-	if podsCIDR != nil {
-		pods = cidrvalidation.NewCIDR(*podsCIDR, nil)
-	}
-	if servicesCIDR != nil {
-		services = cidrvalidation.NewCIDR(*servicesCIDR, nil)
-	}
-
-	// Currently, we will not allow deployments into existing resource groups or VNets although this functionality
-	// is already implemented, because the Azure cloud provider is not cleaning up self-created resources properly.
-	// This resources would be orphaned when the cluster will be deleted. We block these cases thereby that the Azure shoot
-	// validation here will fail for those cases.
-	// TODO: remove the following block and uncomment below blocks once deployment into existing resource groups works properly.
-	if infra.ResourceGroup != nil {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("resourceGroup"), infra.ResourceGroup, "specifying an existing resource group is not supported yet"))
-	}
-
-	if infra.Zoned && hasVmoAlphaAnnotation {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("zoned"), infra.Zoned, fmt.Sprintf("specifying a zoned cluster and having the %q annotation is not allowed", azure.ShootVmoUsageAnnotation)))
-	}
-
-	networksPath := fldPath.Child("networks")
-
+	// if infra.Zoned && hasVmoAlphaAnnotation {
+	// 	allErrs = append(allErrs, field.Invalid(fldPath.Child("zoned"), infra.Zoned, fmt.Sprintf("specifying a zoned cluster and having the %q annotation is not allowed", azure.ShootVmoUsageAnnotation)))
+	// }
+	//
+	// networksPath := fldPath.Child("networks")
+	//
 	// Validate workers subnet cidr
-	workerCIDR := cidrvalidation.NewCIDR(infra.Networks.Workers, networksPath.Child("workers"))
-	allErrs = append(allErrs, cidrvalidation.ValidateCIDRParse(workerCIDR)...)
-	allErrs = append(allErrs, cidrvalidation.ValidateCIDRIsCanonical(networksPath.Child("workers"), infra.Networks.Workers)...)
-	if nodes != nil {
-		allErrs = append(allErrs, nodes.ValidateSubset(workerCIDR)...)
-	}
-
-	allErrs = append(allErrs, validateVnetConfig(infra.Networks.VNet, infra.ResourceGroup, workerCIDR, nodes, pods, services, networksPath.Child("vnet"))...)
-	allErrs = append(allErrs, validateNatGatewayConfig(infra.Networks.NatGateway, infra.Zoned, hasVmoAlphaAnnotation, networksPath.Child("natGateway"))...)
-
-	if infra.Identity != nil && (infra.Identity.Name == "" || infra.Identity.ResourceGroup == "") {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("identity"), infra.Identity, "specifying an identity requires the name of the identity and the resource group which hosts the identity"))
-	}
-
+	// workerCIDR := cidrvalidation.NewCIDR(infra.Networks.Workers, networksPath.Child("workers"))
+	// allErrs = append(allErrs, cidrvalidation.ValidateCIDRParse(workerCIDR)...)
+	// allErrs = append(allErrs, cidrvalidation.ValidateCIDRIsCanonical(networksPath.Child("workers"), infra.Networks.Workers)...)
+	// if nodes != nil {
+	// 	allErrs = append(allErrs, nodes.ValidateSubset(workerCIDR)...)
+	// }
+	//
+	// allErrs = append(allErrs, validateVnetConfig(infra.Networks.VNet, infra.ResourceGroup, workerCIDR, nodes, pods, services, networksPath.Child("vnet"))...)
+	// allErrs = append(allErrs, validateNatGatewayConfig(infra.Networks.NatGateway, infra.Zoned, hasVmoAlphaAnnotation, networksPath.Child("natGateway"))...)
+	//
+	// if infra.Identity != nil && (infra.Identity.Name == "" || infra.Identity.ResourceGroup == "") {
+	// 	allErrs = append(allErrs, field.Invalid(fldPath.Child("identity"), infra.Identity, "specifying an identity requires the name of the identity and the resource group which hosts the identity"))
+	// }
+	//
 	return allErrs
 }
 
@@ -174,10 +174,10 @@ func validateVnetConfig(vnetConfig apisazure.VNet, resourceGroupConfig *apisazur
 func ValidateInfrastructureConfigUpdate(oldConfig, newConfig *apisazure.InfrastructureConfig, providerPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	allErrs = append(allErrs, apivalidation.ValidateImmutableField(newConfig.ResourceGroup, oldConfig.ResourceGroup, providerPath.Child("resourceGroup"))...)
-	allErrs = append(allErrs, apivalidation.ValidateImmutableField(newConfig.Networks.Workers, oldConfig.Networks.Workers, providerPath.Child("networks").Child("workers"))...)
-	allErrs = append(allErrs, apivalidation.ValidateImmutableField(oldConfig.Zoned, newConfig.Zoned, providerPath.Child("zoned"))...)
-
+	// allErrs = append(allErrs, apivalidation.ValidateImmutableField(newConfig.ResourceGroup, oldConfig.ResourceGroup, providerPath.Child("resourceGroup"))...)
+	// allErrs = append(allErrs, apivalidation.ValidateImmutableField(newConfig.Networks.Workers, oldConfig.Networks.Workers, providerPath.Child("networks").Child("workers"))...)
+	// allErrs = append(allErrs, apivalidation.ValidateImmutableField(oldConfig.Zoned, newConfig.Zoned, providerPath.Child("zoned"))...)
+	//
 	allErrs = append(allErrs, validateVnetConfigUpdate(&oldConfig.Networks, &newConfig.Networks, providerPath.Child("networks"))...)
 
 	return allErrs
