@@ -41,6 +41,7 @@ type ResourceGroup struct {
 type NetworkConfig struct {
 	// VNet indicates whether to use an existing VNet or create a new one.
 	VNet VNet
+	// Topology
 	Topology
 }
 
@@ -50,10 +51,10 @@ type NatGatewayConfig struct {
 	Enabled bool
 	// IdleConnectionTimeoutMinutes specifies the idle connection timeout limit for NAT gateway in minutes.
 	IdleConnectionTimeoutMinutes *int32
-	// Zone specifies the zone in which the NAT gateway should be deployed to.
-	Zone *int32
 	// IPAddresses is a list of ip addresses which should be assigned to the NAT gateway.
 	IPAddresses []PublicIPReference
+	// Zone specifies the zone in which the NAT gateway should be deployed to.
+	Zone *int32
 }
 
 // PublicIPReference contains information about a public ip.
@@ -93,6 +94,7 @@ type NetworkStatus struct {
 	VNet VNetStatus
 	// Subnets are the subnets that have been created.
 	Subnets []Subnet
+	TopologyType TopologyType
 }
 
 // Purpose is a purpose of a subnet.
@@ -105,6 +107,15 @@ const (
 	PurposeInternal Purpose = "internal"
 )
 
+type TopologyType string
+
+const (
+	TopologyRegional = "regional"
+	TopologyZonalSingleSubnet = "zonalSingleSubnet"
+	TopologyZonal = "zonal"
+)
+
+
 // Subnet is a subnet that was created.
 type Subnet struct {
 	// Name is the name of the subnet.
@@ -112,7 +123,7 @@ type Subnet struct {
 	// Purpose is the purpose for which the subnet was created.
 	Purpose Purpose
 	// Zone
-	Zone *int32 `json:"zone,omitempty"`
+	Zone *int32
 }
 
 // AvailabilitySet contains information about the azure availability set

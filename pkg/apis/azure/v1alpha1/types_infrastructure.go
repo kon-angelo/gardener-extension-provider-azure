@@ -132,7 +132,6 @@ type Subnet struct {
 	Name string `json:"name"`
 	// Purpose is the purpose for which the subnet was created.
 	Purpose Purpose `json:"purpose"`
-	Zone *int32
 }
 
 // AvailabilitySet contains information about the azure availability set

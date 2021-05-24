@@ -32,7 +32,7 @@ func Convert_v1alpha1_InfrastructureConfig_To_azure_InfrastructureConfig(in *Inf
 	out.ResourceGroup = (*api.ResourceGroup)(unsafe.Pointer(in.ResourceGroup))
 	out.Identity = (*api.IdentityConfig)(unsafe.Pointer(in.Identity))
 
-	if err := Convert_v1alpha1_To_Internal(&in.Networks, &out.Networks, in.Zoned, s); err != nil {
+	if err := Convert_v1alpha1_NetworkConfig_To_Internal_NetworkConfig(&in.Networks, &out.Networks, in.Zoned, s); err != nil {
 		return err
 	}
 
@@ -51,7 +51,7 @@ func Convert_azure_InfrastructureConfig_To_v1alpha1_InfrastructureConfig(in *api
 	return nil
 }
 
-func Convert_v1alpha1_To_Internal(in *NetworkConfig, out *api.NetworkConfig, zoned bool, s conversion.Scope) error {
+func Convert_v1alpha1_NetworkConfig_To_Internal_NetworkConfig(in *NetworkConfig, out *api.NetworkConfig, zoned bool, s conversion.Scope) error {
 	if err := Convert_v1alpha1_VNet_To_azure_VNet(&in.VNet, &out.VNet, s); err != nil {
 		return err
 	}
@@ -117,4 +117,8 @@ func Convert_azure_Subnet_To_v1alpha1_Subnet(in *api.Subnet, out *Subnet, s conv
 		return err
 	}
 	return nil
+}
+
+func Convert_azure_NetworkStatus_To_v1alpha1_NetworkStatus(in *api.NetworkStatus, out *NetworkStatus, s conversion.Scope) error {
+
 }

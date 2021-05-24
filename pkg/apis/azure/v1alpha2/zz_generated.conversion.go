@@ -354,7 +354,6 @@ func autoConvert_v1alpha2_InfrastructureStatus_To_azure_InfrastructureStatus(in 
 	out.SecurityGroups = *(*[]azure.SecurityGroup)(unsafe.Pointer(&in.SecurityGroups))
 	out.Identity = (*azure.IdentityStatus)(unsafe.Pointer(in.Identity))
 	out.Zoned = in.Zoned
-	out.NatGatewayPublicIPMigrated = in.NatGatewayPublicIPMigrated
 	return nil
 }
 
@@ -375,7 +374,6 @@ func autoConvert_azure_InfrastructureStatus_To_v1alpha2_InfrastructureStatus(in 
 	out.SecurityGroups = *(*[]SecurityGroup)(unsafe.Pointer(&in.SecurityGroups))
 	out.Identity = (*IdentityStatus)(unsafe.Pointer(in.Identity))
 	out.Zoned = in.Zoned
-	out.NatGatewayPublicIPMigrated = in.NatGatewayPublicIPMigrated
 	return nil
 }
 
@@ -400,8 +398,8 @@ func Convert_v1alpha2_NatGatewayConfig_To_azure_NatGatewayConfig(in *NatGatewayC
 func autoConvert_azure_NatGatewayConfig_To_v1alpha2_NatGatewayConfig(in *azure.NatGatewayConfig, out *NatGatewayConfig, s conversion.Scope) error {
 	out.Enabled = in.Enabled
 	out.IdleConnectionTimeoutMinutes = (*int32)(unsafe.Pointer(in.IdleConnectionTimeoutMinutes))
-	out.Zone = (*int32)(unsafe.Pointer(in.Zone))
 	out.IPAddresses = *(*[]PublicIPReference)(unsafe.Pointer(&in.IPAddresses))
+	out.Zone = (*int32)(unsafe.Pointer(in.Zone))
 	return nil
 }
 
@@ -445,6 +443,7 @@ func autoConvert_v1alpha2_NetworkStatus_To_azure_NetworkStatus(in *NetworkStatus
 		return err
 	}
 	out.Subnets = *(*[]azure.Subnet)(unsafe.Pointer(&in.Subnets))
+	out.TopologyType = azure.TopologyType(in.TopologyType)
 	return nil
 }
 
@@ -458,6 +457,7 @@ func autoConvert_azure_NetworkStatus_To_v1alpha2_NetworkStatus(in *azure.Network
 		return err
 	}
 	out.Subnets = *(*[]Subnet)(unsafe.Pointer(&in.Subnets))
+	out.TopologyType = TopologyType(in.TopologyType)
 	return nil
 }
 
@@ -579,15 +579,7 @@ func Convert_azure_SecurityGroup_To_v1alpha2_SecurityGroup(in *azure.SecurityGro
 func autoConvert_v1alpha2_SingleSubnetZonalTopology_To_azure_SingleSubnetZonalTopology(in *SingleSubnetZonalTopology, out *azure.SingleSubnetZonalTopology, s conversion.Scope) error {
 	out.CIDR = in.CIDR
 	out.ServiceEndpoints = *(*[]string)(unsafe.Pointer(&in.ServiceEndpoints))
-	if in.NatGateway != nil {
-		in, out := &in.NatGateway, &out.NatGateway
-		*out = new(azure.NatGatewayConfig)
-		if err := Convert_v1alpha2_NatGatewayConfig_To_azure_NatGatewayConfig(*in, *out, s); err != nil {
-			return err
-		}
-	} else {
-		out.NatGateway = nil
-	}
+	out.NatGateway = (*azure.NatGatewayConfig)(unsafe.Pointer(in.NatGateway))
 	return nil
 }
 
@@ -599,15 +591,7 @@ func Convert_v1alpha2_SingleSubnetZonalTopology_To_azure_SingleSubnetZonalTopolo
 func autoConvert_azure_SingleSubnetZonalTopology_To_v1alpha2_SingleSubnetZonalTopology(in *azure.SingleSubnetZonalTopology, out *SingleSubnetZonalTopology, s conversion.Scope) error {
 	out.CIDR = in.CIDR
 	out.ServiceEndpoints = *(*[]string)(unsafe.Pointer(&in.ServiceEndpoints))
-	if in.NatGateway != nil {
-		in, out := &in.NatGateway, &out.NatGateway
-		*out = new(NatGatewayConfig)
-		if err := Convert_azure_NatGatewayConfig_To_v1alpha2_NatGatewayConfig(*in, *out, s); err != nil {
-			return err
-		}
-	} else {
-		out.NatGateway = nil
-	}
+	out.NatGateway = (*NatGatewayConfig)(unsafe.Pointer(in.NatGateway))
 	return nil
 }
 
@@ -642,24 +626,8 @@ func Convert_azure_Subnet_To_v1alpha2_Subnet(in *azure.Subnet, out *Subnet, s co
 
 func autoConvert_v1alpha2_Topology_To_azure_Topology(in *Topology, out *azure.Topology, s conversion.Scope) error {
 	out.Regional = (*azure.RegionalTopology)(unsafe.Pointer(in.Regional))
-	if in.SingleSubnetZonal != nil {
-		in, out := &in.SingleSubnetZonal, &out.SingleSubnetZonal
-		*out = new(azure.SingleSubnetZonalTopology)
-		if err := Convert_v1alpha2_SingleSubnetZonalTopology_To_azure_SingleSubnetZonalTopology(*in, *out, s); err != nil {
-			return err
-		}
-	} else {
-		out.SingleSubnetZonal = nil
-	}
-	if in.Zonal != nil {
-		in, out := &in.Zonal, &out.Zonal
-		*out = new(azure.ZonalTopology)
-		if err := Convert_v1alpha2_ZonalTopology_To_azure_ZonalTopology(*in, *out, s); err != nil {
-			return err
-		}
-	} else {
-		out.Zonal = nil
-	}
+	out.SingleSubnetZonal = (*azure.SingleSubnetZonalTopology)(unsafe.Pointer(in.SingleSubnetZonal))
+	out.Zonal = (*azure.ZonalTopology)(unsafe.Pointer(in.Zonal))
 	return nil
 }
 
@@ -670,24 +638,8 @@ func Convert_v1alpha2_Topology_To_azure_Topology(in *Topology, out *azure.Topolo
 
 func autoConvert_azure_Topology_To_v1alpha2_Topology(in *azure.Topology, out *Topology, s conversion.Scope) error {
 	out.Regional = (*RegionalTopology)(unsafe.Pointer(in.Regional))
-	if in.SingleSubnetZonal != nil {
-		in, out := &in.SingleSubnetZonal, &out.SingleSubnetZonal
-		*out = new(SingleSubnetZonalTopology)
-		if err := Convert_azure_SingleSubnetZonalTopology_To_v1alpha2_SingleSubnetZonalTopology(*in, *out, s); err != nil {
-			return err
-		}
-	} else {
-		out.SingleSubnetZonal = nil
-	}
-	if in.Zonal != nil {
-		in, out := &in.Zonal, &out.Zonal
-		*out = new(ZonalTopology)
-		if err := Convert_azure_ZonalTopology_To_v1alpha2_ZonalTopology(*in, *out, s); err != nil {
-			return err
-		}
-	} else {
-		out.Zonal = nil
-	}
+	out.SingleSubnetZonal = (*SingleSubnetZonalTopology)(unsafe.Pointer(in.SingleSubnetZonal))
+	out.Zonal = (*ZonalTopology)(unsafe.Pointer(in.Zonal))
 	return nil
 }
 
@@ -743,17 +695,7 @@ func Convert_azure_VNetStatus_To_v1alpha2_VNetStatus(in *azure.VNetStatus, out *
 }
 
 func autoConvert_v1alpha2_ZonalTopology_To_azure_ZonalTopology(in *ZonalTopology, out *azure.ZonalTopology, s conversion.Scope) error {
-	if in.Zones != nil {
-		in, out := &in.Zones, &out.Zones
-		*out = make([]azure.Zone, len(*in))
-		for i := range *in {
-			if err := Convert_v1alpha2_Zone_To_azure_Zone(&(*in)[i], &(*out)[i], s); err != nil {
-				return err
-			}
-		}
-	} else {
-		out.Zones = nil
-	}
+	out.Zones = *(*[]azure.Zone)(unsafe.Pointer(&in.Zones))
 	out.InternalCIDR = (*string)(unsafe.Pointer(in.InternalCIDR))
 	return nil
 }
@@ -764,17 +706,7 @@ func Convert_v1alpha2_ZonalTopology_To_azure_ZonalTopology(in *ZonalTopology, ou
 }
 
 func autoConvert_azure_ZonalTopology_To_v1alpha2_ZonalTopology(in *azure.ZonalTopology, out *ZonalTopology, s conversion.Scope) error {
-	if in.Zones != nil {
-		in, out := &in.Zones, &out.Zones
-		*out = make([]Zone, len(*in))
-		for i := range *in {
-			if err := Convert_azure_Zone_To_v1alpha2_Zone(&(*in)[i], &(*out)[i], s); err != nil {
-				return err
-			}
-		}
-	} else {
-		out.Zones = nil
-	}
+	out.Zones = *(*[]Zone)(unsafe.Pointer(&in.Zones))
 	out.InternalCIDR = (*string)(unsafe.Pointer(in.InternalCIDR))
 	return nil
 }
@@ -788,15 +720,7 @@ func autoConvert_v1alpha2_Zone_To_azure_Zone(in *Zone, out *azure.Zone, s conver
 	out.Name = in.Name
 	out.CIDR = in.CIDR
 	out.ServiceEndpoints = *(*[]string)(unsafe.Pointer(&in.ServiceEndpoints))
-	if in.NatGateway != nil {
-		in, out := &in.NatGateway, &out.NatGateway
-		*out = new(azure.NatGatewayConfig)
-		if err := Convert_v1alpha2_NatGatewayConfig_To_azure_NatGatewayConfig(*in, *out, s); err != nil {
-			return err
-		}
-	} else {
-		out.NatGateway = nil
-	}
+	out.NatGateway = (*azure.NatGatewayConfig)(unsafe.Pointer(in.NatGateway))
 	return nil
 }
 
@@ -809,15 +733,7 @@ func autoConvert_azure_Zone_To_v1alpha2_Zone(in *azure.Zone, out *Zone, s conver
 	out.Name = in.Name
 	out.CIDR = in.CIDR
 	out.ServiceEndpoints = *(*[]string)(unsafe.Pointer(&in.ServiceEndpoints))
-	if in.NatGateway != nil {
-		in, out := &in.NatGateway, &out.NatGateway
-		*out = new(NatGatewayConfig)
-		if err := Convert_azure_NatGatewayConfig_To_v1alpha2_NatGatewayConfig(*in, *out, s); err != nil {
-			return err
-		}
-	} else {
-		out.NatGateway = nil
-	}
+	out.NatGateway = (*NatGatewayConfig)(unsafe.Pointer(in.NatGateway))
 	return nil
 }
 

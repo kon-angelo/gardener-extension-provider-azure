@@ -23,7 +23,7 @@ import (
 
 	api "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
-	apiv1alpha1 "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
+	apiv1alpha2 "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha2"
 	"github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/extensions/pkg/terraformer"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
@@ -63,7 +63,7 @@ const (
 
 // StatusTypeMeta is the TypeMeta of the Azure InfrastructureStatus
 var StatusTypeMeta = metav1.TypeMeta{
-	APIVersion: apiv1alpha1.SchemeGroupVersion.String(),
+	APIVersion: apiv1alpha2.SchemeGroupVersion.String(),
 	Kind:       "InfrastructureStatus",
 }
 
@@ -286,6 +286,7 @@ type TerraformState struct {
 	IdentityClientID string
 	// Zoned is an indicator if zones should be used.
 	Zoned bool
+	SingleSubnet bool
 	// SubnetNames is the names of the created subnets.
 	SubnetNames []string
 }
@@ -345,10 +346,6 @@ func ExtractTerraformState(ctx context.Context, tf terraformer.Terraformer, infr
 		tfState.VNetResourceGroupName = vars[TerraformerOutputKeyVNetResourceGroup]
 	}
 
-	if isZoned(config) {
-		tfState.Zoned = true
-	}
-
 	if primaryAvSetRequired {
 		tfState.AvailabilitySetID = vars[TerraformerOutputKeyAvailabilitySetID]
 		tfState.AvailabilitySetName = vars[TerraformerOutputKeyAvailabilitySetName]
@@ -378,45 +375,43 @@ func ExtractTerraformState(ctx context.Context, tf terraformer.Terraformer, infr
 
 // StatusFromTerraformState computes an InfrastructureStatus from the given
 // Terraform variables.
-func StatusFromTerraformState(tfState *TerraformState, config *api.InfrastructureConfig ) *apiv1alpha1.InfrastructureStatus {
-	var infraState = apiv1alpha1.InfrastructureStatus{
+func StatusFromTerraformState(tfState *TerraformState, config *api.InfrastructureConfig) *apiv1alpha2.InfrastructureStatus {
+	var infraState = apiv1alpha2.InfrastructureStatus{
 		TypeMeta: StatusTypeMeta,
-		ResourceGroup: apiv1alpha1.ResourceGroup{
+		ResourceGroup: apiv1alpha2.ResourceGroup{
 			Name: tfState.ResourceGroupName,
 		},
-		Networks: apiv1alpha1.NetworkStatus{
-			VNet: apiv1alpha1.VNetStatus{
+		Networks: apiv1alpha2.NetworkStatus{
+			VNet: apiv1alpha2.VNetStatus{
 				Name: tfState.VNetName,
 			},
-			// Subnets: []apiv1alpha1.Subnet{
-			// 	{
-			// 		Purpose: apiv1alpha1.PurposeNodes,
-			// 		Name:    tfState.SubnetName,
-			// 	},
-			// },
 		},
-		AvailabilitySets: []apiv1alpha1.AvailabilitySet{},
-		RouteTables: []apiv1alpha1.RouteTable{
-			{Purpose: apiv1alpha1.PurposeNodes, Name: tfState.RouteTableName},
+		AvailabilitySets: []apiv1alpha2.AvailabilitySet{},
+		RouteTables: []apiv1alpha2.RouteTable{
+			{Purpose: apiv1alpha2.PurposeNodes, Name: tfState.RouteTableName},
 		},
-		SecurityGroups: []apiv1alpha1.SecurityGroup{
-			{Name: tfState.SecurityGroupName, Purpose: apiv1alpha1.PurposeNodes},
+		SecurityGroups: []apiv1alpha2.SecurityGroup{
+			{Name: tfState.SecurityGroupName, Purpose: apiv1alpha2.PurposeNodes},
 		},
 		Zoned: false,
 	}
 
+	if isZoned(config) {
+		infraState.Zoned = true
+	}
+
 	if config.Networks.Zonal == nil {
 		for _, subnet := range tfState.SubnetNames {
-			infraState.Networks.Subnets = append(infraState.Networks.Subnets, apiv1alpha1.Subnet{
+			infraState.Networks.Subnets = append(infraState.Networks.Subnets, apiv1alpha2.Subnet{
 				Name:    subnet,
-				Purpose: apiv1alpha1.PurposeNodes,
+				Purpose: apiv1alpha2.PurposeNodes,
 			})
 		}
 	} else {
 		for i, subnet := range tfState.SubnetNames {
-			infraState.Networks.Subnets = append(infraState.Networks.Subnets, apiv1alpha1.Subnet{
+			infraState.Networks.Subnets = append(infraState.Networks.Subnets, apiv1alpha2.Subnet{
 				Name:    subnet,
-				Purpose: apiv1alpha1.PurposeNodes,
+				Purpose: apiv1alpha2.PurposeNodes,
 				Zone: &config.Networks.Zonal.Zones[i].Name,
 			})
 		}
@@ -426,12 +421,20 @@ func StatusFromTerraformState(tfState *TerraformState, config *api.Infrastructur
 		infraState.Zoned = true
 	}
 
+	if config.Networks.Regional != nil {
+		infraState.Networks.TopologyType = apiv1alpha2.TopologyRegional
+	} else if config.Networks.SingleSubnetZonal != nil {
+		infraState.Networks.TopologyType = apiv1alpha2.TopologyZonalSingleSubnet
+	} else {
+		infraState.Networks.TopologyType = apiv1alpha2.TopologyZonal
+	}
+
 	if tfState.VNetResourceGroupName != "" {
 		infraState.Networks.VNet.ResourceGroup = &tfState.VNetResourceGroupName
 	}
 
 	if tfState.IdentityID != "" && tfState.IdentityClientID != "" {
-		infraState.Identity = &apiv1alpha1.IdentityStatus{
+		infraState.Identity = &apiv1alpha2.IdentityStatus{
 			ID:       tfState.IdentityID,
 			ClientID: tfState.IdentityClientID,
 		}
@@ -439,12 +442,12 @@ func StatusFromTerraformState(tfState *TerraformState, config *api.Infrastructur
 
 	// Add AvailabilitySet to the infrastructure tfState if an AvailabilitySet is part of the Terraform tfState.
 	if tfState.AvailabilitySetID != "" && tfState.AvailabilitySetName != "" {
-		infraState.AvailabilitySets = append(infraState.AvailabilitySets, apiv1alpha1.AvailabilitySet{
+		infraState.AvailabilitySets = append(infraState.AvailabilitySets, apiv1alpha2.AvailabilitySet{
 			Name:               tfState.AvailabilitySetName,
 			ID:                 tfState.AvailabilitySetID,
 			CountFaultDomains:  pointer.Int32Ptr(int32(tfState.CountFaultDomains)),
 			CountUpdateDomains: pointer.Int32Ptr(int32(tfState.CountUpdateDomains)),
-			Purpose:            apiv1alpha1.PurposeNodes,
+			Purpose:            apiv1alpha2.PurposeNodes,
 		})
 	}
 
@@ -452,7 +455,7 @@ func StatusFromTerraformState(tfState *TerraformState, config *api.Infrastructur
 }
 
 // ComputeStatus computes the status based on the Terraformer and the given InfrastructureConfig.
-func ComputeStatus(ctx context.Context, tf terraformer.Terraformer, infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig, cluster *controller.Cluster) (*apiv1alpha1.InfrastructureStatus, error) {
+func ComputeStatus(ctx context.Context, tf terraformer.Terraformer, infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig, cluster *controller.Cluster) (*apiv1alpha2.InfrastructureStatus, error) {
 	state, err := ExtractTerraformState(ctx, tf, infra, config, cluster)
 	if err != nil {
 		return nil, err

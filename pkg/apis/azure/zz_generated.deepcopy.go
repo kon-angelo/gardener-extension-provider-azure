@@ -404,15 +404,15 @@ func (in *NatGatewayConfig) DeepCopyInto(out *NatGatewayConfig) {
 		*out = new(int32)
 		**out = **in
 	}
-	if in.Zone != nil {
-		in, out := &in.Zone, &out.Zone
-		*out = new(int32)
-		**out = **in
-	}
 	if in.IPAddresses != nil {
 		in, out := &in.IPAddresses, &out.IPAddresses
 		*out = make([]PublicIPReference, len(*in))
 		copy(*out, *in)
+	}
+	if in.Zone != nil {
+		in, out := &in.Zone, &out.Zone
+		*out = new(int32)
+		**out = **in
 	}
 	return
 }

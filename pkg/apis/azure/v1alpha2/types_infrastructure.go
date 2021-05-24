@@ -102,6 +102,8 @@ type NetworkStatus struct {
 
 	// Subnets are the subnets that have been created.
 	Subnets []Subnet `json:"subnets"`
+
+	TopologyType TopologyType `json:"topology"`
 }
 
 // Purpose is a purpose of a subnet.
@@ -112,6 +114,14 @@ const (
 	PurposeNodes Purpose = "nodes"
 	// PurposeInternal is a Purpose for internal use.
 	PurposeInternal Purpose = "internal"
+)
+
+type TopologyType string
+
+const (
+	TopologyRegional = "regional"
+	TopologyZonalSingleSubnet = "zonalSingleSubnet"
+	TopologyZonal = "zonal"
 )
 
 // Subnet is a subnet that was created.

@@ -372,18 +372,6 @@ bool
 <p>Zoned indicates whether the cluster uses zones</p>
 </td>
 </tr>
-<tr>
-<td>
-<code>natGatewayPublicIpMigrated</code></br>
-<em>
-bool
-</em>
-</td>
-<td>
-<p>NatGatewayPublicIPMigrated is an indicator if the Gardener managed public ip address is already migrated.
-TODO(natipmigration) This can be removed in future versions when the ip migration has been completed.</p>
-</td>
-</tr>
 </tbody>
 </table>
 <h3 id="azure.provider.extensions.gardener.cloud/v1alpha2.NatGatewayConfig">NatGatewayConfig
@@ -543,6 +531,18 @@ VNetStatus
 </td>
 <td>
 <p>Subnets are the subnets that have been created.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>topology</code></br>
+<em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha2.TopologyType">
+TopologyType
+</a>
+</em>
+</td>
+<td>
 </td>
 </tr>
 </tbody>
@@ -928,6 +928,14 @@ ZonalTopology
 </tr>
 </tbody>
 </table>
+<h3 id="azure.provider.extensions.gardener.cloud/v1alpha2.TopologyType">TopologyType
+(<code>string</code> alias)</p></h3>
+<p>
+(<em>Appears on:</em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha2.NetworkStatus">NetworkStatus</a>)
+</p>
+<p>
+</p>
 <h3 id="azure.provider.extensions.gardener.cloud/v1alpha2.VNet">VNet
 </h3>
 <p>
