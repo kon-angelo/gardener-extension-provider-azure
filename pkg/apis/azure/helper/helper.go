@@ -33,6 +33,14 @@ func FindSubnetByPurpose(subnets []api.Subnet, purpose api.Purpose) (*api.Subnet
 	return nil, fmt.Errorf("cannot find subnet with purpose %q", purpose)
 }
 
+func FindSubnetByPurposeAndZone(subnets []api.Subnet, purpose api.Purpose, zone string) (int, *api.Subnet, error) {
+	for index, subnet := range subnets {
+		if subnet.Purpose == purpose && subnet.Zone != nil && *subnet.Zone == zone {
+			return  index, &subnet, nil
+		}
+	}
+	return 0, nil, fmt.Errorf("cannot find subnet with purpose %q and zone %q", purpose, zone)
+}
 // FindSecurityGroupByPurpose takes a list of security groups and tries to find the first entry
 // whose purpose matches with the given purpose. If no such entry is found then an error will be
 // returned.
@@ -129,4 +137,27 @@ func HasShootVmoAlphaAnnotation(shootAnnotations map[string]string) bool {
 		return true
 	}
 	return false
+}
+
+func ZonedNatGatewayToNatGateway(zone *api.Zone) *api.NatGatewayConfig {
+	if zone.NatGateway == nil || !zone.NatGateway.Enabled{
+		return nil
+	}
+
+	zoneName := zone.Name
+	nat := &api.NatGatewayConfig{
+		Enabled:                      true,
+		IdleConnectionTimeoutMinutes: zone.NatGateway.IdleConnectionTimeoutMinutes,
+		Zone:                         &zoneName,
+	}
+
+	publicIPs := []api.PublicIPReference{}
+	for _, ip := range zone.NatGateway.IPAddresses {
+		newIP := ip.DeepCopy()
+		newIP.Zone = zone.Name
+		publicIPs = append(publicIPs, *newIP)
+	}
+	nat.IPAddresses = publicIPs
+
+	return nat
 }

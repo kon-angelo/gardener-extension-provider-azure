@@ -65,9 +65,9 @@ func ValidateInfrastructureConfig(infra *apisazure.InfrastructureConfig, nodesCI
 	networksPath := fldPath.Child("networks")
 
 	// Validate workers subnet cidr
-	workerCIDR := cidrvalidation.NewCIDR(infra.Networks.Workers, networksPath.Child("workers"))
+	workerCIDR := cidrvalidation.NewCIDR(*infra.Networks.Workers, networksPath.Child("workers"))
 	allErrs = append(allErrs, cidrvalidation.ValidateCIDRParse(workerCIDR)...)
-	allErrs = append(allErrs, cidrvalidation.ValidateCIDRIsCanonical(networksPath.Child("workers"), infra.Networks.Workers)...)
+	allErrs = append(allErrs, cidrvalidation.ValidateCIDRIsCanonical(networksPath.Child("workers"), *infra.Networks.Workers)...)
 	if nodes != nil {
 		allErrs = append(allErrs, nodes.ValidateSubset(workerCIDR)...)
 	}

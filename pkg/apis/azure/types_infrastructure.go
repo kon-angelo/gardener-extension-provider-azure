@@ -44,11 +44,31 @@ type NetworkConfig struct {
 	// VNet indicates whether to use an existing VNet or create a new one.
 	VNet VNet
 	// Workers is the worker subnet range to create (used for the VMs).
-	Workers string
+	Workers *string
 	// NatGateway contains the configuration for the NatGateway.
 	NatGateway *NatGatewayConfig
 	// ServiceEndpoints is a list of Azure ServiceEndpoints which should be associated with the worker subnet.
 	ServiceEndpoints []string
+	Zones []Zone
+}
+
+type Zone struct {
+	Name int32
+	CIDR string
+	ServiceEndpoints []string
+	NatGateway *ZonedNatGatewayConfig
+}
+
+// ZonedNatGatewayConfig contains configuration for the NAT gateway and the attached resources.
+type ZonedNatGatewayConfig struct {
+	// Enabled is an indicator if NAT gateway should be deployed.
+	Enabled bool
+	// IdleConnectionTimeoutMinutes specifies the idle connection timeout limit for NAT gateway in minutes.
+	// +optional
+	IdleConnectionTimeoutMinutes *int32
+	// IPAddresses is a list of ip addresses which should be assigned to the NAT gateway.
+	// +optional
+	IPAddresses []PublicIPReference
 }
 
 // NatGatewayConfig contains configuration for the NAT gateway and the attached resources.
@@ -103,6 +123,8 @@ type NetworkStatus struct {
 	VNet VNetStatus
 	// Subnets are the subnets that have been created.
 	Subnets []Subnet
+	// Topology
+	Topology NetworkTopologyType
 }
 
 // Purpose is a purpose of a subnet.
@@ -115,12 +137,22 @@ const (
 	PurposeInternal Purpose = "internal"
 )
 
+type NetworkTopologyType string
+
+const (
+	TopologyRegional = "regional"
+	TopologyZonalSingleSubnet = "zonalSingleSubnet"
+	TopologyZonal = "zonal"
+)
+
 // Subnet is a subnet that was created.
 type Subnet struct {
 	// Name is the name of the subnet.
 	Name string
 	// Purpose is the purpose for which the subnet was created.
 	Purpose Purpose
+	// Zone
+	Zone *string
 }
 
 // AvailabilitySet contains information about the azure availability set

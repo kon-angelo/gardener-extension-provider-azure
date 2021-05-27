@@ -48,13 +48,33 @@ type NetworkConfig struct {
 	// VNet indicates whether to use an existing VNet or create a new one.
 	VNet VNet `json:"vnet"`
 	// Workers is the worker subnet range to create (used for the VMs).
-	Workers string `json:"workers"`
+	Workers *string `json:"workers"`
 	// NatGateway contains the configuration for the NatGateway.
 	// +optional
 	NatGateway *NatGatewayConfig `json:"natGateway,omitempty"`
 	// ServiceEndpoints is a list of Azure ServiceEndpoints which should be associated with the worker subnet.
 	// +optional
 	ServiceEndpoints []string `json:"serviceEndpoints,omitempty"`
+	Zones []Zone `json:"zones,omitempty"`
+}
+
+type Zone struct {
+	Name int32 `json:"name"`
+	CIDR string `json:"cidr"`
+	ServiceEndpoints []string `json:"serviceEndpoints,omitempty"`
+	NatGateway *ZonedNatGatewayConfig `json:"natGateway,omitempty"`
+}
+
+// ZonedNatGatewayConfig contains configuration for the NAT gateway and the attached resources.
+type ZonedNatGatewayConfig struct {
+	// Enabled is an indicator if NAT gateway should be deployed.
+	Enabled bool `json:"enabled"`
+	// IdleConnectionTimeoutMinutes specifies the idle connection timeout limit for NAT gateway in minutes.
+	// +optional
+	IdleConnectionTimeoutMinutes *int32 `json:"idleConnectionTimeoutMinutes,omitempty"`
+	// IPAddresses is a list of ip addresses which should be assigned to the NAT gateway.
+	// +optional
+	IPAddresses []PublicIPReference `json:"ipAddresses,omitempty"`
 }
 
 // NatGatewayConfig contains configuration for the NAT gateway and the attached resources.
@@ -83,7 +103,6 @@ type PublicIPReference struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // InfrastructureStatus contains information about created infrastructure resources.
 type InfrastructureStatus struct {
 	metav1.TypeMeta `json:",inline"`
@@ -116,6 +135,9 @@ type NetworkStatus struct {
 
 	// Subnets are the subnets that have been created.
 	Subnets []Subnet `json:"subnets"`
+
+	// Topology
+	Topology NetworkTopologyType `json:"topology"`
 }
 
 // Purpose is a purpose of a subnet.
@@ -128,12 +150,22 @@ const (
 	PurposeInternal Purpose = "internal"
 )
 
+type NetworkTopologyType string
+
+const (
+	TopologyRegional = "regional"
+	TopologyZonalSingleSubnet = "zonalSingleSubnet"
+	TopologyZonal = "zonal"
+)
+
 // Subnet is a subnet that was created.
 type Subnet struct {
 	// Name is the name of the subnet.
 	Name string `json:"name"`
 	// Purpose is the purpose for which the subnet was created.
 	Purpose Purpose `json:"purpose"`
+	// Zone
+	Zone *string `json:"zone"`
 }
 
 // AvailabilitySet contains information about the azure availability set
