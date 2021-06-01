@@ -58,8 +58,11 @@ import (
 
 const (
 	VNetCIDR    = "10.250.0.0/16"
-	WorkerCIDR  = "10.250.0.0/19"
 	CountDomain = 1
+)
+
+var (
+	WorkerCIDR  = "10.250.0.0/19"
 )
 
 var (
@@ -532,7 +535,7 @@ func newInfrastructureConfig(vnet *azurev1alpha1.VNet, id *azurev1alpha1.Identit
 	}
 	nwConfig := azurev1alpha1.NetworkConfig{
 		VNet:             *vnet,
-		Workers:          WorkerCIDR,
+		Workers:          &WorkerCIDR,
 		NatGateway:       nil,
 		ServiceEndpoints: []string{"Microsoft.Storage"},
 	}

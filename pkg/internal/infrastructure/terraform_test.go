@@ -91,7 +91,7 @@ var _ = Describe("Terraform", func() {
 				VNet: api.VNet{
 					CIDR: &VNetCIDR,
 				},
-				Workers:          TestCIDR,
+				Workers:          &TestCIDR,
 				ServiceEndpoints: []string{},
 			},
 			Zoned: true,
@@ -102,7 +102,7 @@ var _ = Describe("Terraform", func() {
 				VNet: apiv1alpha1.VNet{
 					CIDR: &VNetCIDR,
 				},
-				Workers:          TestCIDR,
+				Workers:          &TestCIDR,
 				ServiceEndpoints: []string{testServiceEndpoint},
 			},
 		}
@@ -488,6 +488,7 @@ var _ = Describe("Terraform", func() {
 		var (
 			vnetName, subnetName, routeTableName, availabilitySetID, availabilitySetName, securityGroupName, resourceGroupName string
 			state                                                                                                              *TerraformState
+			config *api.InfrastructureConfig
 		)
 
 		BeforeEach(func() {
@@ -497,20 +498,23 @@ var _ = Describe("Terraform", func() {
 			availabilitySetID, availabilitySetName = "as_id", "as_name"
 			securityGroupName = "sg_name"
 			resourceGroupName = "rg_name"
+			config = &api.InfrastructureConfig{
+				Zoned: false,
+			}
 			state = &TerraformState{
 				VNetName:            vnetName,
-				SubnetName:          subnetName,
+				SubnetNames:         []string{subnetName},
 				RouteTableName:      routeTableName,
 				AvailabilitySetID:   "",
 				AvailabilitySetName: "",
 				SecurityGroupName:   securityGroupName,
 				ResourceGroupName:   resourceGroupName,
-				Zoned:               true,
 			}
 		})
 
 		It("should correctly compute the status for zoned cluster", func() {
-			status := StatusFromTerraformState(state)
+			config.Zoned = true
+			status := StatusFromTerraformState(config, state)
 			Expect(status).To(Equal(&apiv1alpha1.InfrastructureStatus{
 				TypeMeta: StatusTypeMeta,
 				ResourceGroup: apiv1alpha1.ResourceGroup{
@@ -543,8 +547,7 @@ var _ = Describe("Terraform", func() {
 			state.AvailabilitySetName = availabilitySetName
 			state.CountFaultDomains = 2
 			state.CountUpdateDomains = 5
-			state.Zoned = false
-			status := StatusFromTerraformState(state)
+			status := StatusFromTerraformState(config, state)
 			Expect(status).To(Equal(&apiv1alpha1.InfrastructureStatus{
 				TypeMeta: StatusTypeMeta,
 				ResourceGroup: apiv1alpha1.ResourceGroup{
@@ -583,7 +586,7 @@ var _ = Describe("Terraform", func() {
 			state.IdentityID = identityID
 			state.IdentityClientID = identityClientID
 
-			status := StatusFromTerraformState(state)
+			status := StatusFromTerraformState(config, state)
 			Expect(status).To(Equal(&apiv1alpha1.InfrastructureStatus{
 				TypeMeta: StatusTypeMeta,
 				ResourceGroup: apiv1alpha1.ResourceGroup{

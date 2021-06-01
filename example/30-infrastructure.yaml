@@ -1,16 +1,16 @@
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: shoot--foobar--azure
----
-apiVersion: v1
-kind: Secret
-metadata:
-  namespace: shoot--foobar--azure
-  name: core-azure
-type: Opaque
-data:
+#---
+#apiVersion: v1
+#kind: Namespace
+#metadata:
+#  name: shoot--foobar--azure
+#---
+#apiVersion: v1
+#kind: Secret
+#metadata:
+#  namespace: shoot--foobar--azure
+#  name: core-azure
+#type: Opaque
+#data:
 # clientID: base64(clientID)
 # clientSecret: base64(clientSecret)
 # subscriptionID: base64(subscriptionID)
@@ -57,21 +57,34 @@ spec:
   type: azure
   region: westeurope
   secretRef:
-    namespace: shoot--foobar--azure
-    name: core-azure
+    namespace: azure
+    name: shoot-operator-az
   providerConfig:
     apiVersion: azure.provider.extensions.gardener.cloud/v1alpha1
     kind: InfrastructureConfig
     networks:
+      zones:
+        - name: 2
+          cidr: 10.250.2.0/24
+          natGateway:
+            enabled: true
+        - name: 3
+          cidr: 10.250.3.0/24
+          natGateway:
+            enabled: true
+        - name: 1
+          cidr: 10.250.1.0/24
+          natGateway:
+            enabled: true
       vnet: # specify either 'name' and 'resourceGroup' or 'cidr'
       # name: my-vnet
       # resourceGroup: my-vnet-group
         cidr: 10.250.0.0/16
-      workers: 10.250.0.0/19
+#      workers: 10.250.0.0/24
     # natGateway:
     #   enabled: false
     # serviceEndpoints:
     # - entry1
-    zoned: false
+    zoned: true
   # resourceGroup:
   #   name: mygroup

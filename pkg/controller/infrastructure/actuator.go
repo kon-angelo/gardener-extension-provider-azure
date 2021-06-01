@@ -46,7 +46,7 @@ func NewActuator() infrastructure.Actuator {
 }
 
 func (a *actuator) updateProviderStatus(ctx context.Context, tf terraformer.Terraformer, infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig, cluster *controller.Cluster) error {
-	status, err := infrainternal.ComputeStatus(a.logger, ctx, tf, infra, config, cluster)
+	status, err := infrainternal.ComputeStatus(ctx, tf, infra, config, cluster)
 	if err != nil {
 		return err
 	}

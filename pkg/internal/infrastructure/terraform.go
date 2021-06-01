@@ -27,7 +27,6 @@ import (
 	"github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/extensions/pkg/terraformer"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
-	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 )
@@ -72,7 +71,6 @@ var StatusTypeMeta = metav1.TypeMeta{
 
 // RenderTerraformerTemplate renders the azure infrastructure template with the given values.
 func RenderTerraformerTemplate(
-	logger logr.Logger,
 	infra *extensionsv1alpha1.Infrastructure,
 	config *api.InfrastructureConfig,
 	cluster *controller.Cluster,
@@ -80,7 +78,7 @@ func RenderTerraformerTemplate(
 	*TerraformFiles,
 	error,
 ) {
-	values, err := ComputeTerraformerTemplateValues(logger, infra, config, cluster)
+	values, err := ComputeTerraformerTemplateValues(infra, config, cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +98,6 @@ func RenderTerraformerTemplate(
 
 // ComputeTerraformerTemplateValues computes the values for the Azure Terraformer chart.
 func ComputeTerraformerTemplateValues(
-	logger logr.Logger,
 	infra *extensionsv1alpha1.Infrastructure,
 	config *api.InfrastructureConfig,
 	cluster *controller.Cluster,
@@ -202,8 +199,35 @@ func ComputeTerraformerTemplateValues(
 		"identity":    identityConfig,
 		"outputKeys":  outputKeys,
 	}
-	logger.Info(fmt.Sprintf("AAAAA The compute result is: %v", result))
 	return result, nil
+}
+
+func computeNetworkConfig(config *api.InfrastructureConfig) (map[string]interface{}, error) {
+	var (
+		networkCfg = make(map[string]interface{})
+		subnets    []interface{}
+	)
+	if config.Networks.Workers != nil {
+		subnet := map[string]interface{}{
+			"cidr":             config.Networks.Workers,
+			"serviceEndpoints": config.Networks.ServiceEndpoints,
+			"natGateway":       generateNatGatewayValues(config.Networks.NatGateway),
+		}
+		subnets = append(subnets, subnet)
+	} else {
+		for _, zone := range config.Networks.Zones {
+			natGateway := generateNatGatewayValues(helper.ZonedNatGatewayToNatGateway(&zone))
+			zoneConfig := map[string]interface{}{
+				"cidr":             zone.CIDR,
+				"serviceEndpoints": zone.ServiceEndpoints,
+				"natGateway":       natGateway,
+			}
+			subnets = append(subnets, zoneConfig)
+		}
+	}
+
+	networkCfg["subnets"] = subnets
+	return networkCfg, nil
 }
 
 func generateNatGatewayValues(nat *api.NatGatewayConfig) map[string]interface{} {
@@ -272,7 +296,7 @@ type TerraformState struct {
 }
 
 // ExtractTerraformState extracts the TerraformState from the given Terraformer.
-func ExtractTerraformState(logger logr.Logger, ctx context.Context, tf terraformer.Terraformer, infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig, cluster *controller.Cluster) (*TerraformState, error) {
+func ExtractTerraformState(ctx context.Context, tf terraformer.Terraformer, infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig, cluster *controller.Cluster) (*TerraformState, error) {
 	var (
 		outputKeys = []string{
 			TerraformerOutputKeyResourceGroupName,
@@ -307,8 +331,6 @@ func ExtractTerraformState(logger logr.Logger, ctx context.Context, tf terraform
 	if config.Identity != nil && config.Identity.Name != "" && config.Identity.ResourceGroup != "" {
 		outputKeys = append(outputKeys, TerraformerOutputKeyIdentityID, TerraformerOutputKeyIdentityClientID)
 	}
-
-	logger.Info(fmt.Sprintf("BBBBBBBBBBBB %v", outputKeys))
 
 	vars, err := tf.GetStateOutputVariables(ctx, outputKeys...)
 	if err != nil {
@@ -439,8 +461,8 @@ func StatusFromTerraformState(config *api.InfrastructureConfig, tfState *Terrafo
 }
 
 // ComputeStatus computes the status based on the Terraformer and the given InfrastructureConfig.
-func ComputeStatus(logger logr.Logger,ctx context.Context, tf terraformer.Terraformer, infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig, cluster *controller.Cluster) (*apiv1alpha1.InfrastructureStatus, error) {
-	state, err := ExtractTerraformState(logger, ctx, tf, infra, config, cluster)
+func ComputeStatus(ctx context.Context, tf terraformer.Terraformer, infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig, cluster *controller.Cluster) (*apiv1alpha1.InfrastructureStatus, error) {
+	state, err := ExtractTerraformState(ctx, tf, infra, config, cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -545,32 +567,4 @@ func isPrimaryAvailabilitySetRequired(infra *extensionsv1alpha1.Infrastructure, 
 	}
 
 	return false, nil
-}
-
-func computeNetworkConfig(config *api.InfrastructureConfig) (map[string]interface{}, error) {
-	var (
-		networkCfg = make(map[string]interface{})
-		subnets    []interface{}
-	)
-	if config.Networks.Workers != nil {
-		subnet := map[string]interface{}{
-			"cidr":             config.Networks.Workers,
-			"serviceEndpoints": config.Networks.ServiceEndpoints,
-			"natGateway":       generateNatGatewayValues(config.Networks.NatGateway),
-		}
-		subnets = append(subnets, subnet)
-	} else {
-		for _, zone := range config.Networks.Zones {
-			natGateway := generateNatGatewayValues(helper.ZonedNatGatewayToNatGateway(&zone))
-			zoneConfig := map[string]interface{}{
-				"cidr":             zone.CIDR,
-				"serviceEndpoints": zone.ServiceEndpoints,
-				"natGateway":       natGateway,
-			}
-			subnets = append(subnets, zoneConfig)
-		}
-	}
-
-	networkCfg["subnets"] = subnets
-	return networkCfg, nil
 }
