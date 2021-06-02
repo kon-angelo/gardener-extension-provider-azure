@@ -95,9 +95,11 @@ resource "azurerm_subnet_network_security_group_association" "{{ $workers }}-nsg
 output "{{ $subnetOutput }}" {
   value = azurerm_subnet.{{ $workers }}.name
 }
-
+{{- /*
 {{- if hasKey $subnet "natGateway" }}
 {{- if $subnet.natGateway }}
+*/}}
+{{- if $subnet.natGateway.enabled }}
 {{- $natName := "nat" }}
 {{- $natResourceName := printf "%s-nat-gateway" $.clusterName }}
 {{- if $index }}
@@ -134,10 +136,12 @@ data "azurerm_public_ip" "{{ $natName }}-ip-user-provided-{{ $ipIndex }}" {
   name                = "{{ $ip.name }}"
   resource_group_name = "{{ $ip.resourceGroup }}"
 }
+
 resource "azurerm_nat_gateway_public_ip_association" "{{ $natName }}-ip-user-provided-association-{{ $ipIndex }}" {
   nat_gateway_id       = azurerm_nat_gateway.{{ $natName }}.id
   public_ip_address_id = data.azurerm_public_ip.{{ $natName }}-ip-user-provided-{{ $ipIndex }}.id
 }
+
 {{- end }}
 {{- else -}}
 #===============================================
@@ -162,7 +166,7 @@ resource "azurerm_nat_gateway_public_ip_association" "{{ $natName }}-ip-associat
 {{- end }}
 
 {{- end }}
-{{- end }}
+{{- /*- end */}}
 
 {{- end }}
 

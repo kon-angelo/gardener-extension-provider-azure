@@ -62,19 +62,7 @@ type Zone struct {
 	Name int32 `json:"name"`
 	CIDR string `json:"cidr"`
 	ServiceEndpoints []string `json:"serviceEndpoints,omitempty"`
-	NatGateway *ZonedNatGatewayConfig `json:"natGateway,omitempty"`
-}
-
-// ZonedNatGatewayConfig contains configuration for the NAT gateway and the attached resources.
-type ZonedNatGatewayConfig struct {
-	// Enabled is an indicator if NAT gateway should be deployed.
-	Enabled bool `json:"enabled"`
-	// IdleConnectionTimeoutMinutes specifies the idle connection timeout limit for NAT gateway in minutes.
-	// +optional
-	IdleConnectionTimeoutMinutes *int32 `json:"idleConnectionTimeoutMinutes,omitempty"`
-	// IPAddresses is a list of ip addresses which should be assigned to the NAT gateway.
-	// +optional
-	IPAddresses []PublicIPReference `json:"ipAddresses,omitempty"`
+	NatGateway *NatGatewayConfig `json:"natGateway,omitempty"`
 }
 
 // NatGatewayConfig contains configuration for the NAT gateway and the attached resources.

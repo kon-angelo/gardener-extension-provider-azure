@@ -139,25 +139,6 @@ func HasShootVmoAlphaAnnotation(shootAnnotations map[string]string) bool {
 	return false
 }
 
-func ZonedNatGatewayToNatGateway(zone *api.Zone) *api.NatGatewayConfig {
-	if zone.NatGateway == nil || !zone.NatGateway.Enabled{
-		return nil
-	}
-
-	zoneName := zone.Name
-	nat := &api.NatGatewayConfig{
-		Enabled:                      true,
-		IdleConnectionTimeoutMinutes: zone.NatGateway.IdleConnectionTimeoutMinutes,
-		Zone:                         &zoneName,
-	}
-
-	publicIPs := []api.PublicIPReference{}
-	for _, ip := range zone.NatGateway.IPAddresses {
-		newIP := ip.DeepCopy()
-		newIP.Zone = zone.Name
-		publicIPs = append(publicIPs, *newIP)
-	}
-	nat.IPAddresses = publicIPs
-
-	return nat
+func AzureZoneToGardenZone(zone int32) string {
+	return fmt.Sprintf("%d", zone)
 }

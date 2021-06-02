@@ -56,19 +56,7 @@ type Zone struct {
 	Name int32
 	CIDR string
 	ServiceEndpoints []string
-	NatGateway *ZonedNatGatewayConfig
-}
-
-// ZonedNatGatewayConfig contains configuration for the NAT gateway and the attached resources.
-type ZonedNatGatewayConfig struct {
-	// Enabled is an indicator if NAT gateway should be deployed.
-	Enabled bool
-	// IdleConnectionTimeoutMinutes specifies the idle connection timeout limit for NAT gateway in minutes.
-	// +optional
-	IdleConnectionTimeoutMinutes *int32
-	// IPAddresses is a list of ip addresses which should be assigned to the NAT gateway.
-	// +optional
-	IPAddresses []PublicIPReference
+	NatGateway *NatGatewayConfig
 }
 
 // NatGatewayConfig contains configuration for the NAT gateway and the attached resources.

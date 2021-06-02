@@ -216,7 +216,7 @@ func computeNetworkConfig(config *api.InfrastructureConfig) (map[string]interfac
 		subnets = append(subnets, subnet)
 	} else {
 		for _, zone := range config.Networks.Zones {
-			natGateway := generateNatGatewayValues(helper.ZonedNatGatewayToNatGateway(&zone))
+			natGateway := generateNatGatewayValues(zone.NatGateway)
 			zoneConfig := map[string]interface{}{
 				"cidr":             zone.CIDR,
 				"serviceEndpoints": zone.ServiceEndpoints,
@@ -231,13 +231,15 @@ func computeNetworkConfig(config *api.InfrastructureConfig) (map[string]interfac
 }
 
 func generateNatGatewayValues(nat *api.NatGatewayConfig) map[string]interface{} {
-	if nat == nil || !nat.Enabled {
-		return nil
+	natGatewayConfig := map[string]interface{}{
+		"enabled": false,
 	}
 
-	var natGatewayConfig = map[string]interface{}{
-		"enabled": true,
+	if nat == nil || !nat.Enabled {
+		return natGatewayConfig
 	}
+
+	natGatewayConfig["enabled"] = true
 	if nat.IdleConnectionTimeoutMinutes != nil {
 		natGatewayConfig["idleConnectionTimeoutMinutes"] = *nat.IdleConnectionTimeoutMinutes
 	}
