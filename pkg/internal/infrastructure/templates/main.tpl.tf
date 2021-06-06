@@ -95,10 +95,7 @@ resource "azurerm_subnet_network_security_group_association" "{{ $workers }}-nsg
 output "{{ $subnetOutput }}" {
   value = azurerm_subnet.{{ $workers }}.name
 }
-{{- /*
-{{- if hasKey $subnet "natGateway" }}
-{{- if $subnet.natGateway }}
-*/}}
+
 {{- if $subnet.natGateway.enabled }}
 {{- $natName := "nat" }}
 {{- $natResourceName := printf "%s-nat-gateway" $.clusterName }}

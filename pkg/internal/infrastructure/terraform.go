@@ -148,9 +148,11 @@ func ComputeTerraformerTemplateValues(
 	} else if config.Networks.VNet.CIDR != nil {
 		// Apply a custom cidr for the vNet.
 		vnetConfig["cidr"] = *config.Networks.VNet.CIDR
-	} else {
+	} else if config.Networks.Workers != nil {
 		// Use worker cidr as default for the vNet.
-		vnetConfig["cidr"] = config.Networks.Workers
+		vnetConfig["cidr"] = *config.Networks.Workers
+	} else {
+		return nil, fmt.Errorf("no VNet or workers configuration provided")
 	}
 
 	if primaryAvSetRequired {
@@ -205,11 +207,11 @@ func ComputeTerraformerTemplateValues(
 func computeNetworkConfig(config *api.InfrastructureConfig) (map[string]interface{}, error) {
 	var (
 		networkCfg = make(map[string]interface{})
-		subnets    []interface{}
+		subnets    []map[string]interface{}
 	)
 	if config.Networks.Workers != nil {
 		subnet := map[string]interface{}{
-			"cidr":             config.Networks.Workers,
+			"cidr":             *config.Networks.Workers,
 			"serviceEndpoints": config.Networks.ServiceEndpoints,
 			"natGateway":       generateNatGatewayValues(config.Networks.NatGateway),
 		}

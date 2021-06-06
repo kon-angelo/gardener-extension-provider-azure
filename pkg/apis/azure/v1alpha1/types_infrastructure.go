@@ -48,6 +48,7 @@ type NetworkConfig struct {
 	// VNet indicates whether to use an existing VNet or create a new one.
 	VNet VNet `json:"vnet"`
 	// Workers is the worker subnet range to create (used for the VMs).
+	// +optional
 	Workers *string `json:"workers"`
 	// NatGateway contains the configuration for the NatGateway.
 	// +optional
@@ -55,13 +56,21 @@ type NetworkConfig struct {
 	// ServiceEndpoints is a list of Azure ServiceEndpoints which should be associated with the worker subnet.
 	// +optional
 	ServiceEndpoints []string `json:"serviceEndpoints,omitempty"`
+	// Zones is a list of zones with their respective configuration.
 	Zones []Zone `json:"zones,omitempty"`
 }
 
+// Zone describes the configuration for a subnet that is used for VMs on that region.
 type Zone struct {
+	// Name is the name of the zone and should match with the name the infrastructure provider is using for the zone.
 	Name int32 `json:"name"`
+	// CIDR is the CIDR range used for the zone's subnet.
 	CIDR string `json:"cidr"`
+	// ServiceEndpoints is a list of Azure ServiceEndpoints which should be associated with the zone's subnet.
+	// +optional
 	ServiceEndpoints []string `json:"serviceEndpoints,omitempty"`
+	// NatGateway contains the configuration for the NatGateway associated with this subnet.
+	// +optional
 	NatGateway *NatGatewayConfig `json:"natGateway,omitempty"`
 }
 
@@ -124,7 +133,7 @@ type NetworkStatus struct {
 	// Subnets are the subnets that have been created.
 	Subnets []Subnet `json:"subnets"`
 
-	// Topology
+	// Topology describes the network topology of the cluster.
 	Topology NetworkTopologyType `json:"topology"`
 }
 
@@ -138,11 +147,16 @@ const (
 	PurposeInternal Purpose = "internal"
 )
 
+// NetworkTopologyType is the network topology type for the cluster.
 type NetworkTopologyType string
 
 const (
+	// TopologyRegional is a network topology for clusters that do not make use of availability zones.
 	TopologyRegional = "regional"
+	// TopologyZonalSingleSubnet is a network topology for zonal clusters. Clusters with this topology have a single
+	// subnet that is shared among all availability zones.
 	TopologyZonalSingleSubnet = "zonalSingleSubnet"
+	// TopologyZonal is a network topology for zonal clusters, where a subnet is created for each availability zone.
 	TopologyZonal = "zonal"
 )
 
@@ -152,8 +166,9 @@ type Subnet struct {
 	Name string `json:"name"`
 	// Purpose is the purpose for which the subnet was created.
 	Purpose Purpose `json:"purpose"`
-	// Zone
-	Zone *string `json:"zone"`
+	// Zone is the name of the zone for which the subnet was created.
+	// +optional
+	Zone *string `json:"zone,omitempty"`
 }
 
 // AvailabilitySet contains information about the azure availability set
