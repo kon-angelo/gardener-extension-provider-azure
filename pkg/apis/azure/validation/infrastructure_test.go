@@ -20,7 +20,6 @@ import (
 	apisazure "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	. "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/validation"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/azure"
-
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -193,18 +192,32 @@ var _ = Describe("InfrastructureConfig validation", func() {
 				}))
 			})
 
-			// It("should forbid empty workers CIDR", func() {
-			// 	infrastructureConfig.Networks.Workers = ""
-			//
-			// 	errorList := ValidateInfrastructureConfig(infrastructureConfig, &nodes, &pods, &services, hasVmoAlphaAnnotation, providerPath)
-			//
-			// 	Expect(errorList).To(ConsistOfFields(
-			// 		Fields{
-			// 			"Type":   Equal(field.ErrorTypeInvalid),
-			// 			"Field":  Equal("networks.workers"),
-			// 			"Detail": Equal("invalid CIDR address: "),
-			// 		}))
-			// })
+			It("should forbid empty workers CIDR", func() {
+				emptyStr := ""
+				infrastructureConfig.Networks.Workers = &emptyStr
+
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &nodes, &pods, &services, hasVmoAlphaAnnotation, providerPath)
+
+				Expect(errorList).To(ConsistOfFields(
+					Fields{
+						"Type":   Equal(field.ErrorTypeInvalid),
+						"Field":  Equal("networks.workers"),
+						"Detail": Equal("invalid CIDR address: "),
+					}))
+			})
+
+			It("should forbid nil workers CIDR", func() {
+				infrastructureConfig.Networks.Workers = nil
+
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &nodes, &pods, &services, hasVmoAlphaAnnotation, providerPath)
+
+				Expect(errorList).To(ConsistOfFields(
+					Fields{
+						"Type":   Equal(field.ErrorTypeForbidden),
+						"Field":  Equal("networks.workers"),
+						"Detail": Equal("either workers or zones must be specified"),
+					}))
+			})
 
 			It("should forbid workers which are not in VNet and Nodes CIDR", func() {
 				notOverlappingCIDR := "1.1.1.1/32"
@@ -215,11 +228,11 @@ var _ = Describe("InfrastructureConfig validation", func() {
 				Expect(errorList).To(ConsistOfFields(Fields{
 					"Type":   Equal(field.ErrorTypeInvalid),
 					"Field":  Equal("networks.workers"),
-					"Detail": Equal(`must be a subset of "<nil>" ("10.250.0.0/16")`),
+					"Detail": Equal(`must be a subset of "<nil>" ("10.0.0.0/8")`),
 				}, Fields{
 					"Type":   Equal(field.ErrorTypeInvalid),
 					"Field":  Equal("networks.workers"),
-					"Detail": Equal(`must be a subset of "networks.vnet.cidr" ("10.0.0.0/8")`),
+					"Detail": Equal(`must be a subset of "<nil>" ("10.250.0.0/16")`),
 				}))
 			})
 
@@ -422,6 +435,102 @@ var _ = Describe("InfrastructureConfig validation", func() {
 				})
 			})
 		})
+
+		Context("Zones", func(){
+
+			var (
+				zoneName int32 = 1
+				zoneName1 int32 = 2
+				zoneCIDR = "10.250.0.0/24"
+				zoneCIDR1 = "10.250.1.0/24"
+			)
+
+			BeforeEach(func(){
+				infrastructureConfig = &apisazure.InfrastructureConfig{
+					Zoned:         true,
+					Networks:      apisazure.NetworkConfig{
+						VNet:             apisazure.VNet{
+							CIDR:          &vnetCIDR,
+						},
+						Zones:            []apisazure.Zone{
+							{
+								Name:             zoneName,
+								CIDR:             zoneCIDR,
+							},
+							{
+								Name:             zoneName1,
+								CIDR:             zoneCIDR1,
+							},
+						},
+					},
+				}
+			})
+
+			It("should succeed", func(){
+				Expect(ValidateInfrastructureConfig(infrastructureConfig, &nodes, &pods, &services, hasVmoAlphaAnnotation, providerPath)).To(BeEmpty())
+			})
+
+			It("should succeed with NAT Gateway", func(){
+				infrastructureConfig.Networks.Zones[0].NatGateway = &apisazure.NatGatewayConfig{
+					Enabled: true,
+					Zone: &zoneName,
+
+				}
+				infrastructureConfig.Networks.Zones[1].NatGateway = &apisazure.NatGatewayConfig{
+					Enabled: true,
+					Zone: &zoneName1,
+				}
+				Expect(ValidateInfrastructureConfig(infrastructureConfig, &nodes, &pods, &services, hasVmoAlphaAnnotation, providerPath)).To(BeEmpty())
+			})
+
+			It("should succeed with NAT Gateway and  public IPs", func(){
+				infrastructureConfig.Networks.Zones[0].NatGateway = &apisazure.NatGatewayConfig{
+					Enabled: true,
+					Zone: &zoneName,
+					IPAddresses: []apisazure.PublicIPReference{
+						{
+							Name:          "public-ip-name",
+							ResourceGroup: "public-ip-resource-group",
+							Zone:          zoneName,
+						},
+					},
+				}
+				Expect(ValidateInfrastructureConfig(infrastructureConfig, &nodes, &pods, &services, hasVmoAlphaAnnotation, providerPath)).To(BeEmpty())
+
+			})
+
+			It("should forbid specifying invalid CIDRs", func(){
+
+			})
+
+			It("should forbid not specifying VNet when using Zones", func(){
+
+			})
+
+			It("should forbid zone CIDRs which are not in Vnet and Nodes CIDR", func(){
+
+			})
+
+			It("should forbid non canonical CIDRs", func(){
+
+			})
+
+			It("should forbid overlapping zone CIDRs", func(){
+
+			})
+
+			It("should forbid not specifying zones for NAT gateway", func(){
+
+			})
+
+			It("should forbid specifying incorrect zone for NAT gateway", func(){
+
+			})
+		})
+	})
+
+	Describe("#ValidateInfrastructureConfigAgainstCloudProfile", func(){
+
 	})
 
 	Describe("#ValidateInfrastructureConfigUpdate", func() {

@@ -17,8 +17,8 @@ import (
 	"fmt"
 
 	apisazure "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/azure"
-	"github.com/gardener/gardener/pkg/apis/core"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	cidrvalidation "github.com/gardener/gardener/pkg/utils/validation/cidr"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
@@ -52,11 +52,13 @@ func validateInfrastructureConfigZones(oldInfra, infra *apisazure.Infrastructure
 	}
 
 	for i, zone := range infra.Networks.Zones {
-		if oldInfra != nil && len(oldInfra.Networks.Zones) > i && oldInfra.Networks.Zones[i] == zone {
+		if oldInfra != nil && len(oldInfra.Networks.Zones) > i && oldInfra.Networks.Zones[i].Name == zone.Name {
 			continue
 		}
 
-
+		if !azureZones.Has(helper.AzureZoneToGardenZone(zone.Name)){
+			allErrs = append(allErrs, field.NotSupported(fld.Child("zones").Index(i).Child("name"), zone.Name, azureZones.UnsortedList()))
+		}
 	}
 
 	return allErrs
@@ -184,6 +186,9 @@ func validateVnetConfig(networkConfig *apisazure.NetworkConfig, resourceGroupCon
 		return allErrs
 	}
 
+	if isDefaultVnetConfig(&vnetConfig){
+		return allErrs
+	}
 	// // Validate no cidr config is specified at all.
 	// if isDefaultVnetConfig(&networkConfig.VNet) {
 	// 	allErrs = append(allErrs, workers.ValidateSubset(nodes)...)
@@ -239,10 +244,15 @@ func validateZones(zones []apisazure.Zone, vnet *apisazure.VNet, nodes, pods, se
 	}
 
 	for index, zone := range zones{
+		// construct the zone CIDR slice
 		zonePath := zonesPath.Index(index)
 		zoneCIDRs = append(zoneCIDRs, cidrvalidation.NewCIDR(zone.CIDR, zonePath))
+
+		// NAT validation
+		allErrs = append(allErrs, validateZonedNatGatewayConfig(zone.NatGateway, zone.Name, zonesPath.Child("natGateway"))...)
 	}
 
+	// CIDR validation
 	for index, zoneCIDR := range zoneCIDRs {
 		allErrs = append(allErrs, cidrvalidation.ValidateCIDRParse(zoneCIDR)...)
 		allErrs = append(allErrs, cidrvalidation.ValidateCIDRIsCanonical(fld, zoneCIDR.GetCIDR())...)
@@ -254,7 +264,6 @@ func validateZones(zones []apisazure.Zone, vnet *apisazure.VNet, nodes, pods, se
 			allErrs = append(allErrs, nodes.ValidateSubset(zoneCIDR)...)
 		}
 		allErrs = append(allErrs, zoneCIDR.ValidateNotSubset(pods, services)...)
-		allErrs = append(allErrs, validateZonedNatGatewayConfig(zones[index].NatGateway, zones[index].Name, zonesPath.Child("natGateway"))...)
 	}
 	return allErrs
 }
