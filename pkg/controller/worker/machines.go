@@ -225,10 +225,6 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 
 		// VMO
 		if vmoDependency != nil {
-			// nodesSubnet, err := azureapihelper.FindSubnetByPurpose(infrastructureStatus.Networks.Subnets, azureapi.PurposeNodes)
-			// if err != nil {
-			// 	return err
-			// }
 			workerPoolHash, err := w.generateWorkerPoolHash(pool, infrastructureStatus, vmoDependency, nil)
 			if err != nil {
 				return err
@@ -236,7 +232,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			machineDeployment, machineClassSpec := generateMachineClassAndDeployment(nil, &machineSetInfo{
 				id:   vmoDependency.ID,
 				kind: "vmo",
-			},nodesSubnet.Name, workerPoolHash)
+			}, nodesSubnet.Name, workerPoolHash)
 			machineDeployments = append(machineDeployments, machineDeployment)
 			machineClasses = append(machineClasses, machineClassSpec)
 			continue
@@ -253,10 +249,6 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			// This is necessary to avoid `ExistingAvailabilitySetWasNotDeployedOnAcceleratedNetworkingEnabledCluster` error.
 			acceleratedNetworkAllowed = false
 
-			// nodesSubnet, err := azureapihelper.FindSubnetByPurpose(infrastructureStatus.Networks.Subnets, azureapi.PurposeNodes)
-			// if err != nil {
-			// 	return err
-			// }
 			workerPoolHash, err := w.generateWorkerPoolHash(pool, infrastructureStatus, vmoDependency, nil)
 			if err != nil {
 				return err
@@ -275,7 +267,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 		var zoneCount = len(pool.Zones)
 		for zoneIndex, zone := range pool.Zones {
 			var (
-				subnetName string
+				subnetName     string
 				workerPoolHash string
 			)
 
@@ -296,16 +288,12 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 						return err
 					}
 				}
-			}else {
-				// nodesSubnet, err := azureapihelper.FindSubnetByPurpose(infrastructureStatus.Networks.Subnets, azureapi.PurposeNodes)
-				// if err != nil {
-				// 	return err
-				// }
+			} else {
 				subnetName = nodesSubnet.Name
 				workerPoolHash, err = w.generateWorkerPoolHash(pool, infrastructureStatus, vmoDependency, nil)
 				if err != nil {
-								  return err
-								  }
+					return err
+				}
 			}
 			machineDeployment, machineClassSpec := generateMachineClassAndDeployment(&zoneInfo{
 				name:  zone,
