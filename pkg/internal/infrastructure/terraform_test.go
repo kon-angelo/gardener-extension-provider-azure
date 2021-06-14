@@ -527,6 +527,8 @@ var _ = Describe("Terraform", func() {
 		)
 
 		BeforeEach(func() {
+			workers := "1.1.0.0/16"
+
 			vnetName = "vnet_name"
 			subnetName = "subnet_name"
 			routeTableName = "routTable_name"
@@ -534,6 +536,9 @@ var _ = Describe("Terraform", func() {
 			securityGroupName = "sg_name"
 			resourceGroupName = "rg_name"
 			config = &api.InfrastructureConfig{
+				Networks: api.NetworkConfig{
+					Workers: &workers,
+				},
 				Zoned: false,
 			}
 			state = &TerraformState{
@@ -572,8 +577,10 @@ var _ = Describe("Terraform", func() {
 							Name:    subnetName,
 						},
 					},
+					Topology: api.TopologyZonalSingleSubnet,
 				},
-				Zoned: true,
+				Zoned:                      true,
+				NatGatewayPublicIPMigrated: true,
 			}))
 		})
 
@@ -608,8 +615,10 @@ var _ = Describe("Terraform", func() {
 							Name:    subnetName,
 						},
 					},
+					Topology: api.TopologyRegional,
 				},
-				Zoned: false,
+				Zoned:                      false,
+				NatGatewayPublicIPMigrated: true,
 			}))
 		})
 
@@ -644,15 +653,72 @@ var _ = Describe("Terraform", func() {
 							Name:    subnetName,
 						},
 					},
+					Topology: api.TopologyRegional,
 				},
 				Identity: &apiv1alpha1.IdentityStatus{
 					ID:        identityID,
 					ClientID:  identityClientID,
 					ACRAccess: false,
 				},
-				Zoned: true,
+				Zoned:                      false,
+				NatGatewayPublicIPMigrated: true,
 			}))
 		})
 
+		It("should correctly compute the status for zoned cluster with multiple subnets", func() {
+			var (
+				zone1 = "1"
+				zone2 = "2"
+				subnetName1 = "subnet1"
+				subnetName2 = "subnet2"
+			)
+			config.Zoned = true
+			config.Networks = api.NetworkConfig{
+				Zones: []api.Zone{
+					{
+						Name: 1,
+					},
+					{
+						Name: 2,
+					},
+				},
+			}
+			state.SubnetNames = []string{subnetName1, subnetName2}
+
+			status := StatusFromTerraformState(config, state)
+			Expect(status).To(Equal(&apiv1alpha1.InfrastructureStatus{
+				TypeMeta: StatusTypeMeta,
+				ResourceGroup: apiv1alpha1.ResourceGroup{
+					Name: resourceGroupName,
+				},
+				RouteTables: []apiv1alpha1.RouteTable{
+					{Name: routeTableName, Purpose: apiv1alpha1.PurposeNodes},
+				},
+				SecurityGroups: []apiv1alpha1.SecurityGroup{
+					{Name: securityGroupName, Purpose: apiv1alpha1.PurposeNodes},
+				},
+				AvailabilitySets: []apiv1alpha1.AvailabilitySet{},
+				Networks: apiv1alpha1.NetworkStatus{
+					VNet: apiv1alpha1.VNetStatus{
+						Name: vnetName,
+					},
+					Subnets: []apiv1alpha1.Subnet{
+						{
+							Purpose: apiv1alpha1.PurposeNodes,
+							Name:    subnetName1,
+							Zone:    &zone1,
+						},
+						{
+							Purpose: apiv1alpha1.PurposeNodes,
+							Name:    subnetName2,
+							Zone:    &zone2,
+						},
+					},
+					Topology: api.TopologyZonal,
+				},
+				Zoned:                      true,
+				NatGatewayPublicIPMigrated: true,
+			}))
+		})
 	})
 })

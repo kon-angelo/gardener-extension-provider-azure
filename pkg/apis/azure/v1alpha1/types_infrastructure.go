@@ -152,12 +152,12 @@ type NetworkTopologyType string
 
 const (
 	// TopologyRegional is a network topology for clusters that do not make use of availability zones.
-	TopologyRegional = "regional"
+	TopologyRegional NetworkTopologyType = "regional"
 	// TopologyZonalSingleSubnet is a network topology for zonal clusters. Clusters with this topology have a single
 	// subnet that is shared among all availability zones.
-	TopologyZonalSingleSubnet = "zonalSingleSubnet"
+	TopologyZonalSingleSubnet NetworkTopologyType = "zonalSingleSubnet"
 	// TopologyZonal is a network topology for zonal clusters, where a subnet is created for each availability zone.
-	TopologyZonal = "zonal"
+	TopologyZonal NetworkTopologyType = "zonal"
 )
 
 // Subnet is a subnet that was created.

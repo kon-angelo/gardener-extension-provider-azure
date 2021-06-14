@@ -106,6 +106,11 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 		return err
 	}
 
+	nodesSubnet, err := azureapihelper.FindSubnetByPurpose(infrastructureStatus.Networks.Subnets, azureapi.PurposeNodes)
+	if err != nil {
+		return err
+	}
+
 	for _, pool := range w.worker.Spec.Pools {
 		// Get the vmo dependency from the worker status if exists.
 		vmoDependency, err := w.determineWorkerPoolVmoDependency(ctx, infrastructureStatus, workerStatus, pool.Name)
@@ -220,10 +225,10 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 
 		// VMO
 		if vmoDependency != nil {
-			nodesSubnet, err := azureapihelper.FindSubnetByPurpose(infrastructureStatus.Networks.Subnets, azureapi.PurposeNodes)
-			if err != nil {
-				return err
-			}
+			// nodesSubnet, err := azureapihelper.FindSubnetByPurpose(infrastructureStatus.Networks.Subnets, azureapi.PurposeNodes)
+			// if err != nil {
+			// 	return err
+			// }
 			workerPoolHash, err := w.generateWorkerPoolHash(pool, infrastructureStatus, vmoDependency, nil)
 			if err != nil {
 				return err
@@ -248,10 +253,10 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			// This is necessary to avoid `ExistingAvailabilitySetWasNotDeployedOnAcceleratedNetworkingEnabledCluster` error.
 			acceleratedNetworkAllowed = false
 
-			nodesSubnet, err := azureapihelper.FindSubnetByPurpose(infrastructureStatus.Networks.Subnets, azureapi.PurposeNodes)
-			if err != nil {
-				return err
-			}
+			// nodesSubnet, err := azureapihelper.FindSubnetByPurpose(infrastructureStatus.Networks.Subnets, azureapi.PurposeNodes)
+			// if err != nil {
+			// 	return err
+			// }
 			workerPoolHash, err := w.generateWorkerPoolHash(pool, infrastructureStatus, vmoDependency, nil)
 			if err != nil {
 				return err
@@ -292,10 +297,10 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 					}
 				}
 			}else {
-				nodesSubnet, err := azureapihelper.FindSubnetByPurpose(infrastructureStatus.Networks.Subnets, azureapi.PurposeNodes)
-				if err != nil {
-					return err
-				}
+				// nodesSubnet, err := azureapihelper.FindSubnetByPurpose(infrastructureStatus.Networks.Subnets, azureapi.PurposeNodes)
+				// if err != nil {
+				// 	return err
+				// }
 				subnetName = nodesSubnet.Name
 				workerPoolHash, err = w.generateWorkerPoolHash(pool, infrastructureStatus, vmoDependency, nil)
 				if err != nil {

@@ -32,7 +32,6 @@ import (
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
-	"github.com/gardener/gardener/pkg/client/kubernetes"
 	mockkubernetes "github.com/gardener/gardener/pkg/client/kubernetes/mock"
 	mockclient "github.com/gardener/gardener/pkg/mock/controller-runtime/client"
 	machinev1alpha1 "github.com/gardener/machine-controller-manager/pkg/apis/machine/v1alpha1"
@@ -44,7 +43,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("Machines", func() {
@@ -326,7 +324,7 @@ var _ = Describe("Machines", func() {
 						"id": machineImageID,
 					}
 
-					workerPoolHash1, _ = worker.WorkerPoolHash(w.Spec.Pools[0], cluster, fmt.Sprintf("%dGi", dataVolume1Size), fmt.Sprintf("%dGi", dataVolume2Size), dataVolume2Type, identityID)
+					workerPoolHash1, _ = worker.WorkerPoolHash(w.Spec.Pools[0], cluster, fmt.Sprintf("%dGi", dataVolume2Size), dataVolume2Type, fmt.Sprintf("%dGi", dataVolume1Size), identityID)
 					workerPoolHash2, _ = worker.WorkerPoolHash(w.Spec.Pools[1], cluster, identityID)
 
 					var (
@@ -367,6 +365,7 @@ var _ = Describe("Machines", func() {
 						machineClassPool1,
 						machineClassPool2,
 					}}
+					_ = machineClasses
 
 					machineDeployments = worker.MachineDeployments{
 						{
@@ -397,20 +396,8 @@ var _ = Describe("Machines", func() {
 
 				It("should return the expected machine deployments for profile image types", func() {
 					workerDelegate := wrapNewWorkerDelegate(c, chartApplier, w, cluster, nil)
-
-					gomock.InOrder(
-						c.EXPECT().
-							DeleteAllOf(context.TODO(), &machinev1alpha1.AzureMachineClass{}, client.InNamespace(namespace)),
-						chartApplier.
-							EXPECT().
-							Apply(
-								ctx,
-								filepath.Join(azure.InternalChartsPath, "machineclass"),
-								namespace,
-								"machineclass",
-								kubernetes.Values(machineClasses),
-							),
-					)
+					// chartApplier.EXPECT().Apply(ctx, filepath.Join(azure.InternalChartsPath, "machineclass"), namespace, "machineclass", kubernetes.Values(machineClasses)).Return(nil)
+					chartApplier.EXPECT().Apply(ctx, filepath.Join(azure.InternalChartsPath, "machineclass"), namespace, "machineclass", gomock.Any()).Return(nil)
 
 					// Test workerDelegate.DeployMachineClasses()
 					err := workerDelegate.DeployMachineClasses(ctx)
