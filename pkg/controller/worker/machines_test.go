@@ -287,7 +287,6 @@ var _ = Describe("Machines", func() {
 					urnMachineClass     map[string]interface{}
 					imageIDMachineClass map[string]interface{}
 					machineDeployments  worker.MachineDeployments
-					machineClasses      map[string]interface{}
 
 					workerPoolHash1, workerPoolHash2 string
 
@@ -378,12 +377,6 @@ var _ = Describe("Machines", func() {
 						"type": volumeType,
 					}
 
-					machineClasses = map[string]interface{}{"machineClasses": []map[string]interface{}{
-						machineClassPool1,
-						machineClassPool2,
-					}}
-					_ = machineClasses
-
 					machineDeployments = worker.MachineDeployments{
 						{
 							Name:                 machineClassNamePool1,
@@ -430,7 +423,6 @@ var _ = Describe("Machines", func() {
 					Expect(err).NotTo(HaveOccurred())
 					Expect(result).To(Equal(machineDeployments))
 				})
-
 
 				Describe("#Zonal setup", func() {
 					var (

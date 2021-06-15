@@ -577,7 +577,7 @@ var _ = Describe("Terraform", func() {
 							Name:    subnetName,
 						},
 					},
-					Topology: api.TopologyZonalSingleSubnet,
+					Topology: apiv1alpha1.TopologyZonalSingleSubnet,
 				},
 				Zoned:                      true,
 				NatGatewayPublicIPMigrated: true,
@@ -615,7 +615,7 @@ var _ = Describe("Terraform", func() {
 							Name:    subnetName,
 						},
 					},
-					Topology: api.TopologyRegional,
+					Topology: apiv1alpha1.TopologyRegional,
 				},
 				Zoned:                      false,
 				NatGatewayPublicIPMigrated: true,
@@ -653,7 +653,7 @@ var _ = Describe("Terraform", func() {
 							Name:    subnetName,
 						},
 					},
-					Topology: api.TopologyRegional,
+					Topology: apiv1alpha1.TopologyRegional,
 				},
 				Identity: &apiv1alpha1.IdentityStatus{
 					ID:        identityID,
@@ -667,8 +667,8 @@ var _ = Describe("Terraform", func() {
 
 		It("should correctly compute the status for zoned cluster with multiple subnets", func() {
 			var (
-				zone1 = "1"
-				zone2 = "2"
+				zone1       = "1"
+				zone2       = "2"
 				subnetName1 = "subnet1"
 				subnetName2 = "subnet2"
 			)
@@ -714,7 +714,7 @@ var _ = Describe("Terraform", func() {
 							Zone:    &zone2,
 						},
 					},
-					Topology: api.TopologyZonal,
+					Topology: apiv1alpha1.TopologyZonal,
 				},
 				Zoned:                      true,
 				NatGatewayPublicIPMigrated: true,

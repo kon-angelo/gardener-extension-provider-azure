@@ -408,16 +408,16 @@ func StatusFromTerraformState(config *api.InfrastructureConfig, tfState *Terrafo
 
 	if config.Networks.Workers != nil {
 		if config.Zoned {
-			infraState.Networks.Topology = api.TopologyZonalSingleSubnet
+			infraState.Networks.Topology = apiv1alpha1.TopologyZonalSingleSubnet
 		} else {
-			infraState.Networks.Topology = api.TopologyRegional
+			infraState.Networks.Topology = apiv1alpha1.TopologyRegional
 		}
 	} else {
-		infraState.Networks.Topology = api.TopologyZonal
+		infraState.Networks.Topology = apiv1alpha1.TopologyZonal
 	}
 
 	switch infraState.Networks.Topology {
-	case api.TopologyZonal:
+	case apiv1alpha1.TopologyZonal:
 		for i, subnet := range tfState.SubnetNames {
 			zoneStr := fmt.Sprintf("%d", config.Networks.Zones[i].Name)
 			infraState.Networks.Subnets = append(infraState.Networks.Subnets, apiv1alpha1.Subnet{

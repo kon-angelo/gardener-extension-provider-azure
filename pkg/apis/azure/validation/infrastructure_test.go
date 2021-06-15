@@ -41,7 +41,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 		vnetCIDR    = "10.0.0.0/8"
 		invalidCIDR = "invalid-cidr"
 
-		workers = "10.250.3.0/24"
+		workers      = "10.250.3.0/24"
 		providerPath *field.Path
 	)
 
@@ -436,57 +436,56 @@ var _ = Describe("InfrastructureConfig validation", func() {
 			})
 		})
 
-		Context("Zones", func(){
+		Context("Zones", func() {
 
 			var (
-				zoneName int32 = 1
+				zoneName  int32 = 1
 				zoneName1 int32 = 2
-				zoneCIDR = "10.250.0.0/24"
-				zoneCIDR1 = "10.250.1.0/24"
+				zoneCIDR        = "10.250.0.0/24"
+				zoneCIDR1       = "10.250.1.0/24"
 			)
 
-			BeforeEach(func(){
+			BeforeEach(func() {
 				infrastructureConfig = &apisazure.InfrastructureConfig{
-					Zoned:         true,
-					Networks:      apisazure.NetworkConfig{
-						VNet:             apisazure.VNet{
-							CIDR:          &vnetCIDR,
+					Zoned: true,
+					Networks: apisazure.NetworkConfig{
+						VNet: apisazure.VNet{
+							CIDR: &vnetCIDR,
 						},
-						Zones:            []apisazure.Zone{
+						Zones: []apisazure.Zone{
 							{
-								Name:             zoneName,
-								CIDR:             zoneCIDR,
+								Name: zoneName,
+								CIDR: zoneCIDR,
 							},
 							{
-								Name:             zoneName1,
-								CIDR:             zoneCIDR1,
+								Name: zoneName1,
+								CIDR: zoneCIDR1,
 							},
 						},
 					},
 				}
 			})
 
-			It("should succeed", func(){
+			It("should succeed", func() {
 				Expect(ValidateInfrastructureConfig(infrastructureConfig, &nodes, &pods, &services, hasVmoAlphaAnnotation, providerPath)).To(BeEmpty())
 			})
 
-			It("should succeed with NAT Gateway", func(){
+			It("should succeed with NAT Gateway", func() {
 				infrastructureConfig.Networks.Zones[0].NatGateway = &apisazure.NatGatewayConfig{
 					Enabled: true,
-					Zone: &zoneName,
-
+					Zone:    &zoneName,
 				}
 				infrastructureConfig.Networks.Zones[1].NatGateway = &apisazure.NatGatewayConfig{
 					Enabled: true,
-					Zone: &zoneName1,
+					Zone:    &zoneName1,
 				}
 				Expect(ValidateInfrastructureConfig(infrastructureConfig, &nodes, &pods, &services, hasVmoAlphaAnnotation, providerPath)).To(BeEmpty())
 			})
 
-			It("should succeed with NAT Gateway and  public IPs", func(){
+			It("should succeed with NAT Gateway and  public IPs", func() {
 				infrastructureConfig.Networks.Zones[0].NatGateway = &apisazure.NatGatewayConfig{
 					Enabled: true,
-					Zone: &zoneName,
+					Zone:    &zoneName,
 					IPAddresses: []apisazure.PublicIPReference{
 						{
 							Name:          "public-ip-name",
@@ -499,37 +498,37 @@ var _ = Describe("InfrastructureConfig validation", func() {
 
 			})
 
-			It("should forbid specifying invalid CIDRs", func(){
+			It("should forbid specifying invalid CIDRs", func() {
 
 			})
 
-			It("should forbid not specifying VNet when using Zones", func(){
+			It("should forbid not specifying VNet when using Zones", func() {
 
 			})
 
-			It("should forbid zone CIDRs which are not in Vnet and Nodes CIDR", func(){
+			It("should forbid zone CIDRs which are not in Vnet and Nodes CIDR", func() {
 
 			})
 
-			It("should forbid non canonical CIDRs", func(){
+			It("should forbid non canonical CIDRs", func() {
 
 			})
 
-			It("should forbid overlapping zone CIDRs", func(){
+			It("should forbid overlapping zone CIDRs", func() {
 
 			})
 
-			It("should forbid not specifying zones for NAT gateway", func(){
+			It("should forbid not specifying zones for NAT gateway", func() {
 
 			})
 
-			It("should forbid specifying incorrect zone for NAT gateway", func(){
+			It("should forbid specifying incorrect zone for NAT gateway", func() {
 
 			})
 		})
 	})
 
-	Describe("#ValidateInfrastructureConfigAgainstCloudProfile", func(){
+	Describe("#ValidateInfrastructureConfigAgainstCloudProfile", func() {
 
 	})
 
