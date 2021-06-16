@@ -83,31 +83,36 @@ func (s *shoot) Validate(ctx context.Context, new, old client.Object) error {
 		return fmt.Errorf("wrong object type %T", new)
 	}
 
+	cloudProfile := &gardencorev1beta1.CloudProfile{}
+	if err := s.client.Get(ctx, kutil.Key(shoot.Spec.CloudProfileName), cloudProfile); err != nil {
+		return err
+	}
+
 	if old != nil {
 		oldShoot, ok := old.(*core.Shoot)
 		if !ok {
 			return fmt.Errorf("wrong object type %T for old object", old)
 		}
-		return s.validateUpdate(oldShoot, shoot)
+		return s.validateUpdate(oldShoot, shoot, cloudProfile)
 	}
 
-	return s.validateCreation(ctx, shoot)
+	return s.validateCreation(ctx, shoot, cloudProfile)
 }
 
-func (s *shoot) validateCreation(ctx context.Context, shoot *core.Shoot) error {
+func (s *shoot) validateCreation(ctx context.Context, shoot *core.Shoot, cloudProfile *gardencorev1beta1.CloudProfile) error {
 	infraConfig, err := checkAndDecodeInfrastructureConfig(s.decoder, shoot.Spec.Provider.InfrastructureConfig, infraConfigPath)
 	if err != nil {
 		return err
 	}
 
-	if err := s.validateShoot(shoot, infraConfig).ToAggregate(); err != nil {
+	if err := s.validateShoot(shoot, nil, infraConfig, cloudProfile).ToAggregate(); err != nil {
 		return err
 	}
 
 	return s.validateShootSecret(ctx, shoot)
 }
 
-func (s *shoot) validateShoot(shoot *core.Shoot, infraConfig *azure.InfrastructureConfig) field.ErrorList {
+func (s *shoot) validateShoot(shoot *core.Shoot, oldInfraConfig, infraConfig *azure.InfrastructureConfig, cloudProfile *gardencorev1beta1.CloudProfile) field.ErrorList {
 	allErrs := field.ErrorList{}
 	// ControlPlaneConfig
 	if shoot.Spec.Provider.ControlPlaneConfig != nil {
@@ -119,6 +124,9 @@ func (s *shoot) validateShoot(shoot *core.Shoot, infraConfig *azure.Infrastructu
 	// Network validation
 	allErrs = append(allErrs, azurevalidation.ValidateNetworking(shoot.Spec.Networking, nwPath)...)
 
+	// Cloudprofile validation
+	allErrs = append(allErrs, azurevalidation.ValidateInfrastructureConfigAgainstCloudProfile(oldInfraConfig, infraConfig, shoot.Spec.Region, cloudProfile, infraConfigPath)...)
+
 	// Provider validation
 	allErrs = append(allErrs, azurevalidation.ValidateInfrastructureConfig(infraConfig, shoot.Spec.Networking.Nodes, shoot.Spec.Networking.Pods, shoot.Spec.Networking.Services, helper.HasShootVmoAlphaAnnotation(shoot.Annotations), infraConfigPath)...)
 
@@ -128,7 +136,7 @@ func (s *shoot) validateShoot(shoot *core.Shoot, infraConfig *azure.Infrastructu
 	return allErrs
 }
 
-func (s *shoot) validateUpdate(oldShoot, shoot *core.Shoot) error {
+func (s *shoot) validateUpdate(oldShoot, shoot *core.Shoot, cloudProfile *gardencorev1beta1.CloudProfile) error {
 	// Decode the new infrastructure config.
 	if shoot.Spec.Provider.InfrastructureConfig == nil {
 		return field.Required(infraConfigPath, "InfrastructureConfig must be set for Azure shoots")
@@ -155,7 +163,7 @@ func (s *shoot) validateUpdate(oldShoot, shoot *core.Shoot) error {
 	allErrs = append(allErrs, azurevalidation.ValidateVmoConfigUpdate(helper.HasShootVmoAlphaAnnotation(oldShoot.Annotations), helper.HasShootVmoAlphaAnnotation(shoot.Annotations), metaDataPath)...)
 	allErrs = append(allErrs, azurevalidation.ValidateWorkersUpdate(oldShoot.Spec.Provider.Workers, shoot.Spec.Provider.Workers, workersPath)...)
 
-	allErrs = append(allErrs, s.validateShoot(shoot, infraConfig)...)
+	allErrs = append(allErrs, s.validateShoot(shoot, oldInfraConfig, infraConfig, cloudProfile)...)
 
 	return allErrs.ToAggregate()
 }
