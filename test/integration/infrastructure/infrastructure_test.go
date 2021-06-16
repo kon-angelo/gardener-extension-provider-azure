@@ -62,7 +62,7 @@ const (
 )
 
 var (
-	WorkerCIDR  = "10.250.0.0/19"
+	WorkerCIDR = "10.250.0.0/19"
 )
 
 var (

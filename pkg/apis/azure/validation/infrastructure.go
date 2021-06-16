@@ -34,9 +34,14 @@ const (
 func ValidateInfrastructureConfigAgainstCloudProfile(oldInfra, infra *apisazure.InfrastructureConfig, shootRegion string, cloudProfile *gardencorev1beta1.CloudProfile, fld *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
+	if len(infra.Networks.Zones) == 0 {
+		return allErrs
+	}
+
 	for _, region := range cloudProfile.Spec.Regions {
 		if region.Name == shootRegion {
-			allErrs = append(allErrs, validateInfrastructureConfigZones(oldInfra, infra, region.Zones, fld.Child(""))...)
+			allErrs = append(allErrs, validateInfrastructureConfigZones(oldInfra, infra, region.Zones, fld.Child("networks").Child("zones"))...)
+			break
 		}
 	}
 
@@ -56,8 +61,8 @@ func validateInfrastructureConfigZones(oldInfra, infra *apisazure.Infrastructure
 			continue
 		}
 
-		if !azureZones.Has(helper.AzureZoneToGardenZone(zone.Name)) {
-			allErrs = append(allErrs, field.NotSupported(fld.Child("zones").Index(i).Child("name"), zone.Name, azureZones.UnsortedList()))
+		if !azureZones.Has(helper.AzureZoneToCoreZone(zone.Name)) {
+			allErrs = append(allErrs, field.NotSupported(fld.Index(i).Child("name"), zone.Name, azureZones.UnsortedList()))
 		}
 	}
 

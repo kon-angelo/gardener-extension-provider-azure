@@ -140,6 +140,6 @@ func HasShootVmoAlphaAnnotation(shootAnnotations map[string]string) bool {
 	return false
 }
 
-func AzureZoneToGardenZone(zone int32) string {
+func AzureZoneToCoreZone(zone int32) string {
 	return fmt.Sprintf("%d", zone)
 }
