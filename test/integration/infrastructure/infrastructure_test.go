@@ -833,7 +833,7 @@ func verifyCreation(
 	Expect(rt.Location).To(PointTo(Equal(*region)))
 	Expect(rt.Routes).To(Or(BeNil(), PointTo(BeEmpty())))
 
-	verifySubnet := func(serviceEndpoints []string, nat *azurev1alpha1.NatGatewayConfig, index int){
+	verifySubnet := func(cidr string, serviceEndpoints []string, nat *azurev1alpha1.NatGatewayConfig, index int){
 		subnetName := indexedName(infra.Namespace + "-nodes", index)
 		Expect(vnet.VirtualNetworkPropertiesFormat.Subnets).To(PointTo(ContainElement(MatchFields(IgnoreExtras, Fields{
 			"Name": PointTo(Equal(subnetName)),
@@ -843,12 +843,9 @@ func verifyCreation(
 		// subnets
 		subnet, err := az.subnets.Get(ctx, vnetResourceGroupName, status.Networks.VNet.Name, subnetName, "")
 		Expect(err).ToNot(HaveOccurred())
-		Expect(subnet.AddressPrefix).To(PointTo(Equal(WorkerCIDR)))
+		Expect(subnet.AddressPrefix).To(PointTo(Equal(cidr)))
 		Expect(subnet.RouteTable).To(HaveEqualID(*rt.ID))
 		Expect(subnet.NetworkSecurityGroup).To(HaveEqualID(*secgroup.ID))
-		if hasNatGateway(nat) {
-			Expect(subnet.NatGateway).To(HaveEqualID(*ng.ID))
-		}
 		Expect(subnet.ServiceEndpoints).To(PointTo(HaveLen(len(serviceEndpoints))))
 		for _, se := range serviceEndpoints {
 			Expect(subnet.ServiceEndpoints).To(PointTo(ContainElement(MatchFields(IgnoreExtras, Fields{
@@ -859,7 +856,7 @@ func verifyCreation(
 		// nat gateway
 		if hasNatGateway(nat) {
 			ngName := indexedName(infra.Namespace + "-nat-gateway", index)
-			pipName := indexedName(ngName + "-ip", index)
+			pipName := fmt.Sprintf("%s-ip", ngName)
 
 			// public IP
 			pip, err := az.pubIp.Get(ctx, status.ResourceGroup.Name, pipName, "")
@@ -869,6 +866,7 @@ func verifyCreation(
 			Expect(pip.Sku.Name).To(Equal(network.PublicIPAddressSkuNameStandard))
 			Expect(pip.PublicIPAddressVersion).To(Equal(network.IPv4))
 
+			// nat gateway
 			ng, err = az.nat.Get(ctx, status.ResourceGroup.Name, ngName, "")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(ng.Location).To(PointTo(Equal(*region)))
@@ -880,14 +878,18 @@ func verifyCreation(
 			if nat.Zone != nil {
 				Expect(ng.Zones).To(PointTo(ContainElement(Equal(fmt.Sprintf("%d",*nat.Zone)))))
 			}
+
+			// subnet
+			Expect(subnet.NatGateway).To(HaveEqualID(*ng.ID))
 		}
 	}
 
 	if !usesNatZones(config){
-		verifySubnet(config.Networks.ServiceEndpoints, config.Networks.NatGateway, 0)
+		verifySubnet(*config.Networks.Workers, config.Networks.ServiceEndpoints, config.Networks.NatGateway, 0)
 	}else {
 		for index, zone := range config.Networks.Zones{
-			verifySubnet(zone.ServiceEndpoints, zone.NatGateway, index)
+			By(fmt.Sprintf("verifying for %d", zone.Name))
+			verifySubnet(zone.CIDR, zone.ServiceEndpoints, zone.NatGateway, index)
 		}
 	}
 

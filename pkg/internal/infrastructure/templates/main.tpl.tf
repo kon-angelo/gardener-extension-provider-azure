@@ -146,7 +146,7 @@ resource "azurerm_nat_gateway_public_ip_association" "{{ $natName }}-ip-user-pro
 #===============================================
 {{- $natIpName := printf "%s-ip" $natName}}
 resource "azurerm_public_ip" "{{ $natIpName }}" {
-  name                = "{{ $.clusterName }}-{{ $natName }}-ip"
+  name                = "{{ $natResourceName }}-ip"
   location            = "{{ $.azure.region }}"
   resource_group_name = {{ template "resource-group-reference" $ }}
   allocation_method   = "Static"
