@@ -2,7 +2,7 @@ images:
 - name: terraformer
   sourceRepository: github.com/gardener/terraformer
   repository: kangelo/terraformer
-  tag: "latest"
+  tag: "azure"
 
 - name: cloud-controller-manager
   sourceRepository: github.com/kubernetes/kubernetes
