@@ -143,10 +143,24 @@ func validateNetworkConfig(
 		return allErrs
 	}
 
-	allErrs = append(allErrs, validateVnetConfig(config, resourceGroup, workerCIDR, nodes, pods, services, vNetPath)...)
+	if config.Workers == nil {
+		if config.NatGateway != nil {
+			allErrs = append(allErrs, field.Forbidden(workersPath, "natGateway cannot be specified when workers field is missing"))
+		}
+		if len(config.ServiceEndpoints) > 0 {
+			allErrs = append(allErrs, field.Forbidden(workersPath, "serviceEndpoints cannot be specified when workers field is missing"))
+		}
+	}
 
 	if config.Workers != nil {
-		allErrs = append(allErrs, validateWorkerCIDR(*config.Workers, config.VNet, nodes, pods, services, workersPath)...)
+		workerCIDR = cidrvalidation.NewCIDR(*config.Workers, workersPath)
+		allErrs = append(allErrs, cidrvalidation.ValidateCIDRParse(workerCIDR)...)
+		allErrs = append(allErrs, cidrvalidation.ValidateCIDRIsCanonical(workersPath, *config.Workers)...)
+
+		if nodes != nil {
+			allErrs = append(allErrs, nodes.ValidateSubset(workerCIDR)...)
+		}
+
 		allErrs = append(allErrs, validateNatGatewayConfig(config.NatGateway, zoned, hasVmoAlphaAnnotation, fld.Child("natGateway"))...)
 	}
 
@@ -155,21 +169,15 @@ func validateNetworkConfig(
 			allErrs = append(allErrs, field.Forbidden(zonesPath, "cannot specify zones in an non-zonal cluster"))
 		}
 
-		if config.NatGateway != nil {
-			allErrs = append(allErrs, field.Forbidden(zonesPath, "cannot specify NatGateway outside of the zones configuration"))
-		}
-
-		if isDefaultVnetConfig(&config.VNet) {
-			allErrs = append(allErrs, field.Invalid(vNetPath, config.VNet, fmt.Sprintf("vnet configuration must be specified when using %s", zonesPath.String())))
-		}
-
-		allErrs = append(allErrs, validateZones(config.Zones, &config.VNet, nodes, pods, services, zonesPath)...)
+		allErrs = append(allErrs, validateZones(config.Zones, nodes, pods, services, zonesPath)...)
 	}
 
+	allErrs = append(allErrs, validateVnetConfig(config, resourceGroup, workerCIDR, nodes, pods, services, zonesPath, vNetPath)...)
 	return allErrs
 }
 
-func validateVnetConfig(networkConfig *apisazure.NetworkConfig, resourceGroupConfig *apisazure.ResourceGroup, workers, nodes, pods, services cidrvalidation.CIDR, vNetPath *field.Path) field.ErrorList {
+
+func validateVnetConfig(networkConfig *apisazure.NetworkConfig, resourceGroupConfig *apisazure.ResourceGroup, workers, nodes, pods, services cidrvalidation.CIDR, zonesPath, vNetPath *field.Path) field.ErrorList {
 	var (
 		allErrs    = field.ErrorList{}
 		vnetConfig = networkConfig.VNet
@@ -191,85 +199,61 @@ func validateVnetConfig(networkConfig *apisazure.NetworkConfig, resourceGroupCon
 		return allErrs
 	}
 
-	if isDefaultVnetConfig(&vnetConfig) {
-		return allErrs
-	}
-	// // Validate no cidr config is specified at all.
-	// if isDefaultVnetConfig(&networkConfig.VNet) {
-	// 	allErrs = append(allErrs, workers.ValidateSubset(nodes)...)
-	// 	allErrs = append(allErrs, workers.ValidateNotSubset(pods, services)...)
-	//
+	// if isDefaultVnetConfig(&vnetConfig) {
 	// 	return allErrs
 	// }
+	// // Validate no cidr config is specified at all.
+	if isDefaultVnetConfig(&networkConfig.VNet) {
+		if workers == nil {
+			allErrs = append(allErrs, field.Forbidden(vNetPath, "a vnet cidr or vnet reference must be specified when the workers field is not set"))
+			return allErrs
+		}
+
+		allErrs = append(allErrs, workers.ValidateSubset(nodes)...)
+		allErrs = append(allErrs, workers.ValidateNotSubset(pods, services)...)
+		return allErrs
+	}
 
 	vnetCIDR := cidrvalidation.NewCIDR(*networkConfig.VNet.CIDR, vNetPath.Child("cidr"))
 	allErrs = append(allErrs, vnetCIDR.ValidateParse()...)
 	allErrs = append(allErrs, cidrvalidation.ValidateCIDRIsCanonical(vNetPath.Child("cidr"), *vnetConfig.CIDR)...)
 	allErrs = append(allErrs, vnetCIDR.ValidateSubset(nodes)...)
 	allErrs = append(allErrs, vnetCIDR.ValidateNotSubset(pods, services)...)
-
-	return allErrs
-}
-
-func validateWorkerCIDR(workers string, vnet apisazure.VNet, nodes, pods, services cidrvalidation.CIDR, fld *field.Path) field.ErrorList {
-	var (
-		allErrs = field.ErrorList{}
-	)
-
-	workerCIDR := cidrvalidation.NewCIDR(workers, fld)
-	allErrs = append(allErrs, cidrvalidation.ValidateCIDRParse(workerCIDR)...)
-	allErrs = append(allErrs, cidrvalidation.ValidateCIDRIsCanonical(fld, workers)...)
-
-	if vnet.CIDR != nil {
-		vnetCIDR := cidrvalidation.NewCIDR(*vnet.CIDR, nil)
-		allErrs = append(allErrs, vnetCIDR.ValidateSubset(workerCIDR)...)
+	if workers != nil {
+		allErrs = append(allErrs, vnetCIDR.ValidateSubset(workers)...)
 	}
-
-	if nodes != nil {
-		allErrs = append(allErrs, nodes.ValidateSubset(workerCIDR)...)
-	}
-	// Validate no cidr config is specified at all.
-	if isDefaultVnetConfig(&vnet) {
-		allErrs = append(allErrs, workerCIDR.ValidateNotSubset(pods, services)...)
+	for index, zone := range networkConfig.Zones{
+		zoneCIDR := cidrvalidation.NewCIDR(zone.CIDR, zonesPath.Index(index).Child("cidr"))
+		allErrs = append(allErrs, vnetCIDR.ValidateSubset(zoneCIDR)...)
 	}
 
 	return allErrs
 }
 
-func validateZones(zones []apisazure.Zone, vnet *apisazure.VNet, nodes, pods, services cidrvalidation.CIDR, fld *field.Path) field.ErrorList {
+func validateZones(zones []apisazure.Zone, nodes, pods, services cidrvalidation.CIDR, fld *field.Path) field.ErrorList {
 	var (
 		allErrs   = field.ErrorList{}
-		zonesPath = fld.Child("zones") // Validate workers subnet cidr
 		zoneCIDRs []cidrvalidation.CIDR
-		vnetCIDR  cidrvalidation.CIDR
 	)
-
-	if vnet.CIDR != nil {
-		vnetCIDR = cidrvalidation.NewCIDR(*vnet.CIDR, nil)
-	}
 
 	for index, zone := range zones {
 		// construct the zone CIDR slice
-		zonePath := zonesPath.Index(index)
-		zoneCIDRs = append(zoneCIDRs, cidrvalidation.NewCIDR(zone.CIDR, zonePath))
+		zonePath := fld.Index(index)
+		zoneCIDR := cidrvalidation.NewCIDR(zone.CIDR, zonePath.Child("cidr"))
+		zoneCIDRs = append(zoneCIDRs, zoneCIDR)
+		allErrs = append(allErrs, cidrvalidation.ValidateCIDRIsCanonical(fld, zoneCIDR.GetCIDR())...)
 
 		// NAT validation
-		allErrs = append(allErrs, validateZonedNatGatewayConfig(zone.NatGateway, zone.Name, zonesPath.Child("natGateway"))...)
+		allErrs = append(allErrs, validateZonedNatGatewayConfig(zone.NatGateway, zone.Name, zonePath.Child("natGateway"))...)
 	}
 
-	// CIDR validation
-	for index, zoneCIDR := range zoneCIDRs {
-		allErrs = append(allErrs, cidrvalidation.ValidateCIDRParse(zoneCIDR)...)
-		allErrs = append(allErrs, cidrvalidation.ValidateCIDRIsCanonical(fld, zoneCIDR.GetCIDR())...)
-		allErrs = append(allErrs, zoneCIDR.ValidateNotSubset(zoneCIDRs[index+1:]...)...)
-		if vnetCIDR != nil {
-			allErrs = append(allErrs, vnetCIDR.ValidateSubset(zoneCIDR)...)
-		}
-		if nodes != nil {
-			allErrs = append(allErrs, nodes.ValidateSubset(zoneCIDR)...)
-		}
-		allErrs = append(allErrs, zoneCIDR.ValidateNotSubset(pods, services)...)
+	allErrs = append(allErrs, cidrvalidation.ValidateCIDRParse(zoneCIDRs...)...)
+	if nodes != nil {
+		allErrs = append(allErrs, nodes.ValidateSubset(zoneCIDRs...)...)
 	}
+	allErrs = append(allErrs, cidrvalidation.ValidateCIDROverlap(zoneCIDRs, zoneCIDRs, false)...)
+	allErrs = append(allErrs, cidrvalidation.ValidateCIDROverlap([]cidrvalidation.CIDR{pods, services}, zoneCIDRs, false)...)
+
 	return allErrs
 }
 
