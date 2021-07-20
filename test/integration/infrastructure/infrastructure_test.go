@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2020-06-30/compute"
@@ -907,7 +908,11 @@ func verifyCreation(
 
 		Expect(id.Name).To(PointTo(Equal(config.Identity.Name)))
 		Expect(status.Identity).ToNot(BeNil())
-		Expect(status.Identity.ID).To(Equal(*id.ID))
+
+		// This is a case-insensitive check to determine if the resouce IDs match. In some cases Azure would respond with
+		// different cases in certain parts of the ID string (e.g. resourceGroups vs resourcegroups). IDs in Azure however seem to not take
+		// case into account, hence we can safely check with EqualFold.
+		Expect(strings.EqualFold(status.Identity.ID, *id.ID)).To(BeTrue())
 		Expect(status.Identity.ClientID).To(Equal(id.ClientID.String()))
 	}
 
