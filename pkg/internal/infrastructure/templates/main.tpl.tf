@@ -93,6 +93,8 @@ resource "azurerm_subnet" "{{ $workers }}" {
 {{- end }}
   address_prefixes          = ["{{ $subnet.cidr }}"]
   service_endpoints         = [{{ range $index, $serviceEndpoint := $subnet.serviceEndpoints }}{{ if $index }},{{ end }}"{{$serviceEndpoint}}"{{end}}]
+  private_link_service_network_policies_enabled = {{ $subnet.privateLinkNetworkPoliciesEnabled }}
+  private_endpoint_network_policies_enabled = {{ $subnet.privateEndpointNetworkPoliciesEnabled }}
 }
 
 resource "azurerm_subnet_route_table_association" "{{ $workers }}-rt-subnet-association" {

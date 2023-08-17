@@ -1120,6 +1120,19 @@ VNet
 </tr>
 <tr>
 <td>
+<code>subnetConfig</code></br>
+<em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.SubnetConfig">
+SubnetConfig
+</a>
+</em>
+</td>
+<td>
+<p>Subnet contains configuration applicable to all subnets.</p>
+</td>
+</tr>
+<tr>
+<td>
 <code>workers</code></br>
 <em>
 string
@@ -1529,6 +1542,47 @@ bool
 <td>
 <p>Migrated is set when the network layout is migrated from NetworkLayoutSingleSubnet to NetworkLayoutMultipleSubnet.
 Only the subnet that was used prior to the migration should have this attribute set.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="azure.provider.extensions.gardener.cloud/v1alpha1.SubnetConfig">SubnetConfig
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.NetworkConfig">NetworkConfig</a>)
+</p>
+<p>
+<p>SubnetConfig contains configuration that applies to all subnets</p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>enablePrivateLinkServiceNetworkPolicies</code></br>
+<em>
+bool
+</em>
+</td>
+<td>
+<p>EnablePrivateLinkServiceNetworkPolicies enables network policies for Private Link Services.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>enablePrivateEndpointNetworkPolicies</code></br>
+<em>
+bool
+</em>
+</td>
+<td>
+<p>EnablePrivateEndpointNetworkPolicies enables network policies for Private Endpoints.</p>
 </td>
 </tr>
 </tbody>

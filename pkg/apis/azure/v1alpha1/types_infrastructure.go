@@ -47,6 +47,8 @@ type ResourceGroup struct {
 type NetworkConfig struct {
 	// VNet indicates whether to use an existing VNet or create a new one.
 	VNet VNet `json:"vnet"`
+	// Subnet contains configuration applicable to all subnets.
+	SubnetConfig *SubnetConfig `json:"subnetConfig,omitempty"`
 	// Workers is the worker subnet range to create (used for the VMs).
 	// +optional
 	Workers *string `json:"workers,omitempty"`
@@ -58,6 +60,14 @@ type NetworkConfig struct {
 	ServiceEndpoints []string `json:"serviceEndpoints,omitempty"`
 	// Zones is a list of zones with their respective configuration.
 	Zones []Zone `json:"zones,omitempty"`
+}
+
+// SubnetConfig contains configuration that applies to all subnets
+type SubnetConfig struct {
+	// EnablePrivateLinkServiceNetworkPolicies enables network policies for Private Link Services.
+	EnablePrivateLinkServiceNetworkPolicies *bool `json:"enablePrivateLinkServiceNetworkPolicies,omitempty"`
+	// EnablePrivateEndpointNetworkPolicies enables network policies for Private Endpoints.
+	EnablePrivateEndpointNetworkPolicies *bool `json:"enablePrivateEndpointNetworkPolicies,omitempty"`
 }
 
 // NatGatewayConfig contains configuration for the NAT gateway and the attached resources.

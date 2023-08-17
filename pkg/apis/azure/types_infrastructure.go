@@ -43,6 +43,8 @@ type ResourceGroup struct {
 type NetworkConfig struct {
 	// VNet indicates whether to use an existing VNet or create a new one.
 	VNet VNet
+	// Subnets is configuration applied to all subnets.
+	SubnetConfig *SubnetConfig
 	// Workers is the worker subnet range to create (used for the VMs).
 	Workers *string
 	// NatGateway contains the configuration for the NatGateway.
@@ -63,6 +65,14 @@ type NatGatewayConfig struct {
 	Zone *int32
 	// IPAddresses is a list of ip addresses which should be assigned to the NAT gateway.
 	IPAddresses []PublicIPReference
+}
+
+// SubnetConfig contains configuration that applies to all subnets
+type SubnetConfig struct {
+	// EnablePrivateLinkServiceNetworkPolicies enables network policies for Private Link Services.
+	EnablePrivateLinkServiceNetworkPolicies *bool
+	// EnablePrivateEndpointNetworkPolicies enables network policies for Private Endpoints.
+	EnablePrivateEndpointNetworkPolicies *bool
 }
 
 // PublicIPReference contains information about a public ip.

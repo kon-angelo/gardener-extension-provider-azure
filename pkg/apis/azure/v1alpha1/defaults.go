@@ -40,3 +40,14 @@ func SetDefaults_Storage(obj *Storage) {
 		obj.ManagedDefaultVolumeSnapshotClass = pointer.Bool(true)
 	}
 }
+
+// SetDefaults_SubnetConfig set the default for network policies.
+func SetDefaults_SubnetConfig(obj *SubnetConfig) {
+	if obj.EnablePrivateEndpointNetworkPolicies == nil {
+		obj.EnablePrivateEndpointNetworkPolicies = pointer.Bool(true)
+	}
+
+	if obj.EnablePrivateLinkServiceNetworkPolicies == nil {
+		obj.EnablePrivateLinkServiceNetworkPolicies = pointer.Bool(true)
+	}
+}

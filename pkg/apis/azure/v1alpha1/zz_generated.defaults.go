@@ -31,6 +31,7 @@ import (
 func RegisterDefaults(scheme *runtime.Scheme) error {
 	scheme.AddTypeDefaultingFunc(&CloudProfileConfig{}, func(obj interface{}) { SetObjectDefaults_CloudProfileConfig(obj.(*CloudProfileConfig)) })
 	scheme.AddTypeDefaultingFunc(&ControlPlaneConfig{}, func(obj interface{}) { SetObjectDefaults_ControlPlaneConfig(obj.(*ControlPlaneConfig)) })
+	scheme.AddTypeDefaultingFunc(&InfrastructureConfig{}, func(obj interface{}) { SetObjectDefaults_InfrastructureConfig(obj.(*InfrastructureConfig)) })
 	return nil
 }
 
@@ -47,5 +48,11 @@ func SetObjectDefaults_CloudProfileConfig(in *CloudProfileConfig) {
 func SetObjectDefaults_ControlPlaneConfig(in *ControlPlaneConfig) {
 	if in.Storage != nil {
 		SetDefaults_Storage(in.Storage)
+	}
+}
+
+func SetObjectDefaults_InfrastructureConfig(in *InfrastructureConfig) {
+	if in.Networks.SubnetConfig != nil {
+		SetDefaults_SubnetConfig(in.Networks.SubnetConfig)
 	}
 }

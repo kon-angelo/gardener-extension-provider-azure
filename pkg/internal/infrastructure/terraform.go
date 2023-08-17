@@ -241,15 +241,35 @@ func computeNetworkConfigSingleSubnetLayout(config *api.InfrastructureConfig) (m
 		return nil, err
 	}
 
-	subnet := map[string]interface{}{
+	subnetConfig := map[string]interface{}{
 		"cidr":             *config.Networks.Workers,
 		"serviceEndpoints": config.Networks.ServiceEndpoints,
 		"natGateway":       natGatewayConfig,
 	}
+	subnetConfig = addGlobalSubnetConfig(subnetConfig, config)
 
-	subnets = append(subnets, subnet)
+	subnets = append(subnets, subnetConfig)
 	networkCfg["subnets"] = subnets
 	return networkCfg, nil
+}
+
+func addGlobalSubnetConfig(subnetConfig map[string]interface{}, config *api.InfrastructureConfig) map[string]interface{} {
+	if subnetConfig == nil {
+		subnetConfig = make(map[string]interface{})
+	}
+
+	if conf := config.Networks.SubnetConfig; conf == nil || conf.EnablePrivateEndpointNetworkPolicies == nil {
+		subnetConfig["privateEndpointNetworkPoliciesEnabled"] = true
+	} else {
+		subnetConfig["privateEndpointNetworkPoliciesEnabled"] = *conf.EnablePrivateEndpointNetworkPolicies
+	}
+
+	if conf := config.Networks.SubnetConfig; conf == nil || conf.EnablePrivateLinkServiceNetworkPolicies == nil {
+		subnetConfig["privateLinkNetworkPoliciesEnabled"] = true
+	} else {
+		subnetConfig["privateLinkNetworkPoliciesEnabled"] = *conf.EnablePrivateLinkServiceNetworkPolicies
+	}
+	return subnetConfig
 }
 
 func computeNetworkConfigMultipleSubnetLayout(infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig) (map[string]interface{}, error) {
@@ -267,6 +287,7 @@ func computeNetworkConfigMultipleSubnetLayout(infra *extensionsv1alpha1.Infrastr
 			"natGateway":       generateZonedNatGatewayValues(zone.NatGateway, zone.Name),
 			"migrated":         ok && migratedZone == helper.InfrastructureZoneToString(zone.Name),
 		}
+		subnetConfig = addGlobalSubnetConfig(subnetConfig, config)
 		subnets = append(subnets, subnetConfig)
 	}
 
