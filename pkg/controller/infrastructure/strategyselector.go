@@ -40,7 +40,7 @@ type ReconcilerFactoryImpl struct {
 
 // Build builds the Reconciler according to the arguments.
 func (f ReconcilerFactoryImpl) Build(useFlow bool) (Reconciler, error) {
-	tf, err := internal.NewTerraformerWithAuth(f.log, f.a.RESTConfig(), infrainternal.TerraformerPurpose, f.infra, f.a.disableProjectedTokenMount)
+	tf, err := internal.NewTerraformerWithAuth(f.log, f.a.restConfig, infrainternal.TerraformerPurpose, f.infra, f.a.disableProjectedTokenMount)
 	if err != nil {
 		return nil, err
 	}

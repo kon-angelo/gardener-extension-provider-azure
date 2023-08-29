@@ -21,7 +21,7 @@ import (
 // NewTerraformReconciler creates a new TerraformReconciler
 func NewTerraformReconciler(a *actuator, logger logr.Logger, tf terraformer.Terraformer, stateInitializer terraformer.StateConfigMapInitializer) (Reconciler, error) {
 	return &TerraformReconciler{
-		Client:           a.Client(),
+		Client:           a.client,
 		Logger:           logger,
 		StateInitializer: stateInitializer,
 		Terraformer:      tf,

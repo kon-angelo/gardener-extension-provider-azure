@@ -17,7 +17,9 @@ package client
 import (
 	"context"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
 )
@@ -29,12 +31,8 @@ type SubnetsClient struct {
 }
 
 // NewSubnetsClient creates a new subnets client.
-func NewSubnetsClient(auth internal.ClientAuth) (*SubnetsClient, error) {
-	cred, err := auth.GetAzClientCredentials()
-	if err != nil {
-		return nil, err
-	}
-	client, err := armnetwork.NewSubnetsClient(auth.SubscriptionID, cred, nil)
+func NewSubnetsClient(auth internal.ClientAuth, tc azcore.TokenCredential, opts *arm.ClientOptions) (*SubnetsClient, error) {
+	client, err := armnetwork.NewSubnetsClient(auth.SubscriptionID, tc, opts)
 	return &SubnetsClient{client}, err
 }
 

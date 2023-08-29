@@ -18,14 +18,13 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v4"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v2"
-	"github.com/golang/mock/gomock"
-	. "github.com/onsi/ginkgo/v2"
 
-	mockclient "github.com/gardener/gardener-extension-provider-azure/pkg/azure/client/mock"
+github.com/Azure/azure-sdk-for-go /sdk/resourcemanager/network/armnetwork/v5""
+"github.com/golang/mock/gomock"
+."github.com/onsi/ginkgo/v2"
+
+mockclient "github.com/gardener/gardener-extension-provider-azure/pkg/azure/client/mock"
 )
-
 type MatchAnyOfStrings ([]string)
 
 func (m MatchAnyOfStrings) Matches(x interface{}) bool {

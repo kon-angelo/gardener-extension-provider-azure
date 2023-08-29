@@ -17,7 +17,9 @@ package client
 import (
 	"context"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v4"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
 )
@@ -28,12 +30,8 @@ type VirtualMachinesClient struct {
 }
 
 // NewVMClient creates a new VM client
-func NewVMClient(auth internal.ClientAuth) (*VirtualMachinesClient, error) {
-	cred, err := auth.GetAzClientCredentials()
-	if err != nil {
-		return nil, err
-	}
-	client, err := armcompute.NewVirtualMachinesClient(auth.SubscriptionID, cred, nil)
+func NewVMClient(auth internal.ClientAuth, tc azcore.TokenCredential, opts *arm.ClientOptions) (*VirtualMachinesClient, error) {
+	client, err := armcompute.NewVirtualMachinesClient(auth.SubscriptionID, tc, opts)
 	return &VirtualMachinesClient{client}, err
 }
 

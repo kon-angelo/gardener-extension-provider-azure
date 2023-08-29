@@ -17,8 +17,8 @@ package client
 import (
 	"context"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v4"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-03-01/compute"
 	"github.com/Azure/azure-sdk-for-go/services/msi/mgmt/2018-11-30/msi"
@@ -109,7 +109,7 @@ type NetworkSecurityGroup interface {
 
 // PublicIP represents an Azure Network Public IP k8sClient.
 type PublicIP interface {
-	GetFunc[armnetwork.PublicIPAddress]
+	GetWithExpandFunc[armnetwork.PublicIPAddress, *string]
 	CreateOrUpdateFunc[armnetwork.PublicIPAddress]
 	DeleteFunc[armnetwork.PublicIPAddress]
 	ListFunc[armnetwork.PublicIPAddress]

@@ -17,7 +17,9 @@ package client
 import (
 	"context"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
 )
@@ -30,12 +32,8 @@ type PublicIPClient struct {
 }
 
 // NewPublicIPClient creates a new PublicIPClient
-func NewPublicIPClient(auth internal.ClientAuth) (*PublicIPClient, error) {
-	cred, err := auth.GetAzClientCredentials()
-	if err != nil {
-		return nil, err
-	}
-	client, err := armnetwork.NewPublicIPAddressesClient(auth.SubscriptionID, cred, nil)
+func NewPublicIPClient(auth internal.ClientAuth, tc azcore.TokenCredential, opts *arm.ClientOptions) (*PublicIPClient, error) {
+	client, err := armnetwork.NewPublicIPAddressesClient(auth.SubscriptionID, tc, opts)
 	return &PublicIPClient{client}, err
 }
 
@@ -53,8 +51,15 @@ func (c *PublicIPClient) CreateOrUpdate(ctx context.Context, resourceGroupName, 
 }
 
 // Get will get a network public IP Address
-func (c *PublicIPClient) Get(ctx context.Context, resourceGroupName string, name string) (*armnetwork.PublicIPAddress, error) {
-	npi, err := c.client.Get(ctx, resourceGroupName, name, nil)
+func (c *PublicIPClient) Get(ctx context.Context, resourceGroupName string, name string, opts *string) (*armnetwork.PublicIPAddress, error) {
+	var getOpts *armnetwork.PublicIPAddressesClientGetOptions
+	if opts != nil {
+		getOpts = &armnetwork.PublicIPAddressesClientGetOptions{
+			Expand: opts,
+		}
+	}
+	npi, err := c.client.Get(ctx, resourceGroupName, name, getOpts)
+
 	if err != nil {
 		return nil, FilterNotFoundError(err)
 	}

@@ -18,7 +18,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
 )
@@ -31,12 +33,8 @@ type VnetClient struct {
 }
 
 // NewVnetClient creates a new VnetClient.
-func NewVnetClient(auth internal.ClientAuth) (*VnetClient, error) {
-	cred, err := auth.GetAzClientCredentials()
-	if err != nil {
-		return nil, err
-	}
-	client, err := armnetwork.NewVirtualNetworksClient(auth.SubscriptionID, cred, nil)
+func NewVnetClient(auth internal.ClientAuth, tc azcore.TokenCredential, opts *arm.ClientOptions) (*VnetClient, error) {
+	client, err := armnetwork.NewVirtualNetworksClient(auth.SubscriptionID, tc, opts)
 	return &VnetClient{client}, err
 }
 

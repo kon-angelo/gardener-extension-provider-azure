@@ -21,14 +21,15 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v4"
-	"github.com/gardener/gardener/pkg/utils"
-	"k8s.io/utils/pointer"
 
-	azureapi "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
-	azureapihelper "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
-	"github.com/gardener/gardener-extension-provider-azure/pkg/azure"
-	azureclient "github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
+github.com/Azure/azure-sdk-for-go /sdk/resourcemanager/network/armnetwork/v5""
+"github.com/gardener/gardener/pkg/utils"
+"k8s.io/utils/pointer"
+
+azureapi "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
+azureapihelper "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
+"github.com/gardener/gardener-extension-provider-azure/pkg/azure"
+azureclient "github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
 )
 
 func (w *workerDelegate) reconcileVmoDependencies(ctx context.Context, infrastructureStatus *azureapi.InfrastructureStatus, workerProviderStatus *azureapi.WorkerStatus) ([]azureapi.VmoDependency, error) {

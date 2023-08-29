@@ -32,10 +32,6 @@ type ResourceGroupClient struct {
 
 // NewResourceGroupsClient creates a new ResourceGroupClient
 func NewResourceGroupsClient(auth *internal.ClientAuth, tc azcore.TokenCredential, opts *arm.ClientOptions) (*ResourceGroupClient, error) {
-	if opts == nil {
-		opts = DefaultAzureClientOpts()
-	}
-
 	client, err := armresources.NewResourceGroupsClient(auth.SubscriptionID, tc, opts)
 	return &ResourceGroupClient{client}, err
 }

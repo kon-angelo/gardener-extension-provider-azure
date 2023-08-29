@@ -65,11 +65,6 @@ func NewAzureClientFactoryWithAuth(auth *internal.ClientAuth, client client.Clie
 	}, nil
 }
 
-// Group gets an Azure resource group client.
-func (f azureFactory) Group() (ResourceGroup, error) {
-	return NewResourceGroupsClient(f.auth, f.tokenCredential, nil)
-}
-
 // Storage reads the secret from the passed reference and return an Azure (blob) storage client.
 func (f azureFactory) Storage(ctx context.Context, secretRef corev1.SecretReference) (Storage, error) {
 	serviceURL, err := newStorageClient(ctx, f.client, &secretRef)
@@ -94,16 +89,6 @@ func (f azureFactory) StorageAccount() (StorageAccount, error) {
 	return &StorageAccountClient{
 		client: storageAccountClient,
 	}, nil
-}
-
-// Vmss reads the secret from the passed reference and return an Azure virtual machine scale set client.
-func (f azureFactory) Vmss() (Vmss, error) {
-	return NewVmssClient(*f.auth)
-}
-
-// VirtualMachine reads the secret from the passed reference and return an Azure virtual machine client.
-func (f azureFactory) VirtualMachine() (VirtualMachine, error) {
-	return NewVMClient(*f.auth)
 }
 
 // DNSZone reads the secret from the passed reference and return an Azure DNS zone client.
@@ -134,14 +119,29 @@ func (f azureFactory) DNSRecordSet() (DNSRecordSet, error) {
 	}, nil
 }
 
+// Group gets an Azure resource group client.
+func (f azureFactory) Group() (ResourceGroup, error) {
+	return NewResourceGroupsClient(f.auth, f.tokenCredential, GetAzureClientOpts())
+}
+
+// Vmss reads the secret from the passed reference and return an Azure virtual machine scale set client.
+func (f azureFactory) Vmss() (Vmss, error) {
+	return NewVmssClient(*f.auth, f.tokenCredential, GetAzureClientOpts())
+}
+
+// VirtualMachine reads the secret from the passed reference and return an Azure virtual machine client.
+func (f azureFactory) VirtualMachine() (VirtualMachine, error) {
+	return NewVMClient(*f.auth, f.tokenCredential, GetAzureClientOpts())
+}
+
 // NetworkSecurityGroup reads the secret from the passed reference and return an Azure network security group client.
 func (f azureFactory) NetworkSecurityGroup() (NetworkSecurityGroup, error) {
-	return NewSecurityGroupClient(*f.auth)
+	return NewSecurityGroupClient(*f.auth, f.tokenCredential, GetAzureClientOpts())
 }
 
 // PublicIP reads the secret from the passed reference and return an Azure network PublicIPClient.
 func (f azureFactory) PublicIP() (PublicIP, error) {
-	return NewPublicIPClient(*f.auth)
+	return NewPublicIPClient(*f.auth, f.tokenCredential, GetAzureClientOpts())
 
 }
 
@@ -157,12 +157,12 @@ func (f azureFactory) Disk() (Disk, error) {
 
 // Vnet reads the secret from the passed reference and return an Azure Vnet client.
 func (f azureFactory) Vnet() (VirtualNetwork, error) {
-	return NewVnetClient(*f.auth)
+	return NewVnetClient(*f.auth, f.tokenCredential, GetAzureClientOpts())
 }
 
 // Subnet reads the secret from the passed reference and return an Azure Subnet client.
 func (f azureFactory) Subnet() (Subnet, error) {
-	return NewSubnetsClient(*f.auth)
+	return NewSubnetsClient(*f.auth, f.tokenCredential, GetAzureClientOpts())
 }
 
 // RouteTables reads the secret from the passed reference and return an Azure RouteTables client.

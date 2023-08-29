@@ -18,9 +18,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v4"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
+)
+
+github.com/Azure/azure-sdk-for-go /sdk/resourcemanager/network/armnetwork/v5""
+
+"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
 )
 
 var _ AvailabilitySet = &AvailabilitySetClient{}
