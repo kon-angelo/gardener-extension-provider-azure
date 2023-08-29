@@ -1,21 +1,4 @@
 ---
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: shoot--foobar--azure
----
-apiVersion: v1
-kind: Secret
-metadata:
-  namespace: shoot--foobar--azure
-  name: core-azure
-type: Opaque
-data:
-# clientID: base64(clientID)
-# clientSecret: base64(clientSecret)
-# subscriptionID: base64(subscriptionID)
-# tenantID: base64(tenantID)
----
 apiVersion: extensions.gardener.cloud/v1alpha1
 kind: Cluster
 metadata:
@@ -51,6 +34,8 @@ spec:
 apiVersion: extensions.gardener.cloud/v1alpha1
 kind: Infrastructure
 metadata:
+  annotations:
+    azure.provider.extensions.gardener.cloud/use-flow: "true"
   namespace: shoot--foobar--azure
   name: azure-infra
 spec:
@@ -58,7 +43,7 @@ spec:
   region: westeurope
   secretRef:
     namespace: shoot--foobar--azure
-    name: core-azure
+    name: shoot-operator-az-team
   providerConfig:
     apiVersion: azure.provider.extensions.gardener.cloud/v1alpha1
     kind: InfrastructureConfig
@@ -68,20 +53,20 @@ spec:
       # resourceGroup: my-vnet-group
         cidr: 10.250.0.0/16
       # ddosProtectionPlanID: /subscriptions/test/resourceGroups/test/providers/Microsoft.Network/ddosProtectionPlans/test-ddos-protection-plan
-      workers: 10.250.0.0/19
-    # natGateway:
-    #   enabled: false
+      # workers: 10.250.0.0/19
+      # natGateway:
+      # enabled: false
     # serviceEndpoints:
     # - entry1
-    # zones:
-    # - name: 1
-    #   cidr: 10.250.0.0/24
-    # - name: 2
-    #   cidr: 10.250.1.0/24
-    #   natGateway:
-    #     enabled: true
+      zones:
+      - name: 1
+        cidr: 10.250.0.0/24
+      - name: 2
+        cidr: 10.250.1.0/24
+        natGateway:
+          enabled: true
     #   serviceEndpoints:
     #   - entry1
-    zoned: false
+    zoned: true
   # resourceGroup:
   #   name: mygroup

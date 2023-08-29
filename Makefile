@@ -69,6 +69,7 @@ start:
 		--webhook-config-server-port=$(WEBHOOK_CONFIG_PORT) \
 		--webhook-config-mode=$(WEBHOOK_CONFIG_MODE) \
 		--gardener-version="v1.39.0" \
+		--disable-webhooks=topology \
 		$(WEBHOOK_PARAM)
 
 .PHONY: start-admission
