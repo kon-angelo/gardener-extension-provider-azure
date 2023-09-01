@@ -22,17 +22,17 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
+	"github.com/gardener/gardener/extensions/pkg/controller"
+	"github.com/gardener/gardener/extensions/pkg/controller/bastion"
+	"github.com/go-logr/logr"
+	"golang.org/x/crypto/ssh"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-github.com/Azure/azure-sdk-for-go /sdk/resourcemanager/network/armnetwork/v5""
-"github.com/gardener/gardener/extensions/pkg/controller"
-"github.com/gardener/gardener/extensions/pkg/controller/bastion"
-"github.com/go-logr/logr"
-"golang.org/x/crypto/ssh"
-"sigs.k8s.io/controller-runtime/pkg/client"
-"sigs.k8s.io/controller-runtime/pkg/manager"
-
-"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
-azureclient "github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
+	azureclient "github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
 )
 
 const (
@@ -172,7 +172,7 @@ func getPublicIP(ctx context.Context, log logr.Logger, factory azureclient.Facto
 		return nil, err
 	}
 
-	ip, err := ipClient.Get(ctx, opt.ResourceGroupName, opt.BastionPublicIPName)
+	ip, err := ipClient.Get(ctx, opt.ResourceGroupName, opt.BastionPublicIPName, nil)
 	if err != nil {
 		if azureclient.IsAzureAPINotFoundError(err) {
 			log.Info("public IP not found,", "publicIP_name", opt.BastionPublicIPName)
@@ -196,7 +196,7 @@ func getSubnet(ctx context.Context, log logr.Logger, factory azureclient.Factory
 		sg = opt.ResourceGroupName
 	}
 
-	subnet, err := subnetClient.Get(ctx, sg, infrastructureStatus.Networks.VNet.Name, infrastructureStatus.Networks.Subnets[0].Name)
+	subnet, err := subnetClient.Get(ctx, sg, infrastructureStatus.Networks.VNet.Name, infrastructureStatus.Networks.Subnets[0].Name, nil)
 	if err != nil {
 		return nil, err
 	}

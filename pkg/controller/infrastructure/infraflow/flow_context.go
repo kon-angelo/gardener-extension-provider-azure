@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	"github.com/gardener/gardener/extensions/pkg/controller"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	"github.com/gardener/gardener/pkg/utils/flow"
@@ -52,7 +51,8 @@ type FlowContext struct {
 	cluster    *controller.Cluster
 	whiteboard shared.Whiteboard
 	tf         *TerraformAdapter
-	provider   CloudProvider
+	adapter    *InfrastructureAdapter
+	provider   Access
 }
 
 // NewFlowContext creates a new FlowContext.
@@ -79,7 +79,13 @@ func NewFlowContext(factory client.Factory, logger logr.Logger, infra *extension
 		cfg:              cfg,
 		whiteboard:       wb,
 		tf:               tfAdapter,
-		provider:         &provider{factory},
+		provider: &access{
+			factory,
+		},
+		adapter: &InfrastructureAdapter{
+			infra:  infra,
+			config: cfg,
+		},
 	}, nil
 }
 
@@ -103,11 +109,14 @@ func (f *FlowContext) buildReconcileGraph() *flow.Graph {
 	f.AddTask(g, "ensure availability set", f.EnsureAvailabilitySet, shared.DoIf(!f.cfg.Zoned), shared.Dependencies(resourceGroup))
 	routeTable := f.AddTask(g, "ensure route table", f.EnsureRouteTable, shared.Dependencies(resourceGroup))
 	securityGroup := f.AddTask(g, "ensure security group", f.EnsureSecurityGroup, shared.Dependencies(resourceGroup))
-
-	ip := f.AddTask(g, "ensure pips", f.EnsurePublicIPs2(ctx), shared.Dependencies(resourceGroup))
-	natGateway := f.AddTask(g, "ensure nat gateway", func(ctx context.Context) error {
-		return nil
-	}
+	ip := f.AddTask(g, "ensure pips", f.EnsurePublicIPs2, shared.Dependencies(resourceGroup))
+	_ = routeTable
+	_ = securityGroup
+	_ = vnet
+	_ = ip
+	// natGateway := f.AddTask(g, "ensure nat gateway", func(ctx context.Context) error {
+	// 	return nil
+	// }
 	// ip := f.AddTask(g, "ensure pips", func(ctx context.Context) error {
 	// 	ips, err := f.EnsurePublicIPs(ctx)
 	// 	if err != nil {
@@ -121,23 +130,23 @@ func (f *FlowContext) buildReconcileGraph() *flow.Graph {
 	// 	return nil
 	// }, shared.Dependencies(resourceGroup))
 
-	// natGateway := f.AddTask(g, "ensure nat gateway", func(ctx context.Context) error {
-	// 	ips := f.whiteboard.GetObject(publicIPMap).(map[string][]*armnetwork.PublicIPAddress)
-	// 	resp, err := f.EnsureNatGateways(ctx, ips)
-	// 	f.whiteboard.SetObject(natGatewayMap, resp)
+	// natgateway := f.addtask(g, "ensure nat gateway", func(ctx context.context) error {
+	// 	ips := f.whiteboard.getobject(publicipmap).(map[string][]*armnetwork.publicipaddress)
+	// 	resp, err := f.ensurenatgateways(ctx, ips)
+	// 	f.whiteboard.setobject(natgatewaymap, resp)
 	// 	return err
-	// }, shared.Dependencies(ip))
+	// }, shared.dependencies(ip))
 
-	f.AddTask(g, "ensure subnet", func(ctx context.Context) error {
-		routeTable := armnetwork.RouteTable{
-			ID: f.whiteboard.Get(routeTableID),
-		}
-		securityGroup := armnetwork.SecurityGroup{
-			ID: f.whiteboard.Get(sGroupID),
-		}
-		natGateway := f.whiteboard.GetObject(natGatewayMap).(map[string]*armnetwork.NatGateway)
-		return f.EnsureSubnets(ctx, securityGroup, routeTable, natGateway)
-	}, shared.Dependencies(securityGroup), shared.Dependencies(routeTable), shared.Dependencies(natGateway), shared.Dependencies(vnet))
+	// f.AddTask(g, "ensure subnet", func(ctx context.Context) error {
+	// 	routeTable := armnetwork.RouteTable{
+	// 		ID: f.whiteboard.Get(routeTableID),
+	// 	}
+	// 	securityGroup := armnetwork.SecurityGroup{
+	// 		ID: f.whiteboard.Get(sGroupID),
+	// 	}
+	// 	natGateway := f.whiteboard.GetObject(natGatewayMap).(map[string]*armnetwork.NatGateway)
+	// 	return f.EnsureSubnets(ctx, securityGroup, routeTable, natGateway)
+	// }, shared.Dependencies(securityGroup), shared.Dependencies(routeTable), shared.Dependencies(natGateway), shared.Dependencies(vnet))
 	return g
 }
 

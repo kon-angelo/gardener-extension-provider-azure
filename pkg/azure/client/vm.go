@@ -36,8 +36,14 @@ func NewVMClient(auth internal.ClientAuth, tc azcore.TokenCredential, opts *arm.
 }
 
 // Get will get virtual machines in a resource group.
-func (c *VirtualMachinesClient) Get(ctx context.Context, resourceGroupName string, resource string, opts *armcompute.VirtualMachinesClientGetOptions) (*armcompute.VirtualMachine, error) {
-	vm, err := c.client.Get(ctx, resourceGroupName, resource, opts)
+func (c *VirtualMachinesClient) Get(ctx context.Context, resourceGroupName string, resource string, opts *armcompute.InstanceViewTypes) (*armcompute.VirtualMachine, error) {
+	var getOpts *armcompute.VirtualMachinesClientGetOptions
+	if opts != nil {
+		getOpts = &armcompute.VirtualMachinesClientGetOptions{
+			Expand: opts,
+		}
+	}
+	vm, err := c.client.Get(ctx, resourceGroupName, resource, getOpts)
 	if err != nil {
 		return nil, FilterNotFoundError(err)
 	}

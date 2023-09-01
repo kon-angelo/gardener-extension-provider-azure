@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
 )
@@ -34,7 +35,7 @@ func (f *FlowContext) EnrichResponseWithUserManagedIPs(ctx context.Context, res 
 		return err
 	}
 	for _, ip := range ips {
-		resp, err := c.Get(ctx, ip.ResourceGroup, ip.Name)
+		resp, err := c.Get(ctx, ip.ResourceGroup, ip.Name, nil)
 		if err == nil {
 			res[ip.SubnetName] = append(res[ip.SubnetName], &armnetwork.PublicIPAddress{
 				ID: resp.ID,
@@ -166,44 +167,6 @@ func (f *FlowContext) EnsureSubnets(ctx context.Context, securityGroup armnetwor
 		_, err = subnetClient.CreateOrUpdate(ctx, *vnetRgroup, f.tf.Vnet().Name(), subnet.SubnetName(), parameters)
 	}
 	return err
-}
-
-// EnsurePublicIPs creates or updates PublicIPs for the NATs
-func (f *FlowContext) EnsurePublicIPs(ctx context.Context) (map[string][]*armnetwork.PublicIPAddress, error) {
-	res := make(map[string][]*armnetwork.PublicIPAddress)
-	c, err := f.factory.PublicIP()
-	if err != nil {
-		return res, err
-	}
-
-	err = f.deleteOldNatIPs(ctx, c)
-	if err != nil {
-		return res, err
-	}
-	ips := f.tf.EnabledNats()
-	if len(ips) == 0 {
-		return res, nil
-	}
-	for _, ip := range ips {
-		params := armnetwork.PublicIPAddress{
-			Location: to.Ptr(f.tf.Region()),
-			Properties: &armnetwork.PublicIPAddressPropertiesFormat{
-				PublicIPAllocationMethod: to.Ptr(armnetwork.IPAllocationMethodStatic),
-			},
-			SKU:   &armnetwork.PublicIPAddressSKU{Name: to.Ptr(armnetwork.PublicIPAddressSKUNameStandard)},
-			Zones: []*string{},
-		}
-		if ip.Zone() != nil {
-			params.Zones = []*string{ip.Zone()}
-		}
-		resp, err := c.CreateOrUpdate(ctx, f.tf.ResourceGroup(), ip.IpName(), params)
-		if err != nil {
-			return res, err
-		}
-		res[ip.SubnetName()] = append(res[ip.SubnetName()], resp)
-
-	}
-	return res, nil
 }
 
 // delete IPs of NAT Gateways that got disabled

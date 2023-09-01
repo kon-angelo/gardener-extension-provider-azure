@@ -30,36 +30,36 @@ const (
 	DefaultMaxRetries    = 3
 	DefaultMaxRetryDelay = math.MaxInt64
 	DefaultRetryDelay    = 5 * time.Second
-	DefaultTryTimeout    = 1 * time.Second
 )
 
 var (
 	DefaultAzureClientOpts func() *arm.ClientOptions
-	DefaultTransport       *http.Transport
 	once                   sync.Once
 )
 
 func init() {
 	once.Do(func() {
 		DefaultAzureClientOpts = GetAzureClientOpts
-		DefaultTransport = &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second,
-			}).DialContext,
-			ForceAttemptHTTP2:   true,
-			MaxIdleConns:        100,
-			MaxConnsPerHost:     100,
-			IdleConnTimeout:     90 * time.Second,
-			TLSHandshakeTimeout: 10 * time.Second,
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-			},
-		}
 	})
 }
 
+func getTransport() *http.Transport {
+	return &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:   true,
+		MaxIdleConns:        100,
+		MaxConnsPerHost:     100,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+	}
+}
 func GetAzureClientOpts() *arm.ClientOptions {
 	return &arm.ClientOptions{
 		ClientOptions: policy.ClientOptions{
@@ -67,11 +67,10 @@ func GetAzureClientOpts() *arm.ClientOptions {
 				RetryDelay:    DefaultRetryDelay,
 				MaxRetryDelay: DefaultMaxRetryDelay,
 				MaxRetries:    DefaultMaxRetries,
-				TryTimeout:    DefaultTryTimeout,
 				StatusCodes:   GetRetriableStatusCode(),
 			},
 			Transport: &http.Client{
-				Transport: DefaultTransport,
+				Transport: getTransport(),
 			},
 		},
 	}

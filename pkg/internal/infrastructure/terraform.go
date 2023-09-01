@@ -127,12 +127,12 @@ func ComputeTerraformerTemplateValues(
 		}
 	)
 
-	primaryAvSetRequired, err := isPrimaryAvailabilitySetRequired(infra, config, cluster)
+	primaryAvSetRequired, err := IsPrimaryAvailabilitySetRequired(infra, config, cluster)
 	if err != nil {
 		return nil, err
 	}
 
-	// check if we should use an existing ResourceGroup or create a new one
+	// check if we should use an existing ResourceGroupName or create a new one
 	if config.ResourceGroup != nil {
 		createResourceGroup = false
 		resourceGroupName = config.ResourceGroup.Name
@@ -385,7 +385,7 @@ func ExtractTerraformState(ctx context.Context, tf terraformer.Terraformer, infr
 	}
 
 	outputKeys = append(outputKeys, computeSubnetOutputKeys(infra, config)...)
-	primaryAvSetRequired, err := isPrimaryAvailabilitySetRequired(infra, config, cluster)
+	primaryAvSetRequired, err := IsPrimaryAvailabilitySetRequired(infra, config, cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -581,8 +581,8 @@ func findDomainCounts(cluster *controller.Cluster, infra *extensionsv1alpha1.Inf
 	}, nil
 }
 
-// isPrimaryAvailabilitySetRequired determines if a cluster primary AvailabilitySet is required.
-func isPrimaryAvailabilitySetRequired(infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig, cluster *controller.Cluster) (bool, error) {
+// IsPrimaryAvailabilitySetRequired determines if a cluster primary AvailabilitySet is required.
+func IsPrimaryAvailabilitySetRequired(infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig, cluster *controller.Cluster) (bool, error) {
 	if config.Zoned {
 		return false, nil
 	}

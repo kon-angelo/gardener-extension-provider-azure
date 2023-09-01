@@ -336,7 +336,7 @@ func validateNatGatewayIPReference(publicIPReferences []apisazure.PublicIPRefere
 			allErrs = append(allErrs, field.Required(fldPath.Index(i).Child("name"), "Name for NatGateway public ip resource is required"))
 		}
 		if publicIPRef.ResourceGroup == "" {
-			allErrs = append(allErrs, field.Required(fldPath.Index(i).Child("resourceGroup"), "ResourceGroup for NatGateway public ip resouce is required"))
+			allErrs = append(allErrs, field.Required(fldPath.Index(i).Child("resourceGroup"), "ResourceGroupName for NatGateway public ip resouce is required"))
 		}
 	}
 	return allErrs
@@ -367,7 +367,7 @@ func validateZonedPublicIPReference(publicIPReferences []apisazure.ZonedPublicIP
 			allErrs = append(allErrs, field.Required(fldPath.Index(i).Child("name"), "Name for NatGateway public ip resource is required"))
 		}
 		if publicIPRef.ResourceGroup == "" {
-			allErrs = append(allErrs, field.Required(fldPath.Index(i).Child("resourceGroup"), "ResourceGroup for NatGateway public ip resouce is required"))
+			allErrs = append(allErrs, field.Required(fldPath.Index(i).Child("resourceGroup"), "ResourceGroupName for NatGateway public ip resouce is required"))
 		}
 	}
 	return allErrs

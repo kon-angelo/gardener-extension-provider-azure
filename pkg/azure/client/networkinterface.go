@@ -17,6 +17,8 @@ package client
 import (
 	"context"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
@@ -30,12 +32,8 @@ type NetworkInterfaceClient struct {
 }
 
 // NewNetworkInterfaceClient creates a new NetworkInterfaceClient
-func NewNetworkInterfaceClient(auth internal.ClientAuth) (*NetworkInterfaceClient, error) {
-	cred, err := auth.GetAzClientCredentials()
-	if err != nil {
-		return nil, err
-	}
-	client, err := armnetwork.NewInterfacesClient(auth.SubscriptionID, cred, nil)
+func NewNetworkInterfaceClient(auth internal.ClientAuth, tc azcore.TokenCredential, opts *arm.ClientOptions) (*NetworkInterfaceClient, error) {
+	client, err := armnetwork.NewInterfacesClient(auth.SubscriptionID, tc, opts)
 	return &NetworkInterfaceClient{client}, err
 }
 

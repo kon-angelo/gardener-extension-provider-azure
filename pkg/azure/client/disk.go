@@ -17,6 +17,8 @@ package client
 import (
 	"context"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
@@ -28,12 +30,8 @@ type DisksClient struct {
 }
 
 // NewDisksClient creates a new disk client
-func NewDisksClient(auth internal.ClientAuth) (Disk, error) {
-	cred, err := auth.GetAzClientCredentials()
-	if err != nil {
-		return nil, err
-	}
-	client, err := armcompute.NewDisksClient(auth.SubscriptionID, cred, nil)
+func NewDisksClient(auth internal.ClientAuth, tc azcore.TokenCredential, opts *arm.ClientOptions) (Disk, error) {
+	client, err := armcompute.NewDisksClient(auth.SubscriptionID, tc, opts)
 	return &DisksClient{client}, err
 }
 

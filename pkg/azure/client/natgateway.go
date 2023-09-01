@@ -17,6 +17,8 @@ package client
 import (
 	"context"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
@@ -30,12 +32,8 @@ type NatGatewayClient struct {
 }
 
 // NewNatGatewaysClient creates a new NatGateway client.
-func NewNatGatewaysClient(auth internal.ClientAuth) (*NatGatewayClient, error) {
-	cred, err := auth.GetAzClientCredentials()
-	if err != nil {
-		return nil, err
-	}
-	client, err := armnetwork.NewNatGatewaysClient(auth.SubscriptionID, cred, nil)
+func NewNatGatewaysClient(auth internal.ClientAuth, tc azcore.TokenCredential, opts *arm.ClientOptions) (*NatGatewayClient, error) {
+	client, err := armnetwork.NewNatGatewaysClient(auth.SubscriptionID, tc, opts)
 	return &NatGatewayClient{client}, err
 }
 

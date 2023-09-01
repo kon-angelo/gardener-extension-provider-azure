@@ -23,11 +23,6 @@ import (
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
 )
 
-github.com/Azure/azure-sdk-for-go /sdk/resourcemanager/network/armnetwork/v5""
-
-"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
-)
-
 var _ AvailabilitySet = &AvailabilitySetClient{}
 
 // AvailabilitySetClient is an implementation of AvailabilitySet for an availability set k8sClient.

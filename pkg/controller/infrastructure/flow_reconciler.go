@@ -41,8 +41,8 @@ type FlowReconciler struct {
 // NewFlowReconciler creates a new flow reconciler.
 func NewFlowReconciler(a *actuator, log logr.Logger, tf terraformer.Terraformer) (Reconciler, error) {
 	return &FlowReconciler{
-		client:     a.Client(),
-		restConfig: a.RESTConfig(),
+		client:     a.client,
+		restConfig: a.restConfig,
 		log:        log,
 		tf:         tf,
 	}, nil

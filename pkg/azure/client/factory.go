@@ -121,58 +121,58 @@ func (f azureFactory) DNSRecordSet() (DNSRecordSet, error) {
 
 // Group gets an Azure resource group client.
 func (f azureFactory) Group() (ResourceGroup, error) {
-	return NewResourceGroupsClient(f.auth, f.tokenCredential, GetAzureClientOpts())
+	return NewResourceGroupsClient(f.auth, f.tokenCredential, DefaultAzureClientOpts())
 }
 
 // Vmss reads the secret from the passed reference and return an Azure virtual machine scale set client.
 func (f azureFactory) Vmss() (Vmss, error) {
-	return NewVmssClient(*f.auth, f.tokenCredential, GetAzureClientOpts())
+	return NewVmssClient(*f.auth, f.tokenCredential, DefaultAzureClientOpts())
 }
 
 // VirtualMachine reads the secret from the passed reference and return an Azure virtual machine client.
 func (f azureFactory) VirtualMachine() (VirtualMachine, error) {
-	return NewVMClient(*f.auth, f.tokenCredential, GetAzureClientOpts())
+	return NewVMClient(*f.auth, f.tokenCredential, DefaultAzureClientOpts())
 }
 
 // NetworkSecurityGroup reads the secret from the passed reference and return an Azure network security group client.
 func (f azureFactory) NetworkSecurityGroup() (NetworkSecurityGroup, error) {
-	return NewSecurityGroupClient(*f.auth, f.tokenCredential, GetAzureClientOpts())
+	return NewSecurityGroupClient(*f.auth, f.tokenCredential, DefaultAzureClientOpts())
 }
 
 // PublicIP reads the secret from the passed reference and return an Azure network PublicIPClient.
 func (f azureFactory) PublicIP() (PublicIP, error) {
-	return NewPublicIPClient(*f.auth, f.tokenCredential, GetAzureClientOpts())
+	return NewPublicIPClient(*f.auth, f.tokenCredential, DefaultAzureClientOpts())
 
 }
 
 // NetworkInterface reads the secret from the passed reference and return an Azure network interface client.
 func (f azureFactory) NetworkInterface() (NetworkInterface, error) {
-	return NewNetworkInterfaceClient(*f.auth)
+	return NewNetworkInterfaceClient(*f.auth, f.tokenCredential, DefaultAzureClientOpts())
 }
 
 // Disk reads the secret from the passed reference and return an Azure disk client.
 func (f azureFactory) Disk() (Disk, error) {
-	return NewDisksClient(*f.auth)
+	return NewDisksClient(*f.auth, f.tokenCredential, DefaultAzureClientOpts())
 }
 
 // Vnet reads the secret from the passed reference and return an Azure Vnet client.
 func (f azureFactory) Vnet() (VirtualNetwork, error) {
-	return NewVnetClient(*f.auth, f.tokenCredential, GetAzureClientOpts())
+	return NewVnetClient(*f.auth, f.tokenCredential, DefaultAzureClientOpts())
 }
 
 // Subnet reads the secret from the passed reference and return an Azure Subnet client.
 func (f azureFactory) Subnet() (Subnet, error) {
-	return NewSubnetsClient(*f.auth, f.tokenCredential, GetAzureClientOpts())
+	return NewSubnetsClient(*f.auth, f.tokenCredential, DefaultAzureClientOpts())
 }
 
 // RouteTables reads the secret from the passed reference and return an Azure RouteTables client.
 func (f azureFactory) RouteTables() (RouteTables, error) {
-	return NewRouteTablesClient(*f.auth)
+	return NewRouteTablesClient(*f.auth, f.tokenCredential, DefaultAzureClientOpts())
 }
 
 // NatGateway returns a NatGateway client.
 func (f azureFactory) NatGateway() (NatGateway, error) {
-	return NewNatGatewaysClient(*f.auth)
+	return NewNatGatewaysClient(*f.auth, f.tokenCredential, DefaultAzureClientOpts())
 }
 
 // AvailabilitySet returns an AvailabilitySet client.

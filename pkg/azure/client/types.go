@@ -95,7 +95,7 @@ type Vmss interface {
 
 // VirtualMachine represents an Azure virtual machine k8sClient.
 type VirtualMachine interface {
-	GetWithExpandFunc[armcompute.VirtualMachine, *armcompute.VirtualMachinesClientGetOptions]
+	GetWithExpandFunc[armcompute.VirtualMachine, *armcompute.InstanceViewTypes]
 	CreateOrUpdateFunc[armcompute.VirtualMachine]
 	DeleteWithOptsFunc[armcompute.VirtualMachine, *bool]
 }

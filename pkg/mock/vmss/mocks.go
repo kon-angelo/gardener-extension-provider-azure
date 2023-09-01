@@ -8,7 +8,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	armcompute ""github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v5""
+	armcompute "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	gomock "github.com/golang/mock/gomock"
 )
 

@@ -15,81 +15,20 @@
 package infraflow
 
 import (
-	"context"
 	"fmt"
 	"net/url"
 	"reflect"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
-
-	"github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
 )
 
-var _ CloudProvider = &provider{}
-
-// CloudProvider provides additional methods that are build on top of the azure client primitives.
-type CloudProvider interface {
-	DisassociatePublicIP(context.Context, *armnetwork.PublicIPAddress) error
-	DeletePublicIP(context.Context, *armnetwork.PublicIPAddress) error
-}
-
-type provider struct {
-	f client.Factory
-}
-
-func (p *provider) DeletePublicIP(ctx context.Context, pip *armnetwork.PublicIPAddress) error {
-	if pip == nil || pip.ID == nil {
-		return nil
-	}
-
-	pipC, err := p.f.PublicIP()
-	if err != nil {
-		return err
-	}
-	pipRID, err := resourceids.ParseAzureResourceID(*pip.ID)
-	if err != nil {
-		return err
-	}
-
-	err = p.DisassociatePublicIP(ctx, pip)
-	if err != nil {
-		return err
-	}
-
-	return pipC.Delete(ctx, pipRID.ResourceGroup, *pip.Name)
-}
-
-// DisassociatePublicIP disassociates a publicIP from it's attached NAT Gateway.
-func (p *provider) DisassociatePublicIP(ctx context.Context, pip *armnetwork.PublicIPAddress) error {
-	if pip.Properties.NatGateway == nil {
-		return nil
-	}
-
-	natID, err := AzureResourceIdentifierFromID(*pip.Properties.NatGateway.ID)
-	if err != nil {
-		return err
-	}
-
-	nc, err := p.f.NatGateway()
-	if err != nil {
-		return err
-	}
-
-	nat, err := nc.Get(ctx, natID.ResourceGroup, natID.Name)
-	var natPips []*armnetwork.SubResource
-	for _, natPip := range nat.Properties.PublicIPAddresses {
-		if natPip == nil || reflect.DeepEqual(natPip.ID, pip.ID) {
-			continue
-		}
-
-		natPips = append(natPips, natPip)
-	}
-	nat.Properties.PublicIPAddresses = natPips
-
-	_, err = nc.CreateOrUpdate(ctx, natID.ResourceGroup, natID.Name, *nat)
-	return err
-}
+const (
+	VirtualNetwork = "virtualNetwork"
+	RouteTable     = "routeTable"
+	SecurityGroup  = "securityGroup"
+)
 
 // HasGardenerPrefix returns true if the target Azure resource's name is prefixed with the shoot's canonical name.
 // It can only be used in structs or pointers
@@ -119,6 +58,7 @@ func HasGardenerPrefix(item any, clusterName string) (bool, error) {
 type AzureResourceIdentifier struct {
 	ResourceGroup string
 	Name          string
+	Kind          string
 }
 
 // AzureResourceIdentifierFromID returns the identifier from parsing the object ID. It will always return a non-nil
