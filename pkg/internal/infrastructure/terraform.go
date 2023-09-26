@@ -361,7 +361,7 @@ type TerraformState struct {
 	Subnets []terraformSubnet
 	// RouteTableName is the name of the route table.
 	RouteTableName string
-	// SecurityGroupName is the name of the security group.
+	// SecuritGroupName is the name of the security group.
 	SecurityGroupName string
 	// IdentityID is the id of the identity.
 	IdentityID string

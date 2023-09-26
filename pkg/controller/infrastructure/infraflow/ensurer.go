@@ -31,6 +31,14 @@ import (
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
 )
 
+// Key names for the whiteboard object to pass results between the reconcilation tasks
+const (
+	routeTableID     = "route_table_id"
+	sGroupID         = "security_group_id"
+	natGatewayMapKey = "nategateway_map"
+	publicIPMapKey   = "public-ips"
+)
+
 // EnsureResourceGroup creates or updates the resource group
 func (f *FlowContext) EnsureResourceGroup(ctx context.Context) error {
 	rgClient, err := f.factory.Group()
@@ -140,7 +148,7 @@ func (f *FlowContext) EnsureAvailabilitySet(ctx context.Context) error {
 		},
 		SKU: &armcompute.SKU{Name: to.Ptr(string(armcompute.AvailabilitySetSKUTypesAligned))}, // equal to managed = True in tf
 	}
-	_, err = asClient.CreateOrUpdate(ctx, f.tf.ResourceGroup(), avsetParams.Name, parameters)
+	_, err = asClient.CreateOrUpdate(ctx, f.tf.ResourceGroup(), f.adapter.AvailabilitySetName(), parameters)
 	return err
 }
 
@@ -240,8 +248,46 @@ func (f *FlowContext) ensureSecurityGroup(ctx context.Context) (*armnetwork.Secu
 	return nsg, nil
 }
 
+func (f *FlowContext) EnsurePublicIPs(ctx context.Context) error {
+	ipMap, err := f.ensurePublicIPs(ctx)
+	userIpMap, usrErr := f.ensureUserPublicIps(ctx)
+
+	ipMap = Join(ipMap, userIpMap)
+	f.whiteboard.SetObject(publicIPMapKey, ipMap)
+	return errors.Join(err, usrErr)
+}
+
+func (f *FlowContext) ensureUserPublicIps(ctx context.Context) (map[AzureResourceIdentifier]string, error) {
+	var (
+		joinError error
+		result    map[AzureResourceIdentifier]string
+	)
+
+	c, err := f.factory.PublicIP()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, ipFromConfig := range f.adapter.IPs() {
+		if !ipFromConfig.userManaged {
+			continue
+		}
+
+		userIP, err := c.Get(ctx, ipFromConfig.ResourceGroup, ipFromConfig.Name, nil)
+		if err != nil {
+			joinError = errors.Join(joinError, err)
+		} else if userIP == nil {
+			joinError = errors.Join(joinError, fmt.Errorf(fmt.Sprintf("failed to locate user IP: %s, %s", "", "")))
+		} else {
+			result[ipFromConfig.AzureResourceIdentifier] = *userIP.ID
+		}
+	}
+
+	return result, joinError
+}
+
 // EnsurePublicIPs2 creates or updates PublicIPs for the NATs
-func (f *FlowContext) EnsurePublicIPs2(ctx context.Context) error {
+func (f *FlowContext) ensurePublicIPs(ctx context.Context) (map[AzureResourceIdentifier]string, error) {
 	var (
 		log       = f.LogFromContext(ctx)
 		joinError error
@@ -249,74 +295,55 @@ func (f *FlowContext) EnsurePublicIPs2(ctx context.Context) error {
 
 	c, err := f.factory.PublicIP()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var (
-		toDelete sets.Set[AzureResourceIdentifier]
-		// toDelete    []*armnetwork.PublicIPAddress
-		toReconcile = map[string]armnetwork.PublicIPAddress{}
+		toDelete    = sets.New[AzureResourceIdentifier]()
+		toReconcile = map[AzureResourceIdentifier]armnetwork.PublicIPAddress{}
 	)
 
-	targetNats := f.tf.EnabledNats()
-	for _, nat := range targetNats {
-		// for user IPs we can only check if they exist.
-		if len(nat.UserManagedIP()) > 0 {
-			for _, uip := range nat.UserManagedIP() {
-				actualIP, err := c.Get(ctx, uip.ResourceGroup, uip.Name, nil)
-				if err != nil {
-					joinError = errors.Join(joinError, err)
-				}
-				if actualIP == nil {
-					joinError = errors.Join(joinError, fmt.Errorf("failed to locate user IP: %s, %s", uip.ResourceGroup, uip.Name))
-				}
-			}
-		} else {
-			pip := armnetwork.PublicIPAddress{
-				Location: to.Ptr(f.tf.Region()),
-				Properties: &armnetwork.PublicIPAddressPropertiesFormat{
-					PublicIPAllocationMethod: to.Ptr(armnetwork.IPAllocationMethodStatic),
-				},
-				SKU:   &armnetwork.PublicIPAddressSKU{Name: to.Ptr(armnetwork.PublicIPAddressSKUNameStandard)},
-				Zones: []*string{},
-			}
-			if nat.Zone() != nil {
-				pip.Zones = []*string{nat.Zone()}
-			}
-			toReconcile[nat.IpName()] = pip
+	for _, ipFromConfig := range f.adapter.IPs() {
+		if ipFromConfig.userManaged {
+			continue
 		}
-	}
-	if joinError != nil {
-		return joinError
+
+		pip := armnetwork.PublicIPAddress{
+			Location: to.Ptr(f.tf.Region()),
+			Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+				PublicIPAllocationMethod: to.Ptr(armnetwork.IPAllocationMethodStatic),
+			},
+			SKU:   &armnetwork.PublicIPAddressSKU{Name: to.Ptr(armnetwork.PublicIPAddressSKUNameStandard)},
+			Zones: to.SliceOfPtrs(ipFromConfig.zones...),
+		}
+		toReconcile[ipFromConfig.AzureResourceIdentifier] = pip
 	}
 
-	currentIPs, err := c.List(ctx, f.tf.ResourceGroup())
+	currentIPs, err := c.List(ctx, f.adapter.ResourceGroupName())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// filter only these IPs prefixed by the cluster name.
 	currentIPs = Filter(currentIPs, func(address *armnetwork.PublicIPAddress) bool {
-		return address.Name != nil && strings.HasPrefix(*address.Name, f.tf.ClusterName())
+		return f.adapter.HasShootPrefix(address.Name)
 	})
 
 	for _, currentIP := range currentIPs {
-		if currentIP.Name == nil {
-			continue
-		}
 		id := AzureResourceIdentifier{
-			ResourceGroup: f.tf.ResourceGroup(),
+			ResourceGroup: f.adapter.ResourceGroupName(),
 			Name:          *currentIP.Name,
+			Kind:          PublicIP,
 		}
 		// delete all the resources that are not in the list of target resources
-		if _, ok := toReconcile[*currentIP.Name]; !ok {
+		if _, ok := toReconcile[id]; !ok {
 			toDelete.Insert(id)
 			continue
 		}
 
-		// delete all resources who spec cannot be updated to match target spec.
-		targetIP := toReconcile[*currentIP.Name]
-		if PublicIPAddress(*currentIP).Compare(PublicIPAddress(targetIP)) {
+		// delete all resources whose spec cannot be updated to match target spec.
+		targetIP := toReconcile[id]
+		if PublicIPAddress(*currentIP).MustDelete(targetIP) {
 			toDelete.Insert(id)
 			continue
 		}
@@ -324,47 +351,128 @@ func (f *FlowContext) EnsurePublicIPs2(ctx context.Context) error {
 
 	for _, ip := range toDelete.UnsortedList() {
 		log.Info("deleting IP", ip.Name)
-		err := f.provider.DeletePublicIP2(ctx, ip.ResourceGroup, ip.Name)
+		err := f.provider.DeletePublicIP(ctx, ip.ResourceGroup, ip.Name)
 		if err != nil {
 			joinError = errors.Join(joinError, err)
 		}
 	}
 	if joinError != nil {
-		return joinError
+		return nil, joinError
 	}
 
-	for ipName, ip := range toReconcile {
-		_, err := c.CreateOrUpdate(ctx, f.tf.ResourceGroup(), ipName, ip)
+	var result map[AzureResourceIdentifier]string
+	for id, ip := range toReconcile {
+		_, err := c.CreateOrUpdate(ctx, f.tf.ResourceGroup(), id.Name, ip)
 		if err != nil {
 			joinError = errors.Join(joinError, err)
 		}
+
+		result[id] = *ip.ID
 	}
-	return joinError
+
+	return result, joinError
 }
 
-// EnsureSubnets2 creates or updates subnets
-func (f *FlowContext) EnsureSubnets2(ctx context.Context, securityGroup armnetwork.SecurityGroup, routeTable armnetwork.RouteTable, _ map[string]*armnetwork.NatGateway) (err error) {
+func (f *FlowContext) EnsureNatGateways(ctx context.Context) error {
+	ipMapping := GetObject[map[AzureResourceIdentifier]string](f.whiteboard, publicIPMapKey)
+	natMapping, err := f.ensureNatGateways(ctx, ipMapping)
+	f.whiteboard.SetObject(natGatewayMapKey, natMapping)
+	return err
+}
+
+// EnsureNatGateways creates or updates NAT Gateways. It also deletes old NATGateways.
+func (f *FlowContext) ensureNatGateways(ctx context.Context, ipMapping map[AzureResourceIdentifier]string) (map[string]string, error) {
+	c, err := f.factory.NatGateway()
+	if err != nil {
+		return nil, err
+	}
+
 	var joinError error
+
+	currentNats, err := c.List(ctx, f.adapter.ResourceGroupName())
+	if err != nil {
+		return nil, err
+	}
+	currentNats = Filter(currentNats, func(n *armnetwork.NatGateway) bool {
+		return f.adapter.HasShootPrefix(n.Name)
+	})
+
+	zones := f.adapter.Zones()
+	for _, nat := range currentNats {
+		if !checkAllZonesWithFn(*nat.Name, zones, func(zone zone, name string) bool {
+			return name == zone.natGateway.Name
+		}) {
+			joinError = errors.Join(joinError, c.Delete(ctx, f.adapter.ResourceGroupName(), *nat.Name))
+		}
+	}
+
+	result := make(map[string]string)
+	for _, target := range f.adapter.Nats() {
+		ngw := &armnetwork.NatGateway{
+			Properties: &armnetwork.NatGatewayPropertiesFormat{
+				IdleTimeoutInMinutes: target.idleTimeout,
+			},
+			Location: to.Ptr(f.tf.Region()),
+			SKU:      &armnetwork.NatGatewaySKU{Name: to.Ptr(armnetwork.NatGatewaySKUNameStandard)},
+		}
+		if target.zone != nil {
+			ngw.Zones = []*string{target.zone}
+		}
+		for _, pip := range target.pip {
+			pipId, ok := ipMapping[pip.AzureResourceIdentifier]
+			if !ok {
+				joinError = errors.Join(joinError, fmt.Errorf("public IP %s/%s needed for NAT Gateway %s was not found", pip.ResourceGroup, pip.Name, target.Name))
+				continue
+			}
+			ngw.Properties.PublicIPAddresses = append(ngw.Properties.PublicIPAddresses, &armnetwork.SubResource{ID: to.Ptr(pipId)})
+		}
+		ngw, err = c.CreateOrUpdate(ctx, target.ResourceGroup, target.Name, *ngw)
+		if err != nil {
+			joinError = errors.Join(joinError, err)
+		}
+		result[target.Name] = *ngw.ID
+	}
+
+	return result, nil
+}
+
+func checkAllZonesWithFn(name string, zones []zone, check func(zone zone, name string) bool) bool {
+	for _, n := range zones {
+		if check(n, name) {
+			return true
+		}
+	}
+	return false
+}
+
+// EnsureSubnets creates or updates subnets.
+func (f *FlowContext) EnsureSubnets(ctx context.Context) error {
+	return f.ensureSubnets(ctx)
+}
+
+func (f *FlowContext) ensureSubnets(ctx context.Context, securityGroup armnetwork.SecurityGroup, routeTable armnetwork.RouteTable, _ map[string]*armnetwork.NatGateway) (err error) {
+	vnetRgroup := f.adapter.VnetResourceGroup()
+	vnetName := f.adapter.VnetName()
+
 	c, err := f.factory.Subnet()
 	if err != nil {
 		return err
 	}
 
-	vnetRgroup := f.tf.Vnet().ResourceGroup() // try to use existing vnet resource
-	if vnetRgroup == nil {
-		vnetRgroup = to.Ptr(f.tf.ResourceGroup()) // expect that it was created previously
-	}
-	vnetName := f.tf.Vnet().Name()
-
-	currentSubnets, err := c.List(ctx, *vnetRgroup, vnetName)
+	currentSubnets, err := c.List(ctx, vnetRgroup, vnetName)
 	if err != nil {
 		return err
 	}
 
 	filteredSubnets := Filter(currentSubnets, func(s *armnetwork.Subnet) bool {
-		return s != nil && s.Name != nil && strings.HasPrefix(*s.Name, f.tf.ClusterName())
+		return f.adapter.HasShootPrefix(s.Name)
 	})
 
+	zones := f.adapter.Zones()
+	for _, subnet := range filteredSubnets {
+		checkAllZonesWithFn(*subnet.Name, zones)
+	}
+	checkAllZonesWithFn()
 	subnetsMap := ToMap(filteredSubnets, func(subnet *armnetwork.Subnet) string {
 		if subnet == nil || subnet.Name == nil {
 			return ""

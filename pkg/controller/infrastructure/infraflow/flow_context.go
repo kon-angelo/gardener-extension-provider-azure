@@ -32,14 +32,6 @@ import (
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow/shared"
 )
 
-// Key names for the whiteboard object to pass results between the reconcilation tasks
-const (
-	routeTableID  = "route_table_id"
-	sGroupID      = "security_group_id"
-	natGatewayMap = "nategateway_map"
-	publicIPMap   = "public_ip_map"
-)
-
 // FlowContext is the reconciler for all managed resources
 type FlowContext struct {
 	*shared.BasicFlowContext
@@ -109,11 +101,9 @@ func (f *FlowContext) buildReconcileGraph() *flow.Graph {
 	f.AddTask(g, "ensure availability set", f.EnsureAvailabilitySet, shared.DoIf(!f.cfg.Zoned), shared.Dependencies(resourceGroup))
 	routeTable := f.AddTask(g, "ensure route table", f.EnsureRouteTable, shared.Dependencies(resourceGroup))
 	securityGroup := f.AddTask(g, "ensure security group", f.EnsureSecurityGroup, shared.Dependencies(resourceGroup))
-	ip := f.AddTask(g, "ensure pips", f.EnsurePublicIPs2, shared.Dependencies(resourceGroup))
-	_ = routeTable
-	_ = securityGroup
-	_ = vnet
-	_ = ip
+	ip := f.AddTask(g, "ensure pips", f.EnsurePublicIPs, shared.Dependencies(resourceGroup))
+	nat := f.AddTask(g, "ensure nats", f.EnsureNatGateways, shared.Dependencies(resourceGroup, ip))
+	f.AddTask(g, "ensure subnets", f.EnsureSubnets, shared.Dependencies(vnet, routeTable, securityGroup, nat))
 	// natGateway := f.AddTask(g, "ensure nat gateway", func(ctx context.Context) error {
 	// 	return nil
 	// }

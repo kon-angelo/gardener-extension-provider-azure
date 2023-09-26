@@ -16,6 +16,8 @@ package infraflow
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
@@ -23,6 +25,7 @@ import (
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
+	consts "github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
 
@@ -130,4 +133,169 @@ func (i *InfrastructureAdapter) RouteTableName() string {
 // SecurityGroupName returns the name of the shoot's security group.
 func (i *InfrastructureAdapter) SecurityGroupName() string {
 	return fmt.Sprintf("%s-workers", i.ClusterName())
+}
+
+func (i *InfrastructureAdapter) NatGatewayName() string {
+	return fmt.Sprintf("%s-nat-gateway", i.ClusterName())
+}
+
+func (i *InfrastructureAdapter) SubnetName() string {
+	return fmt.Sprintf("%s-nodes", i.ClusterName())
+}
+
+func (i *InfrastructureAdapter) NatGatewayNameForZone(zone int32, migrated bool) string {
+	if migrated {
+		return i.NatGatewayName()
+	}
+
+	return fmt.Sprintf("%s-z%d", i.NatGatewayName(), zone)
+}
+
+func (i *InfrastructureAdapter) PublicIPName(natName string) string {
+	return fmt.Sprintf("%s-ip", natName)
+}
+
+type publicIP struct {
+	AzureResourceIdentifier
+	zones       []string
+	userManaged bool
+}
+
+type natGateway struct {
+	AzureResourceIdentifier
+	zone        *string
+	idleTimeout *int32
+	pip         []publicIP
+}
+
+type subnet struct {
+	AzureResourceIdentifier
+	cidr string
+}
+
+type zone struct {
+	subnet     subnet
+	natGateway *natGateway
+	migrated   bool
+}
+
+func (i *InfrastructureAdapter) Zones() []zone {
+	if len(i.config.Networks.Zones) == 0 {
+		return i.DefaultZone()
+	}
+
+	var zones []zone
+	migratedZone, ok := i.infra.Annotations[consts.NetworkLayoutZoneMigrationAnnotation]
+	for _, configZone := range i.config.Networks.Zones {
+		z := zone{
+			subnet:   subnet{},
+			migrated: ok && migratedZone == helper.InfrastructureZoneToString(configZone.Name),
+		}
+		zones = append(zones, z)
+	}
+
+	return zones
+}
+
+func (i *InfrastructureAdapter) DefaultZone() []zone {
+	config := i.config
+	z := zone{
+		subnet: subnet{
+			AzureResourceIdentifier: AzureResourceIdentifier{
+				ResourceGroup: i.VnetResourceGroup(),
+				Name:          i.SubnetName(),
+				Kind:          Subnet,
+			},
+			cidr: *config.Networks.Workers,
+		},
+		migrated: false,
+	}
+	if config.Networks.NatGateway == nil {
+		return []zone{z}
+	}
+
+	ngw := &natGateway{
+		AzureResourceIdentifier: AzureResourceIdentifier{
+			ResourceGroup: i.ResourceGroupName(),
+			Name:          i.NatGatewayName(),
+			Kind:          NatGateway,
+		},
+		idleTimeout: config.Networks.NatGateway.IdleConnectionTimeoutMinutes,
+	}
+	if z := config.Networks.NatGateway.Zone; z != nil {
+		ngw.zone = to.Ptr(strconv.Itoa(int(*z)))
+	}
+
+	if len(config.Networks.NatGateway.IPAddresses) > 0 {
+		for _, ipRef := range config.Networks.NatGateway.IPAddresses {
+			ip := publicIP{
+				AzureResourceIdentifier: AzureResourceIdentifier{
+					ResourceGroup: ipRef.ResourceGroup,
+					Name:          ipRef.Name,
+					Kind:          PublicIP,
+				},
+				userManaged: true,
+			}
+			ip.zones = append(ip.zones, strconv.Itoa(int(ipRef.Zone)))
+			ngw.pip = append(ngw.pip, ip)
+		}
+	} else {
+		ip := publicIP{
+			AzureResourceIdentifier: AzureResourceIdentifier{
+				ResourceGroup: i.ResourceGroupName(),
+				Name:          i.PublicIPName(z.natGateway.Name),
+				Kind:          PublicIP,
+			},
+			userManaged: false,
+		}
+		ngw.pip = append(ngw.pip, ip)
+	}
+
+	return []zone{z}
+}
+
+func (i *InfrastructureAdapter) IPs() []publicIP {
+	var res []publicIP
+	for _, z := range i.Zones() {
+		if z.natGateway == nil {
+			continue
+		}
+		res = append(res, z.natGateway.pip...)
+	}
+
+	return res
+}
+
+func (i *InfrastructureAdapter) Nats() []natGateway {
+	var res []natGateway
+	for _, z := range i.Zones() {
+		if z.natGateway != nil {
+			res = append(res, *z.natGateway)
+		}
+	}
+
+	return res
+}
+
+func (i *InfrastructureAdapter) SubnetToNatMapping() map[string]string {
+	res := map[string]string{}
+	for _, z := range i.Zones() {
+		if z.natGateway == nil {
+			continue
+		}
+		res[z.subnet.Name] = res[z.natGateway.Name]
+	}
+	return res
+}
+
+func (i *InfrastructureAdapter) NatToIPMapping() map[string]string {
+	return nil
+}
+
+// HasShootPrefix returns true if the target resource's name is prefixed with the shoot's canonical name.
+func (i *InfrastructureAdapter) HasShootPrefix(name *string) bool {
+	if name == nil {
+		return false
+	}
+	return strings.HasPrefix(*name, i.ClusterName())
 }

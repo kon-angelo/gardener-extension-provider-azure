@@ -47,36 +47,6 @@ func (f *FlowContext) EnrichResponseWithUserManagedIPs(ctx context.Context, res 
 	return nil
 }
 
-func checkAllZonesWithFn(name string, zones []zoneTf, check func(zone zoneTf, name string) bool) bool {
-	for _, n := range zones {
-		if check(n, name) {
-			return true
-		}
-	}
-	return false
-}
-
-// EnsureNatGateways creates or updates NAT Gateways. It also deletes old NATGateways.
-func (f *FlowContext) EnsureNatGateways(ctx context.Context, ips map[string][]*armnetwork.PublicIPAddress) (map[string]*armnetwork.NatGateway, error) {
-	res := make(map[string]*armnetwork.NatGateway)
-	c, err := f.factory.NatGateway()
-	if err != nil {
-		return res, err
-	}
-	err = f.deleteOldNatGateways(ctx, c)
-	if err != nil {
-		return res, err
-	}
-	for _, nat := range f.tf.EnabledNats() {
-		resp, err := f.createOrUpdateNatGateway(ctx, nat, ips, c)
-		if err != nil {
-			return res, err
-		}
-		res[nat.SubnetName()] = resp
-	}
-	return res, nil
-}
-
 func (f *FlowContext) createOrUpdateNatGateway(ctx context.Context, nat zoneTf, ips map[string][]*armnetwork.PublicIPAddress, client client.NatGateway) (*armnetwork.NatGateway, error) {
 	params := armnetwork.NatGateway{
 		Properties: &armnetwork.NatGatewayPropertiesFormat{
@@ -104,29 +74,8 @@ func (f *FlowContext) createOrUpdateNatGateway(ctx context.Context, nat zoneTf, 
 	return resp, nil
 }
 
-// delete NAT Gateways that got disabled
-func (f *FlowContext) deleteOldNatGateways(ctx context.Context, client client.NatGateway) error {
-	existingNats, err := client.List(ctx, f.tf.ResourceGroup())
-	if err != nil {
-		return err
-	}
-	for _, nat := range existingNats {
-		if nat.Name == nil {
-			continue
-		}
-		isNatInNats := checkAllZonesWithFn(*nat.Name, f.tf.EnabledNats(), func(nat zoneTf, name string) bool { return nat.NatName() == name })
-		if !isNatInNats {
-			err := client.Delete(ctx, f.tf.ResourceGroup(), *nat.Name)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
 // EnsureSubnets creates or updates subnets
-func (f *FlowContext) EnsureSubnets(ctx context.Context, securityGroup armnetwork.SecurityGroup, routeTable armnetwork.RouteTable, nats map[string]*armnetwork.NatGateway) (err error) {
+func (f *FlowContext) EnsureSubnetsOld(ctx context.Context, securityGroup armnetwork.SecurityGroup, routeTable armnetwork.RouteTable, nats map[string]*armnetwork.NatGateway) (err error) {
 	subnetClient, err := f.factory.Subnet()
 	if err != nil {
 		return err
@@ -167,25 +116,4 @@ func (f *FlowContext) EnsureSubnets(ctx context.Context, securityGroup armnetwor
 		_, err = subnetClient.CreateOrUpdate(ctx, *vnetRgroup, f.tf.Vnet().Name(), subnet.SubnetName(), parameters)
 	}
 	return err
-}
-
-// delete IPs of NAT Gateways that got disabled
-func (f *FlowContext) deleteOldNatIPs(ctx context.Context, client client.PublicIP) error {
-	existingIPs, err := client.List(ctx, f.tf.ResourceGroup())
-	if err != nil {
-		return err
-	}
-	for _, ip := range existingIPs {
-		if ip.Name == nil {
-			continue
-		}
-		isIpInNats := checkAllZonesWithFn(*ip.Name, f.tf.EnabledNats(), func(nat zoneTf, name string) bool { return nat.IpName() == name })
-		if !isIpInNats {
-			err := client.Delete(ctx, f.tf.ResourceGroup(), *ip.Name)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }

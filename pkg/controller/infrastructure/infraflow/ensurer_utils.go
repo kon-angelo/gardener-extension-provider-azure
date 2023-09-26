@@ -83,21 +83,36 @@ func Filter[T any](arr []T, fs ...func(T) bool) []T {
 	return res
 }
 
-func Join[T any](m1, m2 map[string][]T) map[string][]T {
-	res := make(map[string][]T)
-	for k, v := range m1 {
-		res[k] = append(make([]T, len(v)), v...)
-		if add, ok := m2[k]; ok {
-			res[k] = append(res[k], add...)
-		}
+// Join merges maps by appending m2 to m1.
+func Join[K comparable, V any](m1, m2 map[K]V) map[K]V {
+	if m2 == nil {
+		return m1
 	}
+	if m1 == nil {
+		m1 = make(map[K]V)
+	}
+
 	for k, v := range m2 {
-		if _, ok := m1[k]; !ok {
-			res[k] = append(make([]T, len(v)), v...)
-		}
+		m1[k] = v
 	}
-	return res
+	return m1
 }
+
+// func JoinMapSlice[T any](m1, m2 map[string][]T) map[string][]T {
+// 	res := make(map[string][]T)
+// 	for k, v := range m1 {
+// 		res[k] = append(make([]T, len(v)), v...)
+// 		if add, ok := m2[k]; ok {
+// 			res[k] = append(res[k], add...)
+// 		}
+// 	}
+// 	for k, v := range m2 {
+// 		if _, ok := m1[k]; !ok {
+// 			res[k] = append(make([]T, len(v)), v...)
+// 		}
+// 	}
+// 	return res
+// }
 
 func ToMap[T any](arr []T, f func(T) string) map[string]T {
 	res := map[string]T{}

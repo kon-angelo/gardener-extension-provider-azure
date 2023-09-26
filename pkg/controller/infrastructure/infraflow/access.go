@@ -20,7 +20,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
-	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
 )
@@ -29,17 +28,17 @@ var _ Access = &access{}
 
 // Access provides additional methods that are build on top of the azure client primitives.
 type Access interface {
-	DisassociatePublicIP(context.Context, *armnetwork.PublicIPAddress) error
-	DeletePublicIP(context.Context, *armnetwork.PublicIPAddress) error
-	DeletePublicIP2(context.Context, string, string) error
-	DisassociatePublicIP2(ctx context.Context, rgName, natName, pipID string) error
+	DeletePublicIP(context.Context, string, string) error
+	DisassociatePublicIP(ctx context.Context, rgName, natName, pipID string) error
+	DeleteNatGateway(ctx context.Context, rgName, natName string) error
+	DisassociateNatGateway(ctx context.Context, rgName, vnetName, natGatewayID string) error
 }
 
 type access struct {
 	f client.Factory
 }
 
-func (p *access) DeletePublicIP2(ctx context.Context, rgName, pipName string) error {
+func (p *access) DeletePublicIP(ctx context.Context, rgName, pipName string) error {
 	pipClient, err := p.f.PublicIP()
 	if err != nil {
 		return err
@@ -51,7 +50,7 @@ func (p *access) DeletePublicIP2(ctx context.Context, rgName, pipName string) er
 	}
 
 	if pip.Properties.NatGateway != nil && pip.Properties.NatGateway.Name != nil {
-		err := p.DisassociatePublicIP2(ctx, rgName, *pip.Properties.NatGateway.Name, *pip.ID)
+		err := p.DisassociatePublicIP(ctx, rgName, *pip.Properties.NatGateway.Name, *pip.ID)
 		if err != nil {
 			return err
 		}
@@ -61,7 +60,7 @@ func (p *access) DeletePublicIP2(ctx context.Context, rgName, pipName string) er
 }
 
 // DisassociatePublicIP disassociates a publicIP from it's attached NAT Gateway.
-func (p *access) DisassociatePublicIP2(ctx context.Context, rgName, natName, pipID string) error {
+func (p *access) DisassociatePublicIP(ctx context.Context, rgName, natName, pipID string) error {
 	nc, err := p.f.NatGateway()
 	if err != nil {
 		return err
@@ -82,55 +81,65 @@ func (p *access) DisassociatePublicIP2(ctx context.Context, rgName, natName, pip
 	return err
 }
 
-func (p *access) DeletePublicIP(ctx context.Context, pip *armnetwork.PublicIPAddress) error {
-	if pip == nil || pip.ID == nil {
-		return nil
-	}
-
-	pipC, err := p.f.PublicIP()
-	if err != nil {
-		return err
-	}
-	pipRID, err := resourceids.ParseAzureResourceID(*pip.ID)
-	if err != nil {
-		return err
-	}
-
-	err = p.DisassociatePublicIP(ctx, pip)
-	if err != nil {
-		return err
-	}
-
-	return pipC.Delete(ctx, pipRID.ResourceGroup, *pip.Name)
-}
-
-// DisassociatePublicIP disassociates a publicIP from it's attached NAT Gateway.
-func (p *access) DisassociatePublicIP(ctx context.Context, pip *armnetwork.PublicIPAddress) error {
-	if pip.Properties.NatGateway == nil {
-		return nil
-	}
-
-	natID, err := AzureResourceIdentifierFromID(*pip.Properties.NatGateway.ID)
-	if err != nil {
-		return err
-	}
-
+func (p *access) DeleteNatGateway(ctx context.Context, rgName, natName string) error {
 	nc, err := p.f.NatGateway()
 	if err != nil {
 		return err
 	}
-
-	nat, err := nc.Get(ctx, natID.ResourceGroup, natID.Name, nil)
-	var natPips []*armnetwork.SubResource
-	for _, natPip := range nat.Properties.PublicIPAddresses {
-		if natPip == nil || reflect.DeepEqual(natPip.ID, pip.ID) {
-			continue
-		}
-
-		natPips = append(natPips, natPip)
+	err = p.DisassociateNatGateway(ctx, rgName, natName)
+	if err != nil {
+		return err
 	}
-	nat.Properties.PublicIPAddresses = natPips
+	return nc.Delete(ctx, rgName, natName)
+}
+// DisassociateNatGateway disassociates a NAT Gateway from all the subnets.
+func (p *access) DisassociateNatGateway(ctx context.Context, rgName, natName string) error {
+	nc, err := p.f.NatGateway()
+	if err != nil {
+		return err
+	}
+	sc, err := p.f.Subnet()
+	if err != nil {
+		return err
+	}
 
-	_, err = nc.CreateOrUpdate(ctx, natID.ResourceGroup, natID.Name, *nat)
+	nat, err := nc.Get(ctx, rgName, natName, to.Ptr("subnets"))
+	if err != nil {
+		return err
+	}
+	for _, subnet := range nat.Properties.Subnets {
+
+	}
+
+	subnet, err := sc.Get(ctx, rgName, vnetName, subnetName, to.Ptr("natGateway"))
+	if err != nil {
+		return err
+	}
+	if subnet == nil {
+		return nil
+	}
+
+	for _, subnet := range nat.Properties.Subnets {
+		subnet.= nil
+	}
+
+	_, err = sc.CreateOrUpdate(ctx, rgName, vnetName, subnetName, *subnet)
 	return err
+}
+
+// PublicIPAddress is an alias for the real pip type.
+type PublicIPAddress armnetwork.PublicIPAddress
+
+// MustDelete public current and target spec between PIPs and decide if they need to be deleted.
+func (p PublicIPAddress) MustDelete(target armnetwork.PublicIPAddress) bool {
+	if !reflect.DeepEqual(p.Location, target.Location) {
+		return true
+	}
+	if !reflect.DeepEqual(p.Zones, target.Zones) {
+		return true
+	}
+	if !reflect.DeepEqual(p.Properties.PublicIPAllocationMethod, target.Properties.PublicIPAllocationMethod) {
+		return true
+	}
+	return false
 }
