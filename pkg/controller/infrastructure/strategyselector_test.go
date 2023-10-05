@@ -43,7 +43,7 @@ var _ = Describe("ShouldUseFlow", func() {
 	Context("without any flow annotation", func() {
 		It("should not use FlowContext", func() {
 			cluster := internalinfra.MakeCluster("11.0.0.0/16", "12.0.0.0/16", "europe", 1, 1)
-			Expect(infrastructure.HasFlowAnnotation(&extensionsv1alpha1.Infrastructure{}, cluster)).To(BeFalse())
+			Expect(infrastructure.hasFlowAnnotation(&extensionsv1alpha1.Infrastructure{}, cluster)).To(BeFalse())
 		})
 	})
 	Context("with flow annotation in infrastruture", func() {
@@ -51,14 +51,14 @@ var _ = Describe("ShouldUseFlow", func() {
 		cluster := internalinfra.MakeCluster("11.0.0.0/16", "12.0.0.0/16", "europe", 1, 1)
 		metav1.SetMetaDataAnnotation(&infra.ObjectMeta, azuretypes.AnnotationKeyUseFlow, "true")
 		It("should use the FlowContext", func() {
-			Expect(infrastructure.HasFlowAnnotation(infra, cluster)).To(BeTrue())
+			Expect(infrastructure.hasFlowAnnotation(infra, cluster)).To(BeTrue())
 		})
 	})
 	Context("with flow annotation in shoot", func() {
 		cluster := internalinfra.MakeCluster("11.0.0.0/16", "12.0.0.0/16", "europe", 1, 1)
 		metav1.SetMetaDataAnnotation(&cluster.Shoot.ObjectMeta, azuretypes.AnnotationKeyUseFlow, "true")
 		It("should use the FlowContext", func() {
-			Expect(infrastructure.HasFlowAnnotation(&extensionsv1alpha1.Infrastructure{}, cluster)).To(BeTrue())
+			Expect(infrastructure.hasFlowAnnotation(&extensionsv1alpha1.Infrastructure{}, cluster)).To(BeTrue())
 		})
 	})
 	Context("with flow annotation in seed", func() {
@@ -66,7 +66,7 @@ var _ = Describe("ShouldUseFlow", func() {
 		cluster.Seed = &v1beta1.Seed{}
 		metav1.SetMetaDataAnnotation(&cluster.Seed.ObjectMeta, azuretypes.AnnotationKeyUseFlow, "true")
 		It("should use the FlowContext", func() {
-			Expect(infrastructure.HasFlowAnnotation(&extensionsv1alpha1.Infrastructure{}, cluster)).To(BeTrue())
+			Expect(infrastructure.hasFlowAnnotation(&extensionsv1alpha1.Infrastructure{}, cluster)).To(BeTrue())
 		})
 	})
 })

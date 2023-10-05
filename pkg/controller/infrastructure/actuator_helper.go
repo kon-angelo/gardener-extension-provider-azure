@@ -22,13 +22,25 @@ import (
 	"github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/extensions/pkg/terraformer"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
 	azuretypes "github.com/gardener/gardener-extension-provider-azure/pkg/azure"
+	azureclient "github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
 	infrainternal "github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
+
+var (
+	// NewAzureClientFactory initializes a new AzureClientFactory. Exposed for testing.
+	NewAzureClientFactory = newAzureClientFactory
+)
+
+func newAzureClientFactory(ctx context.Context, client client.Client, secretRef v1.SecretReference) (azureclient.Factory, error) {
+	return azureclient.NewAzureClientFactory(ctx, client, secretRef)
+}
 
 func patchProviderStatusAndState(
 	ctx context.Context,
@@ -67,11 +79,16 @@ func hasFlowState(status extensionsv1alpha1.InfrastructureStatus) (bool, error) 
 	return false, nil
 }
 
-// HasFlowAnnotation returns true if the new flow reconciler should be used for the reconciliation.
-func HasFlowAnnotation(infrastructure *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) bool {
+// hasFlowAnnotation returns true if the new flow reconciler should be used for the reconciliation.
+func hasFlowAnnotation(infrastructure *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) bool {
 	shootAnnotation := (infrastructure.Annotations != nil && strings.EqualFold(infrastructure.Annotations[azuretypes.AnnotationKeyUseFlow], "true")) ||
 		(cluster.Shoot != nil && cluster.Shoot.Annotations != nil && strings.EqualFold(cluster.Shoot.Annotations[azuretypes.AnnotationKeyUseFlow], "true"))
 
 	seedAnnotation := cluster.Seed != nil && cluster.Seed.Annotations != nil && strings.EqualFold(cluster.Seed.Annotations[azuretypes.AnnotationKeyUseFlow], "true")
 	return shootAnnotation || seedAnnotation
+}
+
+// NoOpStateInitializer is a no-op StateConfigMapInitializerFunc.
+func NoOpStateInitializer(_ context.Context, _ client.Client, _, _ string, _ *metav1.OwnerReference) error {
+	return nil
 }

@@ -468,7 +468,7 @@ func createInfraState(providerStatus *apiv1alpha1.InfrastructureStatus, tfState 
 		return nil, err
 	}
 
-	infraState := &InfrastructureState{
+	infraState := &infrainternal.InfrastructureState{
 		SavedProviderStatus: &runtime.RawExtension{
 			Object: providerStatus,
 		},
