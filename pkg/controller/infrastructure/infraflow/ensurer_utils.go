@@ -114,11 +114,12 @@ func Join[K comparable, V any](m1, m2 map[K]V) map[K]V {
 // 	return res
 // }
 
-func ToMap[T any](arr []T, f func(T) string) map[string]T {
-	res := map[string]T{}
+func ToMap[Y comparable, T comparable](arr []T, f func(T) Y) map[Y]T {
+	res := map[Y]T{}
 	for _, t := range arr {
 		key := f(t)
-		if key == "" {
+		// if key is with default value e.g. ""
+		if key == *(new(Y)) {
 			continue
 		}
 		res[key] = t

@@ -139,8 +139,12 @@ func (i *InfrastructureAdapter) NatGatewayName() string {
 	return fmt.Sprintf("%s-nat-gateway", i.ClusterName())
 }
 
-func (i *InfrastructureAdapter) SubnetName() string {
-	return fmt.Sprintf("%s-nodes", i.ClusterName())
+func (i *InfrastructureAdapter) SubnetName(zone *int32) string {
+	n := fmt.Sprintf("%s-nodes", i.ClusterName())
+	if zone != nil {
+		n = fmt.Sprintf("%s-z%d", n, *zone)
+	}
+	return n
 }
 
 func (i *InfrastructureAdapter) NatGatewayNameForZone(zone int32, migrated bool) string {
@@ -170,7 +174,8 @@ type natGateway struct {
 
 type subnet struct {
 	AzureResourceIdentifier
-	cidr string
+	cidr            string
+	serviceEndpoint []string
 }
 
 type zone struct {
@@ -187,9 +192,58 @@ func (i *InfrastructureAdapter) Zones() []zone {
 	var zones []zone
 	migratedZone, ok := i.infra.Annotations[consts.NetworkLayoutZoneMigrationAnnotation]
 	for _, configZone := range i.config.Networks.Zones {
+		zoneString := helper.InfrastructureZoneToString(configZone.Name)
+		isMigratedZone := ok && migratedZone == zoneString
 		z := zone{
-			subnet:   subnet{},
-			migrated: ok && migratedZone == helper.InfrastructureZoneToString(configZone.Name),
+			subnet: subnet{
+				AzureResourceIdentifier: AzureResourceIdentifier{
+					ResourceGroup: i.VnetResourceGroup(),
+					Name:          i.SubnetName(&configZone.Name),
+					Kind:          Subnet,
+				},
+				cidr:            configZone.CIDR,
+				serviceEndpoint: configZone.ServiceEndpoints,
+			},
+			migrated: isMigratedZone,
+		}
+
+		if configZone.NatGateway != nil && configZone.NatGateway.Enabled {
+			ngw := &natGateway{
+				AzureResourceIdentifier: AzureResourceIdentifier{
+					ResourceGroup: i.ResourceGroupName(),
+					Name:          i.NatGatewayNameForZone(configZone.Name, isMigratedZone),
+					Kind:          NatGateway,
+				},
+				idleTimeout: configZone.NatGateway.IdleConnectionTimeoutMinutes,
+			}
+			ngw.zone = to.Ptr(zoneString)
+
+			if len(configZone.NatGateway.IPAddresses) > 0 {
+				for _, ipRef := range configZone.NatGateway.IPAddresses {
+					ip := publicIP{
+						AzureResourceIdentifier: AzureResourceIdentifier{
+							ResourceGroup: ipRef.ResourceGroup,
+							Name:          ipRef.Name,
+							Kind:          PublicIP,
+						},
+						zones:       []string{zoneString},
+						userManaged: true,
+					}
+					ngw.pip = append(ngw.pip, ip)
+				}
+			} else {
+				ip := publicIP{
+					AzureResourceIdentifier: AzureResourceIdentifier{
+						ResourceGroup: i.ResourceGroupName(),
+						Name:          i.PublicIPName(ngw.Name),
+						Kind:          PublicIP,
+					},
+					userManaged: false,
+					zones:       []string{zoneString},
+				}
+				ngw.pip = append(ngw.pip, ip)
+			}
+			z.natGateway = ngw
 		}
 		zones = append(zones, z)
 	}
@@ -203,14 +257,15 @@ func (i *InfrastructureAdapter) DefaultZone() []zone {
 		subnet: subnet{
 			AzureResourceIdentifier: AzureResourceIdentifier{
 				ResourceGroup: i.VnetResourceGroup(),
-				Name:          i.SubnetName(),
+				Name:          i.SubnetName(nil),
 				Kind:          Subnet,
 			},
-			cidr: *config.Networks.Workers,
+			cidr:            *config.Networks.Workers,
+			serviceEndpoint: config.Networks.ServiceEndpoints,
 		},
 		migrated: false,
 	}
-	if config.Networks.NatGateway == nil {
+	if config.Networks.NatGateway == nil || !config.Networks.NatGateway.Enabled {
 		return []zone{z}
 	}
 
@@ -243,13 +298,17 @@ func (i *InfrastructureAdapter) DefaultZone() []zone {
 		ip := publicIP{
 			AzureResourceIdentifier: AzureResourceIdentifier{
 				ResourceGroup: i.ResourceGroupName(),
-				Name:          i.PublicIPName(z.natGateway.Name),
+				Name:          i.PublicIPName(ngw.Name),
 				Kind:          PublicIP,
 			},
 			userManaged: false,
 		}
+		if ngw.zone != nil {
+			ip.zones = append(ip.zones, *ngw.zone)
+		}
 		ngw.pip = append(ngw.pip, ip)
 	}
+	z.natGateway = ngw
 
 	return []zone{z}
 }

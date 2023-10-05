@@ -129,10 +129,10 @@ func (f *FlowContext) buildReconcileGraph() *flow.Graph {
 
 	// f.AddTask(g, "ensure subnet", func(ctx context.Context) error {
 	// 	routeTable := armnetwork.RouteTable{
-	// 		ID: f.whiteboard.Get(routeTableID),
+	// 		ID: f.whiteboard.Get(routeTableId),
 	// 	}
 	// 	securityGroup := armnetwork.SecurityGroup{
-	// 		ID: f.whiteboard.Get(sGroupID),
+	// 		ID: f.whiteboard.Get(securityGroupId),
 	// 	}
 	// 	natGateway := f.whiteboard.GetObject(natGatewayMap).(map[string]*armnetwork.NatGateway)
 	// 	return f.EnsureSubnets(ctx, securityGroup, routeTable, natGateway)
