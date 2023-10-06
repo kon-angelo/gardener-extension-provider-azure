@@ -20,38 +20,6 @@ import (
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow/shared"
 )
 
-type TerminalSpecMismatchError struct {
-	AzureResourceIdentifier
-	Offender string
-	Expected string
-}
-
-func NewTerminalSpecMismatch(identifier AzureResourceIdentifier, offender, expected string) *TerminalSpecMismatchError {
-	return &TerminalSpecMismatchError{identifier, offender, expected}
-}
-
-func (t *TerminalSpecMismatchError) Error() string {
-	return fmt.Sprintf("differences between the current and target spec require the object to be deleted, but "+
-		"the operation is not supported yet. Resource: %s, Name: %s, Offender: %s, Expected: %s", t.Kind, t.Name, t.Offender, t.Expected)
-}
-
-type TerminalConditionError struct {
-	AzureResourceIdentifier
-	error
-}
-
-func NewTerminalConditionError(identifier AzureResourceIdentifier, err error) *TerminalConditionError {
-	return &TerminalConditionError{identifier, err}
-}
-
-func (t *TerminalConditionError) Error() string {
-	return fmt.Sprintf("Unreconcilable error occured. Resource: %s, Name: %s, Error: %s", t.Kind, t.Name, t.error)
-}
-
-func (t *TerminalConditionError) Unwrap() error {
-	return t.error
-}
-
 // GetObject returns the object and attempts to cast it to the specified type.
 func GetObject[T any](wb shared.Whiteboard, key string) T {
 	if ok := wb.HasObject(key); !ok {
@@ -59,6 +27,16 @@ func GetObject[T any](wb shared.Whiteboard, key string) T {
 	}
 	o := wb.GetObject(key)
 	return o.(T)
+}
+
+// EnsureObjectKeys returns an error if the provided keys do not exist.
+func EnsureObjectKeys(wb shared.Whiteboard, keys ...string) error {
+	for _, k := range keys {
+		if wb.GetObject(k) == nil {
+			return fmt.Errorf("could not locate required key: %s", k)
+		}
+	}
+	return nil
 }
 
 func Apply[T any](t T, funcs ...func(T) T) T {
@@ -114,7 +92,8 @@ func Join[K comparable, V any](m1, m2 map[K]V) map[K]V {
 // 	return res
 // }
 
-func ToMap[Y comparable, T comparable](arr []T, f func(T) Y) map[Y]T {
+// ToMap converts an array into a map. The key is provided by applying "f" to the array objects and the value are the objects.
+func ToMap[T comparable, Y comparable](arr []T, f func(T) Y) map[Y]T {
 	res := map[Y]T{}
 	for _, t := range arr {
 		key := f(t)

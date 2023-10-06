@@ -30,9 +30,13 @@ var _ Access = &access{}
 
 // Access provides additional methods that are build on top of the azure client primitives.
 type Access interface {
-	DeletePublicIP(context.Context, string, string) error
-	DisassociatePublicIP(ctx context.Context, rgName, natName, pipID string) error
+	// DeletePublicIP deletes a public IP after disassociating it from the NAT Gateway if necessary.
+	DeletePublicIP(ctx context.Context, rgName, pipName string) error
+	// DisassociatePublicIP from the NAT Gateway it is attached.
+	DisassociatePublicIP(ctx context.Context, rgName, natName, pipId string) error
+	// DeleteNatGateway deletes a NAT Gateway after disassociating from all subnets attached to it.
 	DeleteNatGateway(ctx context.Context, rgName, natName string) error
+	// DisassociateNatGateway disassociates the NAT Gateway from attached subnets.
 	DisassociateNatGateway(ctx context.Context, rgName, natName string) error
 }
 
@@ -40,13 +44,14 @@ type access struct {
 	f client.Factory
 }
 
+// DeletePublicIP deletes a public IP after disassociating it from the NAT Gateway if necessary.
 func (p *access) DeletePublicIP(ctx context.Context, rgName, pipName string) error {
 	pipClient, err := p.f.PublicIP()
 	if err != nil {
 		return err
 	}
 
-	pip, err := pipClient.Get(ctx, rgName, pipName, to.Ptr("natGateway"))
+	pip, err := pipClient.Get(ctx, rgName, pipName, to.Ptr("NatGatewayConfig"))
 	if err != nil {
 		return err
 	}
@@ -61,27 +66,28 @@ func (p *access) DeletePublicIP(ctx context.Context, rgName, pipName string) err
 	return pipClient.Delete(ctx, rgName, pipName)
 }
 
-// DisassociatePublicIP disassociates a publicIP from it's attached NAT Gateway.
-func (p *access) DisassociatePublicIP(ctx context.Context, rgName, natName, pipID string) error {
-	nc, err := p.f.NatGateway()
+// DisassociatePublicIP disassociates a PublicIPConfig from it's attached NAT Gateway.
+func (p *access) DisassociatePublicIP(ctx context.Context, rgName, natName, pipId string) error {
+	natClient, err := p.f.NatGateway()
 	if err != nil {
 		return err
 	}
 
-	nat, err := nc.Get(ctx, rgName, natName, nil)
+	nat, err := natClient.Get(ctx, rgName, natName, nil)
 	var natPips []*armnetwork.SubResource
 	for _, natPip := range nat.Properties.PublicIPAddresses {
-		if natPip != nil && !reflect.DeepEqual(*natPip.ID, pipID) {
+		if natPip != nil && !reflect.DeepEqual(*natPip.ID, pipId) {
 			natPips = append(natPips, natPip)
 		}
 
 	}
 	nat.Properties.PublicIPAddresses = natPips
 
-	_, err = nc.CreateOrUpdate(ctx, rgName, natName, *nat)
+	_, err = natClient.CreateOrUpdate(ctx, rgName, natName, *nat)
 	return err
 }
 
+// DeleteNatGateway deletes a NAT Gateway after disassociating from all subnets attached to it.
 func (p *access) DeleteNatGateway(ctx context.Context, rgName, natName string) error {
 	nc, err := p.f.NatGateway()
 	if err != nil {
@@ -94,7 +100,7 @@ func (p *access) DeleteNatGateway(ctx context.Context, rgName, natName string) e
 	return nc.Delete(ctx, rgName, natName)
 }
 
-// DisassociateNatGateway disassociates a NAT Gateway from all the subnets.
+// DisassociateNatGateway disassociates the NAT Gateway from attached subnets.
 func (p *access) DisassociateNatGateway(ctx context.Context, rgName, natName string) error {
 	nc, err := p.f.NatGateway()
 	if err != nil {
@@ -120,7 +126,8 @@ func (p *access) DisassociateNatGateway(ctx context.Context, rgName, natName str
 		subnetName := azId.Path["subnets"]
 		subnet, err := sc.Get(ctx, azId.ResourceGroup, vnetName, subnetName, nil)
 		if err != nil {
-			return err
+			joinErr = errors.Join(joinErr, err)
+			continue
 		}
 		if subnet == nil {
 			continue
@@ -128,13 +135,12 @@ func (p *access) DisassociateNatGateway(ctx context.Context, rgName, natName str
 		subnet.Properties.NatGateway = nil
 		_, err = sc.CreateOrUpdate(ctx, rgName, vnetName, subnetName, *subnet)
 		joinErr = errors.Join(joinErr, err)
-
 	}
 
 	return joinErr
 }
 
-// PublicIPAddress is an alias for the real pip type.
+// PublicIPAddress is an alias for the real PublicIPList type.
 type PublicIPAddress armnetwork.PublicIPAddress
 
 // MustDelete public current and target spec between PIPs and decide if they need to be deleted.

@@ -17,7 +17,6 @@ package infraflow
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/gardener/gardener/extensions/pkg/controller"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
@@ -62,6 +61,27 @@ func NewFlowContext(factory client.Factory, logger logr.Logger, infra *extension
 		return nil, err
 	}
 
+	profile, err := helper.CloudProfileConfigFromCluster(cluster)
+	if err != nil {
+		return nil, err
+	}
+
+	status, err := helper.InfrastructureStatusFromRaw(infra.Status.ProviderStatus)
+	if err != nil {
+		return nil, err
+	}
+
+	adapter, err := NewInfrastructureAdapter(
+		infra,
+		cfg,
+		status,
+		profile,
+		cluster,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	return &FlowContext{
 		BasicFlowContext: bfc,
 		factory:          factory,
@@ -74,10 +94,7 @@ func NewFlowContext(factory client.Factory, logger logr.Logger, infra *extension
 		provider: &access{
 			factory,
 		},
-		adapter: &InfrastructureAdapter{
-			infra:  infra,
-			config: cfg,
-		},
+		adapter: adapter,
 	}, nil
 }
 
@@ -97,46 +114,13 @@ func (f *FlowContext) Reconcile(ctx context.Context) (*v1alpha1.InfrastructureSt
 func (f *FlowContext) buildReconcileGraph() *flow.Graph {
 	g := flow.NewGraph("Azure infrastructure reconciliation")
 	resourceGroup := f.AddTask(g, "ensure resource group", f.EnsureResourceGroup)
-	vnet := f.AddTask(g, "ensure vnet", f.EnsureVnet, shared.Dependencies(resourceGroup))
-	f.AddTask(g, "ensure availability set", f.EnsureAvailabilitySet, shared.DoIf(!f.cfg.Zoned), shared.Dependencies(resourceGroup))
+	vnet := f.AddTask(g, "ensure vnet", f.EnsureVirtualNetwork, shared.Dependencies(resourceGroup))
+	f.AddTask(g, "ensure availability set", f.EnsureAvailabilitySet, shared.DoIf(f.adapter.AvailabilitySetConfig() != nil), shared.Dependencies(resourceGroup))
 	routeTable := f.AddTask(g, "ensure route table", f.EnsureRouteTable, shared.Dependencies(resourceGroup))
 	securityGroup := f.AddTask(g, "ensure security group", f.EnsureSecurityGroup, shared.Dependencies(resourceGroup))
 	ip := f.AddTask(g, "ensure pips", f.EnsurePublicIPs, shared.Dependencies(resourceGroup))
 	nat := f.AddTask(g, "ensure nats", f.EnsureNatGateways, shared.Dependencies(resourceGroup, ip))
 	f.AddTask(g, "ensure subnets", f.EnsureSubnets, shared.Dependencies(vnet, routeTable, securityGroup, nat))
-	// natGateway := f.AddTask(g, "ensure nat gateway", func(ctx context.Context) error {
-	// 	return nil
-	// }
-	// ip := f.AddTask(g, "ensure pips", func(ctx context.Context) error {
-	// 	ips, err := f.EnsurePublicIPs(ctx)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	err = f.EnrichResponseWithUserManagedIPs(ctx, ips)
-	// 	if err != nil {
-	// 		return fmt.Errorf("enrichment with user managed IPs failed: %v", err)
-	// 	}
-	// 	f.whiteboard.SetObject(publicIPMap, ips)
-	// 	return nil
-	// }, shared.Dependencies(resourceGroup))
-
-	// natgateway := f.addtask(g, "ensure nat gateway", func(ctx context.context) error {
-	// 	ips := f.whiteboard.getobject(publicipmap).(map[string][]*armnetwork.publicipaddress)
-	// 	resp, err := f.ensurenatgateways(ctx, ips)
-	// 	f.whiteboard.setobject(natgatewaymap, resp)
-	// 	return err
-	// }, shared.dependencies(ip))
-
-	// f.AddTask(g, "ensure subnet", func(ctx context.Context) error {
-	// 	routeTable := armnetwork.RouteTable{
-	// 		ID: f.whiteboard.Get(routeTableId),
-	// 	}
-	// 	securityGroup := armnetwork.SecurityGroup{
-	// 		ID: f.whiteboard.Get(securityGroupId),
-	// 	}
-	// 	natGateway := f.whiteboard.GetObject(natGatewayMap).(map[string]*armnetwork.NatGateway)
-	// 	return f.EnsureSubnets(ctx, securityGroup, routeTable, natGateway)
-	// }, shared.Dependencies(securityGroup), shared.Dependencies(routeTable), shared.Dependencies(natGateway), shared.Dependencies(vnet))
 	return g
 }
 
@@ -148,15 +132,6 @@ func (f *FlowContext) Delete(ctx context.Context) error {
 	fl := graph.Compile()
 	if err := fl.Run(ctx, flow.Opts{}); err != nil {
 		return flow.Causes(err)
-	}
-	return nil
-}
-
-func (f *FlowContext) ensureObjectKeys(keys ...string) error {
-	for _, k := range keys {
-		if f.whiteboard.GetObject(k) == nil {
-			return fmt.Errorf("could not locate required key: %s", k)
-		}
 	}
 	return nil
 }

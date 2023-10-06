@@ -65,6 +65,10 @@ func NewAzureClientFactoryWithAuth(auth *internal.ClientAuth, client client.Clie
 	}, nil
 }
 
+func (f azureFactory) Auth() *internal.ClientAuth {
+	return f.auth
+}
+
 // Storage reads the secret from the passed reference and return an Azure (blob) storage client.
 func (f azureFactory) Storage(ctx context.Context, secretRef corev1.SecretReference) (Storage, error) {
 	serviceURL, err := newStorageClient(ctx, f.client, &secretRef)

@@ -30,76 +30,144 @@ import (
 )
 
 // InfrastructureAdapter contains information about the infrastructure resources that are either static, or otherwise
-// inferable based on the shoot configuration.
+// inferable based on the shoot configuration. It acts as an intermediate step to make the configuration easier to process
+// for the ensurer step.
 type InfrastructureAdapter struct {
 	infra   *extensionsv1alpha1.Infrastructure
 	config  *azure.InfrastructureConfig
 	status  *azure.InfrastructureStatus
 	profile *azure.CloudProfileConfig
 	cluster *extensionscontroller.Cluster
+
+	// cached configuration
+	vnetConfig  VirtualNetworkConfig
+	avSetConfig *AvailabilitySetConfig
+	zoneConfigs []ZoneConfig
 }
 
-// ClusterName the cluster's "base" name. Used as a name or as a prefix by other resources.
-func (i *InfrastructureAdapter) ClusterName() string {
-	return i.infra.Namespace
+// NewInfrastructureAdapter returns a new instance of the InfrastructureAdapter.
+func NewInfrastructureAdapter(
+	infra *extensionsv1alpha1.Infrastructure,
+	config *azure.InfrastructureConfig,
+	status *azure.InfrastructureStatus,
+	profile *azure.CloudProfileConfig,
+	cluster *extensionscontroller.Cluster,
+) (*InfrastructureAdapter, error) {
+	ia := &InfrastructureAdapter{
+		infra:   infra,
+		config:  config,
+		status:  status,
+		profile: profile,
+		cluster: cluster,
+	}
+	ia.vnetConfig = ia.virtualNetworkConfig()
+	avset, err := ia.availabilitySetConfig()
+	if err != nil {
+		return nil, err
+	}
+	ia.avSetConfig = avset
+
+	ia.zoneConfigs = ia.zonesConfig()
+	return ia, nil
 }
 
-// ResourceGroupName the name of the resource group.
-func (i *InfrastructureAdapter) ResourceGroupName() string {
-	return i.ClusterName()
+// TechnicalName the cluster's "base" name. Used as a name or as a prefix by other resources.
+func (ia *InfrastructureAdapter) TechnicalName() string {
+	return ia.infra.Namespace
 }
 
-// GardenerVnet returns true if gardener manages the shoot's virtual network.
-func (i *InfrastructureAdapter) GardenerVnet() bool {
-	return i.config.Networks.VNet.ResourceGroup == nil
+// ResourceGroup the name of the resource group.
+func (ia *InfrastructureAdapter) ResourceGroup() string {
+	return ia.TechnicalName()
+}
+
+// VirtualNetworkConfig contains configuration for the virtual network
+type VirtualNetworkConfig struct {
+	AzureResourceMetadata
+	// Managed is true if the vnet is managed by gardener.
+	Managed bool
+	// Cidr is the vnet's CIDR.
+	CIDR *string
 }
 
 // Region is the region of the shoot.
-func (i *InfrastructureAdapter) Region() string {
-	return i.infra.Spec.Region
+func (ia *InfrastructureAdapter) Region() string {
+	return ia.infra.Spec.Region
 }
 
-// VnetName the name of the shoot's virtual network.
-func (i *InfrastructureAdapter) VnetName() string {
-	if i.GardenerVnet() {
-		return i.ClusterName()
-	}
-
-	return *i.config.Networks.VNet.Name
+// VirtualNetworkConfig returns the virtual network configuration.
+func (ia *InfrastructureAdapter) VirtualNetworkConfig() VirtualNetworkConfig {
+	return ia.vnetConfig
 }
 
-// VnetResourceGroup is the virtual network's resource group.
-func (i *InfrastructureAdapter) VnetResourceGroup() string {
-	if i.GardenerVnet() {
-		return i.ResourceGroupName()
+func (ia *InfrastructureAdapter) virtualNetworkConfig() VirtualNetworkConfig {
+	name := ia.TechnicalName()
+	rg := ia.ResourceGroup()
+	managed := ia.isGardenerManagedVirtualNetwork()
+	if managed {
+		name = *ia.config.Networks.VNet.Name
+		rg = *ia.config.Networks.VNet.ResourceGroup
+	}
+	vnc := VirtualNetworkConfig{
+		AzureResourceMetadata: AzureResourceMetadata{
+			Name:          name,
+			ResourceGroup: rg,
+			Kind:          VirtualNetwork,
+		},
+		Managed: managed,
 	}
 
-	return *i.config.Networks.VNet.ResourceGroup
+	if cidr := ia.config.Networks.VNet.CIDR; cidr != nil {
+		// copy string
+		vnc.CIDR = to.Ptr(*cidr)
+	} else {
+		vnc.CIDR = to.Ptr(*ia.config.Networks.Workers)
+	}
+
+	return vnc
+}
+
+// isGardenerManagedVirtualNetwork returns true if gardener manages the shoot's virtual network.
+func (ia *InfrastructureAdapter) isGardenerManagedVirtualNetwork() bool {
+	return ia.config.Networks.VNet.ResourceGroup == nil
 }
 
 // AvailabilitySetConfig contains the configuration for the shoot's availability set.
 type AvailabilitySetConfig struct {
-	CountFaultDomains  *int32
+	AzureResourceMetadata
+	// countFaultDomains is the fault domain count for the AV set.
+	CountFaultDomains *int32
+	// countFaultDomains is the update domain count for the AV set.
 	CountUpdateDomains *int32
 }
 
 // AvailabilitySetRequired returns true if gardener should create an availability set for the shoot.
-func (i *InfrastructureAdapter) AvailabilitySetRequired() (bool, error) {
-	return infrastructure.IsPrimaryAvailabilitySetRequired(i.infra, i.config, i.cluster)
+func (ia *InfrastructureAdapter) availabilitySetRequired() (bool, error) {
+	return infrastructure.IsPrimaryAvailabilitySetRequired(ia.infra, ia.config, ia.cluster)
 }
 
-// AvailabilitySetName the name of the availability set.
-func (i *InfrastructureAdapter) AvailabilitySetName() string {
-	return fmt.Sprintf("%s-avset-workers", i.ClusterName())
-
+func (ia *InfrastructureAdapter) AvailabilitySetConfig() *AvailabilitySetConfig {
+	return ia.avSetConfig
 }
 
-// AvailabilitySet returns the availability set's configuration.
-func (i *InfrastructureAdapter) AvailabilitySet() (*AvailabilitySetConfig, error) {
-	asc := &AvailabilitySetConfig{}
+// AvailabilitySetConfig returns the availability set's configuration.
+func (ia *InfrastructureAdapter) availabilitySetConfig() (*AvailabilitySetConfig, error) {
+	if ok, err := ia.availabilitySetRequired(); err != nil {
+		return nil, err
+	} else if !ok {
+		return nil, nil
+	}
 
-	if i.status != nil {
-		nodesAVSet, err := helper.FindAvailabilitySetByPurpose(i.status.AvailabilitySets, azure.PurposeNodes)
+	asc := &AvailabilitySetConfig{
+		AzureResourceMetadata: AzureResourceMetadata{
+			ResourceGroup: ia.ResourceGroup(),
+			Name:          fmt.Sprintf("%s-avset-workers", ia.TechnicalName()),
+			Kind:          AvailabilitySet,
+		},
+	}
+
+	if ia.status != nil {
+		nodesAVSet, err := helper.FindAvailabilitySetByPurpose(ia.status.AvailabilitySets, azure.PurposeNodes)
 		if err != nil {
 			return nil, fmt.Errorf("error obtaining update and fault domain counts from infrastructure status: %v", err)
 		}
@@ -108,14 +176,14 @@ func (i *InfrastructureAdapter) AvailabilitySet() (*AvailabilitySetConfig, error
 	}
 
 	if asc.CountFaultDomains == nil {
-		count, err := helper.FindDomainCountByRegion(i.profile.CountFaultDomains, i.Region())
+		count, err := helper.FindDomainCountByRegion(ia.profile.CountFaultDomains, ia.Region())
 		if err != nil {
 			return nil, err
 		}
 		asc.CountFaultDomains = to.Ptr(count)
 	}
 	if asc.CountUpdateDomains == nil {
-		count, err := helper.FindDomainCountByRegion(i.profile.CountUpdateDomains, i.Region())
+		count, err := helper.FindDomainCountByRegion(ia.profile.CountUpdateDomains, ia.Region())
 		if err != nil {
 			return nil, err
 		}
@@ -125,125 +193,152 @@ func (i *InfrastructureAdapter) AvailabilitySet() (*AvailabilitySetConfig, error
 	return asc, nil
 }
 
-// RouteTableName returns the name of the shoot's route table.
-func (i *InfrastructureAdapter) RouteTableName() string {
-	return "worker_route_table"
+type RouteTableConfig struct {
+	AzureResourceMetadata
 }
 
-// SecurityGroupName returns the name of the shoot's security group.
-func (i *InfrastructureAdapter) SecurityGroupName() string {
-	return fmt.Sprintf("%s-workers", i.ClusterName())
+// RouteTableConfig returns the name of the shoot's route table.
+func (ia *InfrastructureAdapter) RouteTableConfig() RouteTableConfig {
+	return RouteTableConfig{
+		AzureResourceMetadata{
+			ResourceGroup: ia.ResourceGroup(),
+			Name:          "worker_route_table",
+			Kind:          RouteTable,
+		},
+	}
 }
 
-func (i *InfrastructureAdapter) NatGatewayName() string {
-	return fmt.Sprintf("%s-nat-gateway", i.ClusterName())
+type SecurityGroupConfig struct {
+	AzureResourceMetadata
 }
 
-func (i *InfrastructureAdapter) SubnetName(zone *int32) string {
-	n := fmt.Sprintf("%s-nodes", i.ClusterName())
+// SecurityGroupConfig returns the name of the shoot's security group.
+func (ia *InfrastructureAdapter) SecurityGroupConfig() SecurityGroupConfig {
+	return SecurityGroupConfig{
+		AzureResourceMetadata{
+			ResourceGroup: ia.ResourceGroup(),
+			Name:          fmt.Sprintf("%s-workers", ia.TechnicalName()),
+			Kind:          SecurityGroup,
+		},
+	}
+}
+
+// PublicIPConfig contains configuration for a puplic IP resource.
+type PublicIPConfig struct {
+	AzureResourceMetadata
+	Zones   []string
+	Managed bool
+}
+
+// NatGatewayConfig contains configuration for a NAT Gateway.
+type NatGatewayConfig struct {
+	AzureResourceMetadata
+	Zone         *string
+	IdleTimeout  *int32
+	PublicIPList []PublicIPConfig
+}
+
+type SubnetConfig struct {
+	AzureResourceMetadata
+	cidr            string
+	serviceEndpoint []string
+}
+
+type ZoneConfig struct {
+	Subnet     SubnetConfig
+	NatGateway *NatGatewayConfig
+	Migrated   bool
+}
+
+func (ia *InfrastructureAdapter) natGatewayName() string {
+	return fmt.Sprintf("%s-nat-gateway", ia.TechnicalName())
+}
+
+func (ia *InfrastructureAdapter) natGatewayNameForZone(zone int32, migrated bool) string {
+	if migrated {
+		return ia.natGatewayName()
+	}
+
+	return fmt.Sprintf("%s-z%d", ia.natGatewayName(), zone)
+}
+
+func (ia *InfrastructureAdapter) subnetName(zone *int32) string {
+	n := fmt.Sprintf("%s-nodes", ia.TechnicalName())
 	if zone != nil {
 		n = fmt.Sprintf("%s-z%d", n, *zone)
 	}
 	return n
 }
 
-func (i *InfrastructureAdapter) NatGatewayNameForZone(zone int32, migrated bool) string {
-	if migrated {
-		return i.NatGatewayName()
-	}
-
-	return fmt.Sprintf("%s-z%d", i.NatGatewayName(), zone)
-}
-
-func (i *InfrastructureAdapter) PublicIPName(natName string) string {
+func (ia *InfrastructureAdapter) publicIPName(natName string) string {
 	return fmt.Sprintf("%s-ip", natName)
 }
 
-type publicIP struct {
-	AzureResourceIdentifier
-	zones       []string
-	userManaged bool
+func (ia *InfrastructureAdapter) Zones() []ZoneConfig {
+	return ia.zoneConfigs
 }
 
-type natGateway struct {
-	AzureResourceIdentifier
-	zone        *string
-	idleTimeout *int32
-	pip         []publicIP
-}
-
-type subnet struct {
-	AzureResourceIdentifier
-	cidr            string
-	serviceEndpoint []string
-}
-
-type zone struct {
-	subnet     subnet
-	natGateway *natGateway
-	migrated   bool
-}
-
-func (i *InfrastructureAdapter) Zones() []zone {
-	if len(i.config.Networks.Zones) == 0 {
-		return i.DefaultZone()
+func (ia *InfrastructureAdapter) zonesConfig() []ZoneConfig {
+	if len(ia.config.Networks.Zones) == 0 {
+		return ia.defaultZone()
 	}
 
-	var zones []zone
-	migratedZone, ok := i.infra.Annotations[consts.NetworkLayoutZoneMigrationAnnotation]
-	for _, configZone := range i.config.Networks.Zones {
+	var zones []ZoneConfig
+	migratedZone, ok := ia.infra.Annotations[consts.NetworkLayoutZoneMigrationAnnotation]
+	for _, configZone := range ia.config.Networks.Zones {
 		zoneString := helper.InfrastructureZoneToString(configZone.Name)
 		isMigratedZone := ok && migratedZone == zoneString
-		z := zone{
-			subnet: subnet{
-				AzureResourceIdentifier: AzureResourceIdentifier{
-					ResourceGroup: i.VnetResourceGroup(),
-					Name:          i.SubnetName(&configZone.Name),
+		z := ZoneConfig{
+			Subnet: SubnetConfig{
+				AzureResourceMetadata: AzureResourceMetadata{
+					ResourceGroup: ia.vnetConfig.ResourceGroup,
+					Name:          ia.subnetName(&configZone.Name),
+					Parent:        ia.vnetConfig.Name,
 					Kind:          Subnet,
 				},
 				cidr:            configZone.CIDR,
 				serviceEndpoint: configZone.ServiceEndpoints,
 			},
-			migrated: isMigratedZone,
+			Migrated: isMigratedZone,
 		}
 
 		if configZone.NatGateway != nil && configZone.NatGateway.Enabled {
-			ngw := &natGateway{
-				AzureResourceIdentifier: AzureResourceIdentifier{
-					ResourceGroup: i.ResourceGroupName(),
-					Name:          i.NatGatewayNameForZone(configZone.Name, isMigratedZone),
+			ngw := &NatGatewayConfig{
+				AzureResourceMetadata: AzureResourceMetadata{
+					ResourceGroup: ia.ResourceGroup(),
+					Name:          ia.natGatewayNameForZone(configZone.Name, isMigratedZone),
 					Kind:          NatGateway,
 				},
-				idleTimeout: configZone.NatGateway.IdleConnectionTimeoutMinutes,
+				IdleTimeout: configZone.NatGateway.IdleConnectionTimeoutMinutes,
 			}
-			ngw.zone = to.Ptr(zoneString)
+			z.NatGateway = ngw
+			ngw.Zone = to.Ptr(zoneString)
 
 			if len(configZone.NatGateway.IPAddresses) > 0 {
 				for _, ipRef := range configZone.NatGateway.IPAddresses {
-					ip := publicIP{
-						AzureResourceIdentifier: AzureResourceIdentifier{
+					ip := PublicIPConfig{
+						AzureResourceMetadata: AzureResourceMetadata{
 							ResourceGroup: ipRef.ResourceGroup,
 							Name:          ipRef.Name,
 							Kind:          PublicIP,
 						},
-						zones:       []string{zoneString},
-						userManaged: true,
+						Zones:   []string{zoneString},
+						Managed: true,
 					}
-					ngw.pip = append(ngw.pip, ip)
+					ngw.PublicIPList = append(ngw.PublicIPList, ip)
 				}
 			} else {
-				ip := publicIP{
-					AzureResourceIdentifier: AzureResourceIdentifier{
-						ResourceGroup: i.ResourceGroupName(),
-						Name:          i.PublicIPName(ngw.Name),
+				ip := PublicIPConfig{
+					AzureResourceMetadata: AzureResourceMetadata{
+						ResourceGroup: ia.ResourceGroup(),
+						Name:          ia.publicIPName(ngw.Name),
 						Kind:          PublicIP,
 					},
-					userManaged: false,
-					zones:       []string{zoneString},
+					Managed: false,
+					Zones:   []string{zoneString},
 				}
-				ngw.pip = append(ngw.pip, ip)
+				ngw.PublicIPList = append(ngw.PublicIPList, ip)
 			}
-			z.natGateway = ngw
 		}
 		zones = append(zones, z)
 	}
@@ -251,110 +346,107 @@ func (i *InfrastructureAdapter) Zones() []zone {
 	return zones
 }
 
-func (i *InfrastructureAdapter) DefaultZone() []zone {
-	config := i.config
-	z := zone{
-		subnet: subnet{
-			AzureResourceIdentifier: AzureResourceIdentifier{
-				ResourceGroup: i.VnetResourceGroup(),
-				Name:          i.SubnetName(nil),
+func (ia *InfrastructureAdapter) defaultZone() []ZoneConfig {
+	config := ia.config
+	z := ZoneConfig{
+		Subnet: SubnetConfig{
+			AzureResourceMetadata: AzureResourceMetadata{
+				ResourceGroup: ia.vnetConfig.ResourceGroup,
+				Name:          ia.subnetName(nil),
+				Parent:        ia.vnetConfig.Name,
 				Kind:          Subnet,
 			},
 			cidr:            *config.Networks.Workers,
 			serviceEndpoint: config.Networks.ServiceEndpoints,
 		},
-		migrated: false,
+		Migrated: false,
 	}
 	if config.Networks.NatGateway == nil || !config.Networks.NatGateway.Enabled {
-		return []zone{z}
+		return []ZoneConfig{z}
 	}
 
-	ngw := &natGateway{
-		AzureResourceIdentifier: AzureResourceIdentifier{
-			ResourceGroup: i.ResourceGroupName(),
-			Name:          i.NatGatewayName(),
+	ngw := &NatGatewayConfig{
+		AzureResourceMetadata: AzureResourceMetadata{
+			ResourceGroup: ia.ResourceGroup(),
+			Name:          ia.natGatewayName(),
 			Kind:          NatGateway,
 		},
-		idleTimeout: config.Networks.NatGateway.IdleConnectionTimeoutMinutes,
+		IdleTimeout: config.Networks.NatGateway.IdleConnectionTimeoutMinutes,
 	}
 	if z := config.Networks.NatGateway.Zone; z != nil {
-		ngw.zone = to.Ptr(strconv.Itoa(int(*z)))
+		ngw.Zone = to.Ptr(strconv.Itoa(int(*z)))
 	}
 
 	if len(config.Networks.NatGateway.IPAddresses) > 0 {
 		for _, ipRef := range config.Networks.NatGateway.IPAddresses {
-			ip := publicIP{
-				AzureResourceIdentifier: AzureResourceIdentifier{
+			ip := PublicIPConfig{
+				AzureResourceMetadata: AzureResourceMetadata{
 					ResourceGroup: ipRef.ResourceGroup,
 					Name:          ipRef.Name,
 					Kind:          PublicIP,
 				},
-				userManaged: true,
+				Managed: true,
 			}
-			ip.zones = append(ip.zones, strconv.Itoa(int(ipRef.Zone)))
-			ngw.pip = append(ngw.pip, ip)
+			ip.Zones = append(ip.Zones, strconv.Itoa(int(ipRef.Zone)))
+			ngw.PublicIPList = append(ngw.PublicIPList, ip)
 		}
 	} else {
-		ip := publicIP{
-			AzureResourceIdentifier: AzureResourceIdentifier{
-				ResourceGroup: i.ResourceGroupName(),
-				Name:          i.PublicIPName(ngw.Name),
+		ip := PublicIPConfig{
+			AzureResourceMetadata: AzureResourceMetadata{
+				ResourceGroup: ia.ResourceGroup(),
+				Name:          ia.publicIPName(ngw.Name),
 				Kind:          PublicIP,
 			},
-			userManaged: false,
+			Managed: false,
 		}
-		if ngw.zone != nil {
-			ip.zones = append(ip.zones, *ngw.zone)
+		if ngw.Zone != nil {
+			ip.Zones = append(ip.Zones, *ngw.Zone)
 		}
-		ngw.pip = append(ngw.pip, ip)
+		ngw.PublicIPList = append(ngw.PublicIPList, ip)
 	}
-	z.natGateway = ngw
+	z.NatGateway = ngw
 
-	return []zone{z}
+	return []ZoneConfig{z}
 }
 
-func (i *InfrastructureAdapter) IPs() []publicIP {
-	var res []publicIP
-	for _, z := range i.Zones() {
-		if z.natGateway == nil {
+func (ia *InfrastructureAdapter) IpConfigs() []PublicIPConfig {
+	var res []PublicIPConfig
+	for _, z := range ia.zoneConfigs {
+		if z.NatGateway == nil {
 			continue
 		}
-		res = append(res, z.natGateway.pip...)
+		res = append(res, z.NatGateway.PublicIPList...)
 	}
 
 	return res
 }
 
-func (i *InfrastructureAdapter) Nats() []natGateway {
-	var res []natGateway
-	for _, z := range i.Zones() {
-		if z.natGateway != nil {
-			res = append(res, *z.natGateway)
+func (ia *InfrastructureAdapter) NatGatewayConfigs() []NatGatewayConfig {
+	var res []NatGatewayConfig
+	for _, z := range ia.Zones() {
+		if z.NatGateway != nil {
+			res = append(res, *z.NatGateway)
 		}
 	}
 
 	return res
 }
 
-func (i *InfrastructureAdapter) SubnetToNatMapping() map[string]string {
+func (ia *InfrastructureAdapter) SubnetToNatMapping() map[string]string {
 	res := map[string]string{}
-	for _, z := range i.Zones() {
-		if z.natGateway == nil {
+	for _, z := range ia.Zones() {
+		if z.NatGateway == nil {
 			continue
 		}
-		res[z.subnet.Name] = res[z.natGateway.Name]
+		res[z.Subnet.Name] = res[z.NatGateway.Name]
 	}
 	return res
-}
-
-func (i *InfrastructureAdapter) NatToIPMapping() map[string]string {
-	return nil
 }
 
 // HasShootPrefix returns true if the target resource's name is prefixed with the shoot's canonical name.
-func (i *InfrastructureAdapter) HasShootPrefix(name *string) bool {
+func (ia *InfrastructureAdapter) HasShootPrefix(name *string) bool {
 	if name == nil {
 		return false
 	}
-	return strings.HasPrefix(*name, i.ClusterName())
+	return strings.HasPrefix(*name, ia.TechnicalName())
 }

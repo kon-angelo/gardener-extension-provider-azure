@@ -193,7 +193,7 @@ var _ = Describe("AzureReconciler", func() {
 		})
 	})
 	Describe("PublicIP reconcilation", func() {
-		Context("with 2 zones, no NAT enabled and user managed IP", func() {
+		Context("with 2 Zones, no NAT enabled and user managed IP", func() {
 			cfg := newBasicConfig()
 			cfg.Networks.NatGateway = &azure.NatGatewayConfig{
 				Zone:    to.Ptr(int32(1)),
@@ -205,14 +205,14 @@ var _ = Describe("AzureReconciler", func() {
 				mock.assertPublicIPCalledWithoutCreation()
 				factory = mock.GetFactory()
 			})
-			It("does not create NAT IPs and does not update user-managed public IPs", func() {
+			It("does not create NAT IpConfigs and does not update user-managed public IpConfigs", func() {
 				sut, err := infraflow.NewAzureReconciler(infra, cfg, cluster, factory)
 				Expect(err).ToNot(HaveOccurred())
 				_, err = sut.EnsurePublicIPs(context.TODO())
 				Expect(err).ToNot(HaveOccurred())
 			})
 		})
-		Context("with 2 zones, 1 NAT enabled and user managed IP", func() {
+		Context("with 2 Zones, 1 NAT enabled and user managed IP", func() {
 			cfg := newBasicConfig()
 			cfg.Networks.Zones = []azure.Zone{{Name: 1, CIDR: "10.0.0.0/16", NatGateway: &azure.ZonedNatGatewayConfig{Enabled: true, IPAddresses: []azure.ZonedPublicIPReference{{Name: "my-ip", ResourceGroup: resourceGroupName}}}}, {Name: 2, CIDR: "10.1.0.0/16"}}
 			BeforeEach(func() {
@@ -228,7 +228,7 @@ var _ = Describe("AzureReconciler", func() {
 				mock.assertPublicIPCalledWithParameters(MatchAnyOfStrings([]string{"test_cluster-nat-gateway-z1-ip"}), parameters)
 				factory = mock.GetFactory()
 			})
-			It("only creates NAT IP for 1 zone and does not update user-managed public IPs", func() {
+			It("only creates NAT IP for 1 Zone and does not update user-managed public IpConfigs", func() {
 				sut, err := infraflow.NewAzureReconciler(infra, cfg, cluster, factory)
 				Expect(err).ToNot(HaveOccurred())
 				_, err = sut.EnsurePublicIPs(context.TODO())
@@ -273,7 +273,7 @@ var _ = Describe("AzureReconciler", func() {
 		})
 		Describe("Nat gateway reconcilation", func() {
 			cfg := newBasicConfig()
-			Context("with 2 zones and 1 with NAT", func() {
+			Context("with 2 Zones and 1 with NAT", func() {
 				cfg.Networks.Zones = []azure.Zone{{Name: 1, CIDR: "10.0.0.0/16", NatGateway: &azure.ZonedNatGatewayConfig{Enabled: true, IPAddresses: []azure.ZonedPublicIPReference{{Name: "my-ip", ResourceGroup: resourceGroupName}}}}, {Name: 2, CIDR: "10.1.0.0/16"}}
 				ipId := to.Ptr("ip-id")
 				It("calls the client with correct nat gateway name and parameters", func() {
@@ -303,7 +303,7 @@ var _ = Describe("AzureReconciler", func() {
 					Expect(err).ToNot(HaveOccurred())
 				})
 			})
-			Context("with single subnet and NAT (old nat), then disabled", func() {
+			Context("with single SubnetConfig and NAT (old nat), then disabled", func() {
 				cfg := newBasicConfig()
 				cfg.Networks.NatGateway = &azure.NatGatewayConfig{
 					Zone:    to.Ptr(int32(1)),
@@ -327,7 +327,7 @@ var _ = Describe("AzureReconciler", func() {
 		})
 		Describe("Subnet reconcilation", func() {
 			cfg := newBasicConfig()
-			Context("with 2 zones", func() {
+			Context("with 2 Zones", func() {
 				cfg.Networks.Zones = []azure.Zone{{Name: 1, CIDR: "10.0.0.0/16", NatGateway: &azure.ZonedNatGatewayConfig{Enabled: true, IPAddresses: []azure.ZonedPublicIPReference{{Name: "my-ip", ResourceGroup: resourceGroupName}}}}, {Name: 2, CIDR: "10.1.0.0/16"}}
 				It("calls the client with correct nat gateway name and parameters", func() {
 					mock := NewMockFactoryWrapper(resourceGroupName, location)
@@ -354,7 +354,7 @@ var _ = Describe("AzureReconciler", func() {
 
 		})
 		Describe("Enrich IP reponse", func() {
-			Context("with 2 zones with user managed IPs for each", func() {
+			Context("with 2 Zones with user managed IpConfigs for each", func() {
 				cfg := newBasicConfig()
 				cfg.Zoned = true
 				cfg.Networks.Zones = []azure.Zone{{Name: 1, CIDR: "10.0.0.0/16", NatGateway: &azure.ZonedNatGatewayConfig{Enabled: true, IPAddresses: []azure.ZonedPublicIPReference{{Name: "my-ip1", ResourceGroup: resourceGroupName}}}}, {Name: 2, CIDR: "10.1.0.0/16", NatGateway: &azure.ZonedNatGatewayConfig{Enabled: true, IPAddresses: []azure.ZonedPublicIPReference{{Name: "my-ip2", ResourceGroup: resourceGroupName}}}}}
@@ -364,7 +364,7 @@ var _ = Describe("AzureReconciler", func() {
 					mock.assertPublicIPGet(resourceGroupName, MatchAnyOfStrings([]string{"my-ip1", "my-ip2"})).Times(2)
 					factory = mock.GetFactory()
 				})
-				It("enriches with 2 user managed IPs", func() {
+				It("enriches with 2 user managed IpConfigs", func() {
 					sut, err := infraflow.NewAzureReconciler(infra, cfg, cluster, factory)
 					Expect(err).ToNot(HaveOccurred())
 					res := make(map[string][]*armnetwork.PublicIPAddress)
@@ -376,7 +376,7 @@ var _ = Describe("AzureReconciler", func() {
 			})
 		})
 		Describe("Infrastructure Status", func() {
-			Context("Basic zonal cluster with 2 zones", func() {
+			Context("Basic zonal cluster with 2 Zones", func() {
 				cfg := newBasicConfig()
 				cfg.Networks.Zones = []azure.Zone{{Name: 1, CIDR: "10.0.0.0/16", NatGateway: &azure.ZonedNatGatewayConfig{Enabled: true, IPAddresses: []azure.ZonedPublicIPReference{{Name: "my-ip", ResourceGroup: resourceGroupName}}}}, {Name: 2, CIDR: "10.1.0.0/16"}}
 				cfg.Zoned = true

@@ -132,7 +132,7 @@ func ComputeTerraformerTemplateValues(
 		return nil, err
 	}
 
-	// check if we should use an existing ResourceGroupName or create a new one
+	// check if we should use an existing ResourceGroup or create a new one
 	if config.ResourceGroup != nil {
 		createResourceGroup = false
 		resourceGroupName = config.ResourceGroup.Name

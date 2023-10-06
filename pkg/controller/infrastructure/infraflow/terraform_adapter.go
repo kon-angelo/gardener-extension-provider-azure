@@ -34,7 +34,7 @@ const (
 	// Vnet is the attribute name for the isCreate function of the tf adapter
 	Vnet tfResource = "vnet"
 	// AvailabilitySet is the attribute name for the isCreate function of the tf adapter
-	AvailabilitySet tfResource = "availabilitySet"
+	// AvailabilitySet tfResource = "availabilitySet"
 )
 
 // TerraformAdapter retrieves all configuration logic needed for reconcilation from the (soon) legacy Terraform configuration code
@@ -173,7 +173,7 @@ func (t TerraformAdapter) ClusterName() string {
 
 func (t TerraformAdapter) subnetName(subnet map[string]interface{}) string {
 	name := t.ClusterName() + "-nodes"
-	isMigrated, isMultiSubnet := subnet["migrated"]
+	isMigrated, isMultiSubnet := subnet["Migrated"]
 	if isMultiSubnet {
 		if !isMigrated.(bool) {
 			name = fmt.Sprintf("%s-z%d", name, subnet["name"].(int32))
@@ -182,7 +182,7 @@ func (t TerraformAdapter) subnetName(subnet map[string]interface{}) string {
 	return name
 }
 
-// EnabledNats returns all zones with NAT enabled
+// EnabledNats returns all Zones with NAT enabled
 func (t TerraformAdapter) EnabledNats() []zoneTf {
 	res := make([]zoneTf, 0)
 	for _, nat := range t.Zones() {
@@ -203,7 +203,7 @@ type userManagedIP struct {
 	SubnetName    string
 }
 
-// UserManagedIPs returns all user managed IPs
+// UserManagedIPs returns all user managed IpConfigs
 // tpl l.139
 func (t TerraformAdapter) UserManagedIPs() []userManagedIP {
 	res := make([]userManagedIP, 0)
@@ -213,8 +213,8 @@ func (t TerraformAdapter) UserManagedIPs() []userManagedIP {
 	}
 	for _, subnet := range rawSubnets.([]map[string]interface{}) {
 		subnetName := t.subnetName(subnet)
-		natRaw := subnet["natGateway"].(map[string]interface{})
-		_, ok := natRaw["zone"]
+		natRaw := subnet["NatGatewayConfig"].(map[string]interface{})
+		_, ok := natRaw["Zone"]
 		if ok {
 			ipAddrRaw, ipOk := natRaw["ipAddresses"]
 			if ipOk {
@@ -230,7 +230,7 @@ func (t TerraformAdapter) UserManagedIPs() []userManagedIP {
 	return res
 }
 
-// Zones returns all zone configurations
+// Zones returns all Zone configurations
 func (t TerraformAdapter) Zones() []zoneTf {
 	res := make([]zoneTf, 0)
 	rawSubnets := t.values["networks"].(map[string]interface{})["subnets"]
@@ -238,7 +238,7 @@ func (t TerraformAdapter) Zones() []zoneTf {
 		return res
 	}
 	for _, subnet := range rawSubnets.([]map[string]interface{}) {
-		natRaw := subnet["natGateway"].(map[string]interface{})
+		natRaw := subnet["NatGatewayConfig"].(map[string]interface{})
 
 		var idleConnectionTimeoutMinutes *int32
 		if _, ok := natRaw["idleConnectionTimeoutMinutes"]; ok {
@@ -249,13 +249,13 @@ func (t TerraformAdapter) Zones() []zoneTf {
 
 		// only for multi subnets
 		var isMigrated *bool
-		isMigratedRaw, isMultiSubnet := subnet["migrated"]
+		isMigratedRaw, isMultiSubnet := subnet["Migrated"]
 		if isMultiSubnet {
 			isMigrated = to.Ptr(isMigratedRaw.(bool))
 		}
 
 		var zone *string
-		zoneRaw, ok := natRaw["zone"]
+		zoneRaw, ok := natRaw["Zone"]
 		if ok {
 			zone = to.Ptr(fmt.Sprintf("%d", zoneRaw.(int32)))
 		}

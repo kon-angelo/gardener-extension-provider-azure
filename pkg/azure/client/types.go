@@ -23,6 +23,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-03-01/compute"
 	"github.com/Azure/azure-sdk-for-go/services/msi/mgmt/2018-11-30/msi"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
 )
 
 type Interface interface {
@@ -30,6 +32,8 @@ type Interface interface {
 
 // Factory represents a factory to produce clients for various Azure services.
 type Factory interface {
+	Auth() *internal.ClientAuth
+
 	Storage(context.Context, corev1.SecretReference) (Storage, error)
 	StorageAccount() (StorageAccount, error)
 	Vmss() (Vmss, error)

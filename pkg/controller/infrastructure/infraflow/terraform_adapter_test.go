@@ -38,7 +38,7 @@ var _ = Describe("TfAdapter", func() {
 		res := sut.Identity()
 		Expect(res).To(BeNil())
 	})
-	It("should return NAT config for single subnet", func() {
+	It("should return NAT config for single SubnetConfig", func() {
 		cfg := newBasicConfig()
 		cfg.Networks.NatGateway = &azure.NatGatewayConfig{
 			Zone:    to.Ptr(int32(1)),

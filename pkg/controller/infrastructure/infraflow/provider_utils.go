@@ -15,30 +15,43 @@
 package infraflow
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
 )
 
+type AzureResourceKind string
+
 const (
-	VirtualNetwork = "virtualNetwork"
-	RouteTable     = "routeTable"
-	SecurityGroup  = "securityGroup"
-	NatGateway     = "natGateway"
-	PublicIP       = "publicIP"
-	Subnet         = "subnet"
+	VirtualNetwork  AzureResourceKind = "virtualNetwork"
+	RouteTable      AzureResourceKind = "routeTable"
+	SecurityGroup   AzureResourceKind = "securityGroup"
+	NatGateway      AzureResourceKind = "NatGatewayConfig"
+	PublicIP        AzureResourceKind = "PublicIPConfig"
+	Subnet          AzureResourceKind = "SubnetConfig"
+	AvailabilitySet AzureResourceKind = "availabilitySet"
 )
 
-type AzureResourceIdentifier struct {
+const (
+	PublicIPTemplate = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/publicIPAddresses/%s"
+)
+
+func getPublicIPId(subscription, rgName, pipName string) string {
+	return fmt.Sprintf(PublicIPTemplate, subscription, rgName, pipName)
+}
+
+type AzureResourceMetadata struct {
 	ResourceGroup string
 	Name          string
-	Kind          string
+	Parent        string
+	Kind          AzureResourceKind
 }
 
 // AzureResourceIdentifierFromID returns the identifier from parsing the object ID. It will always return a non-nil
 // identifier if there was no error.
-func AzureResourceIdentifierFromID(id string) (*AzureResourceIdentifier, error) {
+func AzureResourceIdentifierFromID(id string) (*AzureResourceMetadata, error) {
 	rid, err := resourceids.ParseAzureResourceID(id)
 	if err != nil {
 		return nil, err
@@ -51,7 +64,7 @@ func AzureResourceIdentifierFromID(id string) (*AzureResourceIdentifier, error) 
 		return nil, err
 	}
 
-	return &AzureResourceIdentifier{
+	return &AzureResourceMetadata{
 		ResourceGroup: rid.ResourceGroup,
 		Name:          name,
 	}, nil

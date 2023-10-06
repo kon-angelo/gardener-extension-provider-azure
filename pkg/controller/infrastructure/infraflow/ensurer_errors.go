@@ -1,0 +1,51 @@
+//  Copyright (c) 2023 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//       http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+
+package infraflow
+
+import (
+	"fmt"
+)
+
+type TerminalSpecMismatchError struct {
+	AzureResourceMetadata
+	Offender string
+	Expected string
+}
+
+func NewTerminalSpecMismatch(identifier AzureResourceMetadata, offender, expected string) *TerminalSpecMismatchError {
+	return &TerminalSpecMismatchError{identifier, offender, expected}
+}
+
+func (t *TerminalSpecMismatchError) Error() string {
+	return fmt.Sprintf("differences between the current and target spec require the object to be deleted, but "+
+		"the operation is not supported yet. Resource: %s, Name: %s, Offender: %s, Expected: %s", t.Kind, t.Name, t.Offender, t.Expected)
+}
+
+type TerminalConditionError struct {
+	AzureResourceMetadata
+	error
+}
+
+func NewTerminalConditionError(identifier AzureResourceMetadata, err error) *TerminalConditionError {
+	return &TerminalConditionError{identifier, err}
+}
+
+func (t *TerminalConditionError) Error() string {
+	return fmt.Sprintf("Unreconcilable error occured. Resource: %s, Name: %s, Error: %s", t.Kind, t.Name, t.error)
+}
+
+func (t *TerminalConditionError) Unwrap() error {
+	return t.error
+}

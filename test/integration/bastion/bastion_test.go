@@ -720,8 +720,8 @@ func verifyCreation(ctx context.Context, az *azureClientSet, options *bastionctr
 	Expect(err).NotTo(HaveOccurred())
 	Expect(*vm.Name).To(Equal(options.BastionInstanceName))
 
-	By("checking bastion ingress IPs exist")
-	// bastion ingress IPs exist
+	By("checking bastion ingress IpConfigs exist")
+	// bastion ingress IpConfigs exist
 	nic, err := az.interfaces.Get(ctx, options.ResourceGroupName, options.NicName, "")
 	Expect(err).NotTo(HaveOccurred())
 	internalIP := *(*(*nic.InterfacePropertiesFormat).IPConfigurations)[0].PrivateIPAddress
