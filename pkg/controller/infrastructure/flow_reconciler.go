@@ -27,6 +27,7 @@ import (
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
 
@@ -59,7 +60,12 @@ func (f *FlowReconciler) Reconcile(ctx context.Context, infra *extensionsv1alpha
 		return nil, nil, err
 	}
 
-	fctx, err := infraflow.NewFlowContext(factory, f.log, infra, cluster)
+	auth, err := internal.GetClientAuthData(ctx, f.client, infra.Spec.SecretRef, false)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fctx, err := infraflow.NewFlowContext(factory, auth, f.log, infra, cluster)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -85,7 +91,7 @@ func (f *FlowReconciler) Delete(ctx context.Context, infra *extensionsv1alpha1.I
 		return err
 	}
 
-	fctx, err := infraflow.NewFlowContext(factory, f.log, infra, cluster)
+	fctx, err := infraflow.NewFlowContext(factory, nil, f.log, infra, cluster)
 	if err != nil {
 		return err
 	}

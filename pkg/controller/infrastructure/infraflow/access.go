@@ -139,33 +139,3 @@ func (p *access) DisassociateNatGateway(ctx context.Context, rgName, natName str
 
 	return joinErr
 }
-
-// PublicIPAddress is an alias for the real PublicIPList type.
-type PublicIPAddress armnetwork.PublicIPAddress
-
-// MustDelete public current and target spec between PIPs and decide if they need to be deleted.
-func (p PublicIPAddress) MustDelete(target armnetwork.PublicIPAddress) bool {
-	if !reflect.DeepEqual(p.Location, target.Location) {
-		return true
-	}
-	if !reflect.DeepEqual(p.Zones, target.Zones) {
-		return true
-	}
-	if !reflect.DeepEqual(p.Properties.PublicIPAllocationMethod, target.Properties.PublicIPAllocationMethod) {
-		return true
-	}
-	return false
-}
-
-type NatGatewayCheck armnetwork.NatGateway
-
-func (n *NatGatewayCheck) MustDelete(target armnetwork.NatGateway) bool {
-	if !reflect.DeepEqual(n.Location, target.Location) {
-		return true
-	}
-	if !reflect.DeepEqual(n.Zones, target.Zones) {
-		return true
-	}
-
-	return false
-}

@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 
@@ -85,9 +86,11 @@ func (ia *InfrastructureAdapter) ResourceGroup() string {
 type VirtualNetworkConfig struct {
 	AzureResourceMetadata
 	// Managed is true if the vnet is managed by gardener.
-	Managed bool
+	Managed  bool
+	Location string
 	// Cidr is the vnet's CIDR.
-	CIDR *string
+	CIDR     *string
+	DDoSPlan *string
 }
 
 // Region is the region of the shoot.
@@ -114,7 +117,9 @@ func (ia *InfrastructureAdapter) virtualNetworkConfig() VirtualNetworkConfig {
 			ResourceGroup: rg,
 			Kind:          VirtualNetwork,
 		},
-		Managed: managed,
+		Managed:  managed,
+		Location: ia.Region(),
+		DDoSPlan: ia.config.Networks.VNet.DDosProtectionPlanID,
 	}
 
 	if cidr := ia.config.Networks.VNet.CIDR; cidr != nil {
@@ -226,13 +231,15 @@ func (ia *InfrastructureAdapter) SecurityGroupConfig() SecurityGroupConfig {
 // PublicIPConfig contains configuration for a puplic IP resource.
 type PublicIPConfig struct {
 	AzureResourceMetadata
-	Zones   []string
-	Managed bool
+	Zones    []string
+	Location string
+	Managed  bool
 }
 
 // NatGatewayConfig contains configuration for a NAT Gateway.
 type NatGatewayConfig struct {
 	AzureResourceMetadata
+	Location     string
 	Zone         *string
 	IdleTimeout  *int32
 	PublicIPList []PublicIPConfig
@@ -322,8 +329,9 @@ func (ia *InfrastructureAdapter) zonesConfig() []ZoneConfig {
 							Name:          ipRef.Name,
 							Kind:          PublicIP,
 						},
-						Zones:   []string{zoneString},
-						Managed: true,
+						Location: ia.Region(),
+						Zones:    []string{zoneString},
+						Managed:  true,
 					}
 					ngw.PublicIPList = append(ngw.PublicIPList, ip)
 				}
@@ -409,6 +417,23 @@ func (ia *InfrastructureAdapter) defaultZone() []ZoneConfig {
 	return []ZoneConfig{z}
 }
 
+func (ia *InfrastructureAdapter) ManagedIpConfigs() map[string]PublicIPConfig {
+	res := make(map[string]PublicIPConfig)
+	for _, z := range ia.zoneConfigs {
+		if z.NatGateway == nil {
+			continue
+		}
+
+		for _, ip := range z.NatGateway.PublicIPList {
+			if !ip.Managed {
+				res[ip.Name] = ip
+			}
+		}
+	}
+
+	return res
+}
+
 func (ia *InfrastructureAdapter) IpConfigs() []PublicIPConfig {
 	var res []PublicIPConfig
 	for _, z := range ia.zoneConfigs {
@@ -421,11 +446,11 @@ func (ia *InfrastructureAdapter) IpConfigs() []PublicIPConfig {
 	return res
 }
 
-func (ia *InfrastructureAdapter) NatGatewayConfigs() []NatGatewayConfig {
-	var res []NatGatewayConfig
+func (ia *InfrastructureAdapter) NatGatewayConfigs() map[string]NatGatewayConfig {
+	res := make(map[string]NatGatewayConfig)
 	for _, z := range ia.Zones() {
 		if z.NatGateway != nil {
-			res = append(res, *z.NatGateway)
+			res[z.NatGateway.Name] = *z.NatGateway
 		}
 	}
 
@@ -449,4 +474,116 @@ func (ia *InfrastructureAdapter) HasShootPrefix(name *string) bool {
 		return false
 	}
 	return strings.HasPrefix(*name, ia.TechnicalName())
+}
+
+func (ip *PublicIPConfig) ToProvider(base *armnetwork.PublicIPAddress) *armnetwork.PublicIPAddress {
+	target := &armnetwork.PublicIPAddress{
+		Location: to.Ptr(ip.Location),
+		Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+			PublicIPAllocationMethod: to.Ptr(armnetwork.IPAllocationMethodStatic),
+		},
+		SKU: &armnetwork.PublicIPAddressSKU{
+			Name: to.Ptr(armnetwork.PublicIPAddressSKUNameStandard),
+			Tier: to.Ptr(armnetwork.PublicIPAddressSKUTierRegional),
+		},
+		Zones: to.SliceOfPtrs(ip.Zones...),
+		Name:  to.Ptr(ip.Name),
+	}
+
+	// inherited from base
+	if base != nil {
+		target.ID = base.ID
+		target.Tags = base.Tags
+	}
+
+	return target
+}
+
+func (nat *NatGatewayConfig) ToProvider(base *armnetwork.NatGateway) *armnetwork.NatGateway {
+	target := &armnetwork.NatGateway{
+		Name:     to.Ptr(nat.Name),
+		Location: to.Ptr(nat.Location),
+		Properties: &armnetwork.NatGatewayPropertiesFormat{
+			IdleTimeoutInMinutes: nat.IdleTimeout,
+		},
+	}
+
+	// inherited from base
+	if base != nil {
+		target.Properties.PublicIPPrefixes = base.Properties.PublicIPPrefixes
+		target.ID = base.ID
+	}
+	return target
+}
+
+func (s *SubnetConfig) ToProvider(base *armnetwork.Subnet) *armnetwork.Subnet {
+	target := &armnetwork.Subnet{
+		Name: to.Ptr(s.Name),
+		Properties: &armnetwork.SubnetPropertiesFormat{
+			AddressPrefix: to.Ptr(s.cidr),
+			// will be filled later
+			NatGateway:           nil,
+			NetworkSecurityGroup: nil,
+			RouteTable:           nil,
+		},
+	}
+	for _, endpoint := range s.serviceEndpoint {
+		target.Properties.ServiceEndpoints = append(target.Properties.ServiceEndpoints, &armnetwork.ServiceEndpointPropertiesFormat{
+			Service: to.Ptr(endpoint),
+		})
+	}
+
+	// inherited from base
+	if base != nil {
+		target.ID = base.ID
+		target.Properties.ServiceEndpointPolicies = base.Properties.ServiceEndpointPolicies
+		target.Properties.PrivateLinkServiceNetworkPolicies = base.Properties.PrivateLinkServiceNetworkPolicies
+
+		target.Properties.PrivateEndpoints = base.Properties.PrivateEndpoints
+		target.Properties.PrivateEndpointNetworkPolicies = base.Properties.PrivateEndpointNetworkPolicies
+		target.Properties.Delegations = base.Properties.Delegations
+	}
+
+	return target
+}
+
+func (v *VirtualNetworkConfig) ToProvider(base *armnetwork.VirtualNetwork) *armnetwork.VirtualNetwork {
+	target := &armnetwork.VirtualNetwork{
+		Location: to.Ptr(v.Location),
+		Name:     to.Ptr(v.Name),
+		Properties: &armnetwork.VirtualNetworkPropertiesFormat{
+			AddressSpace: &armnetwork.AddressSpace{
+				AddressPrefixes: []*string{v.CIDR},
+			},
+		},
+	}
+	if ddosId := v.DDoSPlan; ddosId != nil {
+		target.Properties.EnableDdosProtection = to.Ptr(true)
+		target.Properties.DdosProtectionPlan = &armnetwork.SubResource{ID: ddosId}
+	} else {
+		target.Properties.DdosProtectionPlan = nil
+		target.Properties.EnableDdosProtection = to.Ptr(false)
+	}
+
+	if base != nil {
+		target.Tags = base.Tags
+		target.Properties.BgpCommunities = base.Properties.BgpCommunities
+		target.Properties.EnableVMProtection = base.Properties.EnableVMProtection
+		target.Properties.DhcpOptions = base.Properties.DhcpOptions
+		target.Properties.Subnets = base.Properties.Subnets
+		target.Properties.VirtualNetworkPeerings = base.Properties.VirtualNetworkPeerings
+		target.Properties.FlowTimeoutInMinutes = base.Properties.FlowTimeoutInMinutes
+		target.Properties.Encryption = base.Properties.Encryption
+	}
+
+	return target
+}
+
+func checkAllZonesWithFn[T any](t T, zones []ZoneConfig, check func(zone ZoneConfig, resource T) bool) bool {
+	for _, n := range zones {
+		if check(n, t) {
+			return true
+		}
+	}
+	return false
 }

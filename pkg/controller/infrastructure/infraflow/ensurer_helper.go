@@ -61,6 +61,21 @@ func Filter[T any](arr []T, fs ...func(T) bool) []T {
 	return res
 }
 
+// ToMap converts an array into a map. The key is provided by applying "f" to the array objects and the value are the objects.
+func ToMap[T comparable, Y comparable](arr []T, f func(T) Y) map[Y]T {
+	res := map[Y]T{}
+	for _, t := range arr {
+		key := f(t)
+		// if key is with default value e.g. ""
+		if key == *(new(Y)) {
+			continue
+		}
+		res[key] = t
+	}
+
+	return res
+}
+
 // Join merges maps by appending m2 to m1.
 func Join[K comparable, V any](m1, m2 map[K]V) map[K]V {
 	if m2 == nil {
@@ -91,18 +106,3 @@ func Join[K comparable, V any](m1, m2 map[K]V) map[K]V {
 // 	}
 // 	return res
 // }
-
-// ToMap converts an array into a map. The key is provided by applying "f" to the array objects and the value are the objects.
-func ToMap[T comparable, Y comparable](arr []T, f func(T) Y) map[Y]T {
-	res := map[Y]T{}
-	for _, t := range arr {
-		key := f(t)
-		// if key is with default value e.g. ""
-		if key == *(new(Y)) {
-			continue
-		}
-		res[key] = t
-	}
-
-	return res
-}

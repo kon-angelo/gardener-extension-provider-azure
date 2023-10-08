@@ -17,29 +17,46 @@ package infraflow
 import (
 	"fmt"
 	"net/url"
+	"reflect"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
 )
 
 type AzureResourceKind string
 
 const (
-	VirtualNetwork  AzureResourceKind = "virtualNetwork"
+	VirtualNetwork  AzureResourceKind = "virtualNetworks"
 	RouteTable      AzureResourceKind = "routeTable"
-	SecurityGroup   AzureResourceKind = "securityGroup"
-	NatGateway      AzureResourceKind = "NatGatewayConfig"
-	PublicIP        AzureResourceKind = "PublicIPConfig"
-	Subnet          AzureResourceKind = "SubnetConfig"
-	AvailabilitySet AzureResourceKind = "availabilitySet"
+	SecurityGroup   AzureResourceKind = "networkSecurityGroups"
+	NatGateway      AzureResourceKind = "natGateways"
+	PublicIP        AzureResourceKind = "publicIPAddresses"
+	Subnet          AzureResourceKind = "subnets"
+	AvailabilitySet AzureResourceKind = "availabilitySets"
 )
 
 const (
-	PublicIPTemplate = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/publicIPAddresses/%s"
+	PublicIPTemplate      = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/publicIPAddresses/%s"
+	NatGatewayIdTemplate  = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/natGateways/%s"
+	SecurityGroupTemplate = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s"
+	RouteTableTemplate    = ""
 )
 
-func getPublicIPId(subscription, rgName, pipName string) string {
+func PublicIPId(subscription, rgName, pipName string) string {
 	return fmt.Sprintf(PublicIPTemplate, subscription, rgName, pipName)
+}
+
+func NatGatewayId(subscription, rgName, name string) string {
+	return fmt.Sprintf(NatGatewayIdTemplate, subscription, rgName, name)
+}
+
+func SecurityGroupId(subscription, rgName, name string) string {
+	return fmt.Sprintf("")
+}
+
+func GetIdFromTemplate(template, subscription, rgName, name string) string {
+	return fmt.Sprintf(template, subscription, rgName, name)
 }
 
 type AzureResourceMetadata struct {
@@ -84,4 +101,33 @@ func ResourceNameFromID(id string) (string, error) {
 
 	components := strings.Split(path, "/")
 	return components[len(components)-1], nil
+}
+
+// ForceNewIp checks if the resource can be reconciled. If not, returns the offender's name.
+func ForceNewIp(current, target *armnetwork.PublicIPAddress) (bool, string, any) {
+	if !reflect.DeepEqual(current.Location, target.Location) {
+		return true, "Location", *current.Location
+	}
+	if !reflect.DeepEqual(current.Zones, target.Zones) {
+		return true, "Zones", current.Zones
+	}
+	if !reflect.DeepEqual(current.Properties.PublicIPAllocationMethod, target.Properties.PublicIPAllocationMethod) {
+		return true, "PublicIPAllocationMethod", current.Properties.PublicIPAllocationMethod
+	}
+	return false, "", nil
+}
+
+func ForceNewNat(current, target *armnetwork.NatGateway) (bool, string, any) {
+	if !reflect.DeepEqual(current.Location, target.Location) {
+		return true, "Location", *current.Location
+	}
+	if !reflect.DeepEqual(current.Zones, target.Zones) {
+		return true, "Zones", current.Zones
+	}
+
+	return false, "", nil
+}
+
+func ForceNewSubnet(current, target *armnetwork.Subnet) (bool, string, any) {
+	return false, "", nil
 }

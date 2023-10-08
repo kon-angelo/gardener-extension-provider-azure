@@ -29,6 +29,7 @@ import (
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow/shared"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
 )
 
 // FlowContext is the reconciler for all managed resources
@@ -38,6 +39,7 @@ type FlowContext struct {
 
 	cfg        *azure.InfrastructureConfig
 	factory    client.Factory
+	auth       *internal.ClientAuth
 	infra      *extensionsv1alpha1.Infrastructure
 	cluster    *controller.Cluster
 	whiteboard shared.Whiteboard
@@ -47,7 +49,7 @@ type FlowContext struct {
 }
 
 // NewFlowContext creates a new FlowContext.
-func NewFlowContext(factory client.Factory, logger logr.Logger, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) (*FlowContext, error) {
+func NewFlowContext(factory client.Factory, auth *internal.ClientAuth, logger logr.Logger, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) (*FlowContext, error) {
 	wb := shared.NewWhiteboard()
 	bfc := shared.NewBasicFlowContext(logger, wb, nil)
 
@@ -85,6 +87,7 @@ func NewFlowContext(factory client.Factory, logger logr.Logger, infra *extension
 	return &FlowContext{
 		BasicFlowContext: bfc,
 		factory:          factory,
+		auth:             auth,
 		logger:           logger,
 		infra:            infra,
 		cluster:          cluster,
