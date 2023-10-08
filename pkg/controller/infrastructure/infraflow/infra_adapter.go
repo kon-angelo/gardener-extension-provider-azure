@@ -26,6 +26,7 @@ import (
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
 	consts "github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
@@ -249,6 +250,7 @@ type SubnetConfig struct {
 	AzureResourceMetadata
 	cidr            string
 	serviceEndpoint []string
+	zone            *string
 }
 
 type ZoneConfig struct {
@@ -305,6 +307,7 @@ func (ia *InfrastructureAdapter) zonesConfig() []ZoneConfig {
 				},
 				cidr:            configZone.CIDR,
 				serviceEndpoint: configZone.ServiceEndpoints,
+				zone:            &zoneString,
 			},
 			Migrated: isMigratedZone,
 		}
@@ -577,6 +580,40 @@ func (v *VirtualNetworkConfig) ToProvider(base *armnetwork.VirtualNetwork) *armn
 	}
 
 	return target
+}
+
+func (ia *InfrastructureAdapter) InfrastructureStatus() *v1alpha1.InfrastructureStatus {
+	status := v1alpha1.InfrastructureStatus{
+		TypeMeta: infrastructure.StatusTypeMeta,
+		Networks: v1alpha1.NetworkStatus{
+			VNet: v1alpha1.VNetStatus{
+				Name:          ia.VirtualNetworkConfig().ResourceGroup,
+				ResourceGroup: to.Ptr(ia.VirtualNetworkConfig().ResourceGroup),
+			},
+			Subnets: nil,
+			Layout:  v1alpha1.NetworkLayoutSingleSubnet,
+		},
+		ResourceGroup: v1alpha1.ResourceGroup{
+			Name: ia.ResourceGroup(),
+		},
+		Zoned: ia.config.Zoned,
+	}
+
+	if len(ia.config.Networks.Zones) > 0 {
+		status.Networks.Layout = v1alpha1.NetworkLayoutMultipleSubnet
+	}
+
+	zones := ia.Zones()
+	for _, z := range zones {
+		status.Networks.Subnets = append(status.Networks.Subnets, v1alpha1.Subnet{
+			Name:     z.Subnet.Name,
+			Purpose:  v1alpha1.PurposeNodes,
+			Zone:     z.Subnet.zone,
+			Migrated: z.Migrated,
+		})
+	}
+
+	return nil
 }
 
 func checkAllZonesWithFn[T any](t T, zones []ZoneConfig, check func(zone ZoneConfig, resource T) bool) bool {

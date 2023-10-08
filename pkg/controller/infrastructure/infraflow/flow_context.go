@@ -68,9 +68,12 @@ func NewFlowContext(factory client.Factory, auth *internal.ClientAuth, logger lo
 		return nil, err
 	}
 
-	status, err := helper.InfrastructureStatusFromRaw(infra.Status.ProviderStatus)
-	if err != nil {
-		return nil, err
+	var status *azure.InfrastructureStatus
+	if infra.Status.ProviderStatus != nil {
+		status, err = helper.InfrastructureStatusFromRaw(infra.Status.ProviderStatus)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	adapter, err := NewInfrastructureAdapter(
@@ -108,9 +111,9 @@ func (f *FlowContext) Reconcile(ctx context.Context) (*v1alpha1.InfrastructureSt
 	if err := fl.Run(ctx, flow.Opts{}); err != nil {
 		return nil, nil, err
 	}
-	status, err1 := f.GetInfrastructureStatus(ctx)
+	status, err := f.GetInfrastructureStatus(ctx)
 	state, err2 := f.GetInfrastructureState()
-	err := errors.Join(err1, err2)
+	err = errors.Join(err, err2)
 	return status, state, err
 }
 
@@ -136,5 +139,6 @@ func (f *FlowContext) Delete(ctx context.Context) error {
 	if err := fl.Run(ctx, flow.Opts{}); err != nil {
 		return flow.Causes(err)
 	}
+
 	return nil
 }

@@ -37,10 +37,11 @@ const (
 )
 
 const (
-	PublicIPTemplate      = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/publicIPAddresses/%s"
-	NatGatewayIdTemplate  = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/natGateways/%s"
-	SecurityGroupTemplate = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s"
-	RouteTableTemplate    = ""
+	PublicIPTemplate          = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/publicIPAddresses/%s"
+	NatGatewayIdTemplate      = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/natGateways/%s"
+	SecurityGroupTemplate     = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s"
+	RouteTableTemplate        = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/routeTables/%s"
+	AvailabilitySetIDTemplate = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/availabilitySets/%s"
 )
 
 func PublicIPId(subscription, rgName, pipName string) string {

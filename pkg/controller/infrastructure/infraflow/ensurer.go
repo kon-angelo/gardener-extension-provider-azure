@@ -28,14 +28,14 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
 
 // Key names for the whiteboard object to pass results between the reconcilation tasks
 const (
 	routeTableIdKey    = "route_table_id"
 	securityGroupIdKey = "security_group_id"
-	natGatewayMapKey   = "nategateway_map"
-	publicIPMapKey     = "public-ips"
+	// natGatewayMapKey   = "nategateway_map"
 )
 
 // EnsureResourceGroup creates or updates the resource group
@@ -407,23 +407,10 @@ func (f *FlowContext) ensureNatGateways(ctx context.Context) error {
 
 // EnsureSubnets creates or updates subnets.
 func (f *FlowContext) EnsureSubnets(ctx context.Context) error {
-	if err := EnsureObjectKeys(f.whiteboard, natGatewayMapKey); err != nil {
-		return fmt.Errorf("failed to ensure subnets: %v", err)
-	}
-	sgId := f.whiteboard.Get(securityGroupIdKey)
-	rtId := f.whiteboard.Get(routeTableIdKey)
-
-	natMap := GetObject[map[string]string](f.whiteboard, natGatewayMapKey)
-	if sgId == nil {
-		return fmt.Errorf("failed to ensure subnets: missing security group Id")
-	}
-	if rtId == nil {
-		return fmt.Errorf("failed to ensure subnets: missing route table Id")
-	}
-	return f.ensureSubnets(ctx, sgId, rtId, natMap)
+	return f.ensureSubnets(ctx)
 }
 
-func (f *FlowContext) ensureSubnets(ctx context.Context, securityGroup, routeTable *string, natMap map[string]string) (err error) {
+func (f *FlowContext) ensureSubnets(ctx context.Context) (err error) {
 	var (
 		log         = f.LogFromContext(ctx)
 		vnetRgroup  = f.adapter.VirtualNetworkConfig().ResourceGroup
@@ -500,15 +487,64 @@ func (f *FlowContext) ensureSubnets(ctx context.Context, securityGroup, routeTab
 
 // GetInfrastructureStatus returns the infrastructure status
 func (f *FlowContext) GetInfrastructureStatus(ctx context.Context) (*v1alpha1.InfrastructureStatus, error) {
-	status := f.tf.StaticInfrastructureStatus()
+	status := &v1alpha1.InfrastructureStatus{
+		TypeMeta: infrastructure.StatusTypeMeta,
+		Networks: v1alpha1.NetworkStatus{
+			VNet: v1alpha1.VNetStatus{
+				Name:          f.adapter.VirtualNetworkConfig().ResourceGroup,
+				ResourceGroup: to.Ptr(f.adapter.VirtualNetworkConfig().ResourceGroup),
+			},
+			Layout: v1alpha1.NetworkLayoutSingleSubnet,
+		},
+		ResourceGroup: v1alpha1.ResourceGroup{
+			Name: f.adapter.ResourceGroup(),
+		},
+		RouteTables: []v1alpha1.RouteTable{
+			{
+				Purpose: v1alpha1.PurposeNodes,
+				Name:    f.adapter.RouteTableConfig().Name,
+			},
+		},
+		SecurityGroups: []v1alpha1.SecurityGroup{
+			{
+				Purpose: v1alpha1.PurposeNodes,
+				Name:    f.adapter.SecurityGroupConfig().Name,
+			},
+		},
+		Zoned: f.cfg.Zoned,
+	}
+
+	if len(f.cfg.Networks.Zones) > 0 {
+		status.Networks.Layout = v1alpha1.NetworkLayoutMultipleSubnet
+	}
+
+	zones := f.adapter.Zones()
+	for _, z := range zones {
+		status.Networks.Subnets = append(status.Networks.Subnets, v1alpha1.Subnet{
+			Name:     z.Subnet.Name,
+			Purpose:  v1alpha1.PurposeNodes,
+			Zone:     z.Subnet.zone,
+			Migrated: z.Migrated,
+		})
+	}
+
+	if cfg := f.adapter.AvailabilitySetConfig(); cfg != nil {
+		status.AvailabilitySets = []v1alpha1.AvailabilitySet{
+			{
+				Purpose:            v1alpha1.PurposeNodes,
+				ID:                 GetIdFromTemplate(AvailabilitySetIDTemplate, f.auth.SubscriptionID, cfg.ResourceGroup, cfg.Name),
+				Name:               cfg.Name,
+				CountFaultDomains:  cfg.CountFaultDomains,
+				CountUpdateDomains: cfg.CountUpdateDomains,
+			},
+		}
+	}
+
 	err := f.enrichStatusWithIdentity(ctx, status)
 	if err != nil {
 		return status, err
 	}
-	err = f.enrichStatusWithAvailabilitySet(ctx, status)
-	if err != nil {
-		return status, err
-	}
+
 	return status, nil
 }
 
@@ -521,28 +557,6 @@ func (f *FlowContext) GetInfrastructureState() (*runtime.RawExtension, error) {
 	return &runtime.RawExtension{
 		Raw: json,
 	}, nil
-}
-
-func (f *FlowContext) enrichStatusWithAvailabilitySet(ctx context.Context, status *v1alpha1.InfrastructureStatus) error {
-	if f.tf.isCreate(AvailabilitySet) {
-		c, err := f.factory.AvailabilitySet()
-		if err != nil {
-			return err
-		}
-		avset := f.tf.AvailabilitySet()
-		res, err := c.Get(ctx, f.tf.ResourceGroup(), avset.Name)
-		if err != nil {
-			return err
-		}
-		status.AvailabilitySets = append(status.AvailabilitySets, v1alpha1.AvailabilitySet{
-			Name:               avset.Name,
-			ID:                 *res.ID,
-			CountFaultDomains:  pointer.Int32(avset.CountFaultDomains),
-			CountUpdateDomains: pointer.Int32(avset.CountUpdateDomains),
-			Purpose:            v1alpha1.PurposeNodes,
-		})
-	}
-	return nil
 }
 
 func (f *FlowContext) enrichStatusWithIdentity(ctx context.Context, status *v1alpha1.InfrastructureStatus) error {
@@ -585,7 +599,7 @@ func (f *FlowContext) deleteSubnetsInForeignGroup(ctx context.Context) error {
 	vnetRgroup := vnetCfg.ResourceGroup
 	vnetName := vnetCfg.Name
 
-	subnetClient, err := f.factory.Subnet()
+	c, err := f.factory.Subnet()
 	if err != nil {
 		return err
 	}
@@ -601,7 +615,7 @@ func (f *FlowContext) deleteSubnetsInForeignGroup(ctx context.Context) error {
 
 	var joinErr error
 	for _, s := range filteredSubnets {
-		err := subnetClient.Delete(ctx, vnetRgroup, vnetName, *s.Name)
+		err := c.Delete(ctx, vnetRgroup, vnetName, *s.Name)
 		if err != nil {
 			joinErr = errors.Join(joinErr, err)
 			continue
