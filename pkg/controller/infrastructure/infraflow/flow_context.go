@@ -133,7 +133,7 @@ func (f *FlowContext) buildReconcileGraph() *flow.Graph {
 // Delete deletes all resources managed by the reconciler
 func (f *FlowContext) Delete(ctx context.Context) error {
 	graph := flow.NewGraph("Azure infrastructure deletion")
-	foreignSubnets := f.AddTask(graph, "delete subnets in foreign resource group", f.deleteSubnetsInForeignGroup)
+	foreignSubnets := f.AddTask(graph, "delete subnets in foreign resource group", f.DeleteSubnetsInForeignGroup)
 	f.AddTask(graph, "delete resource group", f.DeleteResourceGroup, shared.Dependencies(foreignSubnets))
 	fl := graph.Compile()
 	if err := fl.Run(ctx, flow.Opts{}); err != nil {

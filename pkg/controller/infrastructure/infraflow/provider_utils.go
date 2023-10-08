@@ -44,18 +44,6 @@ const (
 	AvailabilitySetIDTemplate = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/availabilitySets/%s"
 )
 
-func PublicIPId(subscription, rgName, pipName string) string {
-	return fmt.Sprintf(PublicIPTemplate, subscription, rgName, pipName)
-}
-
-func NatGatewayId(subscription, rgName, name string) string {
-	return fmt.Sprintf(NatGatewayIdTemplate, subscription, rgName, name)
-}
-
-func SecurityGroupId(subscription, rgName, name string) string {
-	return fmt.Sprintf("")
-}
-
 func GetIdFromTemplate(template, subscription, rgName, name string) string {
 	return fmt.Sprintf(template, subscription, rgName, name)
 }

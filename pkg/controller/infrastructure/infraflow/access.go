@@ -51,7 +51,7 @@ func (p *access) DeletePublicIP(ctx context.Context, rgName, pipName string) err
 		return err
 	}
 
-	pip, err := pipClient.Get(ctx, rgName, pipName, to.Ptr("NatGatewayConfig"))
+	pip, err := pipClient.Get(ctx, rgName, pipName, to.Ptr("natGateway"))
 	if err != nil {
 		return err
 	}

@@ -26,7 +26,6 @@ import (
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
-	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
 	consts "github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
@@ -108,7 +107,7 @@ func (ia *InfrastructureAdapter) virtualNetworkConfig() VirtualNetworkConfig {
 	name := ia.TechnicalName()
 	rg := ia.ResourceGroup()
 	managed := ia.isGardenerManagedVirtualNetwork()
-	if managed {
+	if !managed {
 		name = *ia.config.Networks.VNet.Name
 		rg = *ia.config.Networks.VNet.ResourceGroup
 	}
@@ -320,9 +319,10 @@ func (ia *InfrastructureAdapter) zonesConfig() []ZoneConfig {
 					Kind:          NatGateway,
 				},
 				IdleTimeout: configZone.NatGateway.IdleConnectionTimeoutMinutes,
+				Location:    ia.Region(),
+				Zone:        to.Ptr(zoneString),
 			}
 			z.NatGateway = ngw
-			ngw.Zone = to.Ptr(zoneString)
 
 			if len(configZone.NatGateway.IPAddresses) > 0 {
 				for _, ipRef := range configZone.NatGateway.IPAddresses {
@@ -332,9 +332,8 @@ func (ia *InfrastructureAdapter) zonesConfig() []ZoneConfig {
 							Name:          ipRef.Name,
 							Kind:          PublicIP,
 						},
-						Location: ia.Region(),
-						Zones:    []string{zoneString},
-						Managed:  true,
+						Zones:   []string{zoneString},
+						Managed: true,
 					}
 					ngw.PublicIPList = append(ngw.PublicIPList, ip)
 				}
@@ -345,8 +344,9 @@ func (ia *InfrastructureAdapter) zonesConfig() []ZoneConfig {
 						Name:          ia.publicIPName(ngw.Name),
 						Kind:          PublicIP,
 					},
-					Managed: false,
-					Zones:   []string{zoneString},
+					Managed:  false,
+					Zones:    []string{zoneString},
+					Location: ia.Region(),
 				}
 				ngw.PublicIPList = append(ngw.PublicIPList, ip)
 			}
@@ -383,6 +383,7 @@ func (ia *InfrastructureAdapter) defaultZone() []ZoneConfig {
 			Kind:          NatGateway,
 		},
 		IdleTimeout: config.Networks.NatGateway.IdleConnectionTimeoutMinutes,
+		Location:    ia.Region(),
 	}
 	if z := config.Networks.NatGateway.Zone; z != nil {
 		ngw.Zone = to.Ptr(strconv.Itoa(int(*z)))
@@ -408,7 +409,8 @@ func (ia *InfrastructureAdapter) defaultZone() []ZoneConfig {
 				Name:          ia.publicIPName(ngw.Name),
 				Kind:          PublicIP,
 			},
-			Managed: false,
+			Managed:  false,
+			Location: ia.Region(),
 		}
 		if ngw.Zone != nil {
 			ip.Zones = append(ip.Zones, *ngw.Zone)
@@ -489,8 +491,11 @@ func (ip *PublicIPConfig) ToProvider(base *armnetwork.PublicIPAddress) *armnetwo
 			Name: to.Ptr(armnetwork.PublicIPAddressSKUNameStandard),
 			Tier: to.Ptr(armnetwork.PublicIPAddressSKUTierRegional),
 		},
-		Zones: to.SliceOfPtrs(ip.Zones...),
-		Name:  to.Ptr(ip.Name),
+		Name: to.Ptr(ip.Name),
+	}
+	if len(ip.Zones) > 0 {
+		// if no zones selected, zones has to be nil, to match what the API returns - otherwise reflect.DeepEqual fails the check.
+		target.Zones = to.SliceOfPtrs(ip.Zones...)
 	}
 
 	// inherited from base
@@ -504,11 +509,18 @@ func (ip *PublicIPConfig) ToProvider(base *armnetwork.PublicIPAddress) *armnetwo
 
 func (nat *NatGatewayConfig) ToProvider(base *armnetwork.NatGateway) *armnetwork.NatGateway {
 	target := &armnetwork.NatGateway{
-		Name:     to.Ptr(nat.Name),
+		ID:       nil,
 		Location: to.Ptr(nat.Location),
 		Properties: &armnetwork.NatGatewayPropertiesFormat{
 			IdleTimeoutInMinutes: nat.IdleTimeout,
 		},
+		SKU: &armnetwork.NatGatewaySKU{
+			Name: to.Ptr(armnetwork.NatGatewaySKUNameStandard),
+		},
+		Name: to.Ptr(nat.Name),
+	}
+	if nat.Zone != nil {
+		target.Zones = []*string{nat.Zone}
 	}
 
 	// inherited from base
@@ -580,40 +592,6 @@ func (v *VirtualNetworkConfig) ToProvider(base *armnetwork.VirtualNetwork) *armn
 	}
 
 	return target
-}
-
-func (ia *InfrastructureAdapter) InfrastructureStatus() *v1alpha1.InfrastructureStatus {
-	status := v1alpha1.InfrastructureStatus{
-		TypeMeta: infrastructure.StatusTypeMeta,
-		Networks: v1alpha1.NetworkStatus{
-			VNet: v1alpha1.VNetStatus{
-				Name:          ia.VirtualNetworkConfig().ResourceGroup,
-				ResourceGroup: to.Ptr(ia.VirtualNetworkConfig().ResourceGroup),
-			},
-			Subnets: nil,
-			Layout:  v1alpha1.NetworkLayoutSingleSubnet,
-		},
-		ResourceGroup: v1alpha1.ResourceGroup{
-			Name: ia.ResourceGroup(),
-		},
-		Zoned: ia.config.Zoned,
-	}
-
-	if len(ia.config.Networks.Zones) > 0 {
-		status.Networks.Layout = v1alpha1.NetworkLayoutMultipleSubnet
-	}
-
-	zones := ia.Zones()
-	for _, z := range zones {
-		status.Networks.Subnets = append(status.Networks.Subnets, v1alpha1.Subnet{
-			Name:     z.Subnet.Name,
-			Purpose:  v1alpha1.PurposeNodes,
-			Zone:     z.Subnet.zone,
-			Migrated: z.Migrated,
-		})
-	}
-
-	return nil
 }
 
 func checkAllZonesWithFn[T any](t T, zones []ZoneConfig, check func(zone ZoneConfig, resource T) bool) bool {

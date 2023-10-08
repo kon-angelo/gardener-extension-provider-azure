@@ -79,8 +79,6 @@ func (f *FlowContext) ensureManagedVirtualNetwork(ctx context.Context) error {
 		if pointer.StringDeref(vnet.Location, "") != f.adapter.Region() {
 			return NewTerminalSpecMismatch(vnetCfg.AzureResourceMetadata, "Location", f.adapter.Region())
 		}
-	} else {
-		vnet = &armnetwork.VirtualNetwork{}
 	}
 
 	vnet = vnetCfg.ToProvider(vnet)
@@ -303,7 +301,7 @@ func (f *FlowContext) ensurePublicIPs(ctx context.Context) error {
 		}
 
 		// delete all resources whose spec cannot be updated to match target spec.
-		if ok, offender, v := ForceNewIp(current, toReconcile[pipCfg.Name]); !ok {
+		if ok, offender, v := ForceNewIp(current, toReconcile[pipCfg.Name]); ok {
 			log.Info("will delete public IP because it can't be reconciled", "Resource Group", f.adapter.ResourceGroup(), "Name", name, "Offender", offender, "Value", v)
 			toDelete.Insert(name)
 			continue
@@ -441,11 +439,11 @@ func (f *FlowContext) ensureSubnets(ctx context.Context) (err error) {
 	for _, z := range zones {
 		actual := z.Subnet.ToProvider(mappedSubnets[z.Subnet.Name])
 		rtCfg := f.adapter.RouteTableConfig()
-		sgCfg := f.adapter.RouteTableConfig()
+		sgCfg := f.adapter.SecurityGroupConfig()
 		actual.Properties.RouteTable = &armnetwork.RouteTable{ID: to.Ptr(GetIdFromTemplate(RouteTableTemplate, f.auth.SubscriptionID, rtCfg.ResourceGroup, rtCfg.Name))}
 		actual.Properties.NetworkSecurityGroup = &armnetwork.SecurityGroup{ID: to.Ptr(GetIdFromTemplate(SecurityGroupTemplate, f.auth.SubscriptionID, sgCfg.ResourceGroup, sgCfg.Name))}
 		if z.NatGateway != nil {
-			actual.Properties.NatGateway = &armnetwork.SubResource{ID: to.Ptr(NatGatewayId(f.auth.SubscriptionID, z.NatGateway.ResourceGroup, z.NatGateway.Name))}
+			actual.Properties.NatGateway = &armnetwork.SubResource{ID: to.Ptr(GetIdFromTemplate(NatGatewayIdTemplate, f.auth.SubscriptionID, z.NatGateway.ResourceGroup, z.NatGateway.Name))}
 		}
 		toReconcile[z.Subnet.Name] = actual
 	}
@@ -589,8 +587,8 @@ func (f *FlowContext) DeleteResourceGroup(ctx context.Context) error {
 	return c.Delete(ctx, f.adapter.ResourceGroup())
 }
 
-// deleteSubnetsInForeignGroup deletes all managed subnets in a foreign resource group
-func (f *FlowContext) deleteSubnetsInForeignGroup(ctx context.Context) error {
+// DeleteSubnetsInForeignGroup deletes all managed subnets in a foreign resource group
+func (f *FlowContext) DeleteSubnetsInForeignGroup(ctx context.Context) error {
 	vnetCfg := f.adapter.VirtualNetworkConfig()
 	if vnetCfg.Managed {
 		return nil
