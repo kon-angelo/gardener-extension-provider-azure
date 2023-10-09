@@ -489,8 +489,7 @@ func (f *FlowContext) GetInfrastructureStatus(ctx context.Context) (*v1alpha1.In
 		TypeMeta: infrastructure.StatusTypeMeta,
 		Networks: v1alpha1.NetworkStatus{
 			VNet: v1alpha1.VNetStatus{
-				Name:          f.adapter.VirtualNetworkConfig().ResourceGroup,
-				ResourceGroup: to.Ptr(f.adapter.VirtualNetworkConfig().ResourceGroup),
+				Name: f.adapter.VirtualNetworkConfig().ResourceGroup,
 			},
 			Layout: v1alpha1.NetworkLayoutSingleSubnet,
 		},
@@ -510,6 +509,10 @@ func (f *FlowContext) GetInfrastructureStatus(ctx context.Context) (*v1alpha1.In
 			},
 		},
 		Zoned: f.cfg.Zoned,
+	}
+
+	if f.cfg.Networks.VNet.ResourceGroup != nil {
+		status.Networks.VNet.ResourceGroup = to.Ptr(f.adapter.VirtualNetworkConfig().ResourceGroup)
 	}
 
 	if len(f.cfg.Networks.Zones) > 0 {

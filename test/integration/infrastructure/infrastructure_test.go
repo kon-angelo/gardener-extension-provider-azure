@@ -648,7 +648,7 @@ func runTest(
 
 	By("set flow annotation (based on config)")
 	if *useFlow {
-		metav1.SetMetaDataAnnotation(&infra.ObjectMeta, infrastructure.AnnotationKeyUseFlow, "true")
+		metav1.SetMetaDataAnnotation(&infra.ObjectMeta, azure.AnnotationKeyUseFlow, "true")
 	}
 
 	if err := c.Create(ctx, infra); err != nil {
