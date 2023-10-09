@@ -561,7 +561,7 @@ func (f *FlowContext) GetInfrastructureState() (*runtime.RawExtension, error) {
 }
 
 func (f *FlowContext) enrichStatusWithIdentity(ctx context.Context, status *v1alpha1.InfrastructureStatus) error {
-	if identity := f.tf.Identity(); identity != nil {
+	if identity := f.cfg.Identity; identity != nil {
 		c, err := f.factory.ManagedUserIdentity()
 		if err != nil {
 			return err
@@ -575,8 +575,9 @@ func (f *FlowContext) enrichStatusWithIdentity(ctx context.Context, status *v1al
 		}
 
 		status.Identity = &v1alpha1.IdentityStatus{
-			ID:       *res.ID,
-			ClientID: res.ClientID.String(),
+			ID:        *res.ID,
+			ClientID:  res.ClientID.String(),
+			ACRAccess: identity.ACRAccess != nil && *identity.ACRAccess,
 		}
 	}
 	return nil
@@ -623,27 +624,4 @@ func (f *FlowContext) DeleteSubnetsInForeignGroup(ctx context.Context) error {
 		}
 	}
 	return joinErr
-}
-
-// EnrichResponseWithUserManagedIPs adds the IDs of user managed IpConfigs to the input map of associated IpConfigs of the NATs
-func (f *FlowContext) EnrichResponseWithUserManagedIPs(ctx context.Context, res map[string][]*armnetwork.PublicIPAddress) error {
-	ips := f.tf.UserManagedIPs()
-	if len(ips) == 0 {
-		return nil
-	}
-	c, err := f.factory.PublicIP()
-	if err != nil {
-		return err
-	}
-	for _, ip := range ips {
-		resp, err := c.Get(ctx, ip.ResourceGroup, ip.Name, nil)
-		if err == nil {
-			res[ip.SubnetName] = append(res[ip.SubnetName], &armnetwork.PublicIPAddress{
-				ID: resp.ID,
-			})
-		} else {
-			return err
-		}
-	}
-	return nil
 }

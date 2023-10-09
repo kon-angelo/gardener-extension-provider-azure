@@ -43,22 +43,21 @@ type FlowContext struct {
 	infra      *extensionsv1alpha1.Infrastructure
 	cluster    *controller.Cluster
 	whiteboard shared.Whiteboard
-	tf         *TerraformAdapter
 	adapter    *InfrastructureAdapter
 	provider   Access
 }
 
 // NewFlowContext creates a new FlowContext.
-func NewFlowContext(factory client.Factory, auth *internal.ClientAuth, logger logr.Logger, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) (*FlowContext, error) {
+func NewFlowContext(factory client.Factory,
+	auth *internal.ClientAuth,
+	logger logr.Logger,
+	infra *extensionsv1alpha1.Infrastructure,
+	cluster *controller.Cluster,
+) (*FlowContext, error) {
 	wb := shared.NewWhiteboard()
 	bfc := shared.NewBasicFlowContext(logger, wb, nil)
 
 	cfg, err := helper.InfrastructureConfigFromInfrastructure(infra)
-	if err != nil {
-		return nil, err
-	}
-
-	tfAdapter, err := NewTerraformAdapter(infra, cfg, cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +95,6 @@ func NewFlowContext(factory client.Factory, auth *internal.ClientAuth, logger lo
 		cluster:          cluster,
 		cfg:              cfg,
 		whiteboard:       wb,
-		tf:               tfAdapter,
 		provider: &access{
 			factory,
 		},
@@ -141,4 +139,10 @@ func (f *FlowContext) Delete(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (f *FlowContext) StatePersist() shared.FlowStatePersistor {
+	return func(ctx context.Context, _ shared.FlatMap) error {
+		return nil
+	}
 }
