@@ -15,10 +15,13 @@
 package client
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/go-autorest/autorest"
+	azerrors "github.com/AzureAD/microsoft-authentication-library-for-go/apps/errors"
 )
 
 // FilterNotFoundError returns nil for NotFound errors.
@@ -43,6 +46,12 @@ func isAzureAPStatusError(err error, status int) bool {
 			return true
 		}
 	}
+
+	cerr := azerrors.CallErr{}
+	if errors.As(err, &cerr) {
+		return cerr.Resp != nil && cerr.Resp.StatusCode == status
+	}
+
 	return false
 }
 
@@ -53,5 +62,13 @@ func IsAzureAPINotFoundError(err error) bool {
 
 // IsAzureAPIUnauthorized tries to determine if the API error is due to unauthorized access
 func IsAzureAPIUnauthorized(err error) bool {
-	return isAzureAPStatusError(err, http.StatusUnauthorized)
+	if isAzureAPStatusError(err, http.StatusUnauthorized) {
+		return true
+	}
+
+	inErr := &azidentity.AuthenticationFailedError{}
+	if errors.As(err, &inErr) {
+		return true
+	}
+	return false
 }
