@@ -51,8 +51,25 @@ func NewFlowReconciler(a *actuator, log logr.Logger, tf terraformer.Terraformer)
 
 // Reconcile reconciles the infrastructure and returns the status (state of the world), the state (input for the next loops) and any errors that occurred.
 func (f *FlowReconciler) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) (*v1alpha1.InfrastructureStatus, *runtime.RawExtension, error) {
-	if err := CleanupTerraformerResources(ctx, f.tf); err != nil {
+	infraState, err := azureInfrastructureStateFromRaw(infra.Status.State)
+	if err != nil {
 		return nil, nil, err
+	}
+	if !f.tf.IsStateEmpty(ctx) {
+		infraState.Data[infrastructure.CreatedResourcesExistKey] = "true"
+	}
+
+	persistFunc := func(state *runtime.RawExtension) error {
+		infraObjectKey := client.ObjectKey{
+			Namespace: infra.Namespace,
+			Name:      infra.Name,
+		}
+
+		infra := &extensionsv1alpha1.Infrastructure{}
+		if err := f.client.Get(ctx, infraObjectKey, infra); err != nil {
+			return err
+		}
+		return patchProviderStatusAndState(ctx, infra, nil, state, f.client)
 	}
 
 	factory, err := NewAzureClientFactory(ctx, f.client, infra.Spec.SecretRef)
@@ -65,7 +82,7 @@ func (f *FlowReconciler) Reconcile(ctx context.Context, infra *extensionsv1alpha
 		return nil, nil, err
 	}
 
-	fctx, err := infraflow.NewFlowContext(factory, auth, f.log, infra, cluster)
+	fctx, err := infraflow.NewFlowContext(factory, auth, f.log, infra, cluster, infraState)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -74,14 +91,18 @@ func (f *FlowReconciler) Reconcile(ctx context.Context, infra *extensionsv1alpha
 	if err != nil {
 		return nil, nil, err
 	}
-	infraState, err := (&infrastructure.InfrastructureState{
+	mixedInfraState, err := (&infrastructure.InfrastructureState{
 		SavedProviderStatus: &runtime.RawExtension{
 			Object: status,
 		},
 		FlowState: state,
 	}).ToRawExtension()
 
-	return status, infraState, err
+	if err := CleanupTerraformerResources(ctx, f.tf); err != nil {
+		return nil, nil, err
+	}
+
+	return status, mixedInfraState, err
 }
 
 // Delete deletes the infrastructure resource using the flow reconciler.
@@ -91,7 +112,12 @@ func (f *FlowReconciler) Delete(ctx context.Context, infra *extensionsv1alpha1.I
 		return err
 	}
 
-	fctx, err := infraflow.NewFlowContext(factory, nil, f.log, infra, cluster)
+	infraState, err := azureInfrastructureStateFromRaw(infra.Status.State)
+	if err != nil {
+		return err
+	}
+
+	fctx, err := infraflow.NewFlowContext(factory, nil, f.log, infra, cluster, infraState)
 	if err != nil {
 		return err
 	}

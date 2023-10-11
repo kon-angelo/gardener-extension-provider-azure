@@ -76,6 +76,17 @@ func ToMap[T comparable, Y comparable](arr []T, f func(T) Y) map[Y]T {
 	return res
 }
 
+func CopyMap[T comparable, Y any](src map[T]Y) map[T]Y {
+	if src == nil {
+		return nil
+	}
+	dst := map[T]Y{}
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
+}
+
 // Join merges maps by appending m2 to m1.
 func Join[K comparable, V any](m1, m2 map[K]V) map[K]V {
 	if m2 == nil {
@@ -90,19 +101,3 @@ func Join[K comparable, V any](m1, m2 map[K]V) map[K]V {
 	}
 	return m1
 }
-
-// func JoinMapSlice[T any](m1, m2 map[string][]T) map[string][]T {
-// 	res := make(map[string][]T)
-// 	for k, v := range m1 {
-// 		res[k] = append(make([]T, len(v)), v...)
-// 		if add, ok := m2[k]; ok {
-// 			res[k] = append(res[k], add...)
-// 		}
-// 	}
-// 	for k, v := range m2 {
-// 		if _, ok := m1[k]; !ok {
-// 			res[k] = append(make([]T, len(v)), v...)
-// 		}
-// 	}
-// 	return res
-// }

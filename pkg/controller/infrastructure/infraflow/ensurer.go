@@ -16,6 +16,7 @@ package infraflow
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -27,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/pointer"
 
+	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
@@ -49,8 +51,12 @@ func (f *FlowContext) EnsureResourceGroup(ctx context.Context) error {
 		Location: to.Ptr(f.infra.Spec.Region),
 	}
 
-	_, err = rgClient.CreateOrUpdate(ctx, f.adapter.ResourceGroup(), rg)
-	return err
+	if _, err = rgClient.CreateOrUpdate(ctx, f.adapter.ResourceGroup(), rg); err != nil {
+		return err
+	}
+
+	f.whiteboard.Set(infrastructure.CreatedResourcesExistKey, "true")
+	return nil
 }
 
 func (f *FlowContext) EnsureVirtualNetwork(ctx context.Context) error {
@@ -550,13 +556,20 @@ func (f *FlowContext) GetInfrastructureStatus(ctx context.Context) (*v1alpha1.In
 }
 
 func (f *FlowContext) GetInfrastructureState() (*runtime.RawExtension, error) {
-	json, err := NewPersistentState().ToJSON()
+	state := &v1alpha1.InfrastructureState{
+		TypeMeta: helper.InfrastructureStateTypeMeta,
+		Data:     map[string]string{},
+	}
+	if k := f.whiteboard.Get(infrastructure.CreatedResourcesExistKey); k != nil {
+		state.Data[infrastructure.CreatedResourcesExistKey] = *k
+	}
+
+	js, err := json.Marshal(state)
 	if err != nil {
 		return nil, err
 	}
-
 	return &runtime.RawExtension{
-		Raw: json,
+		Raw: js,
 	}, nil
 }
 

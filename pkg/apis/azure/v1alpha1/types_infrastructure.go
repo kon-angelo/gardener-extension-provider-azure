@@ -266,3 +266,13 @@ type IdentityStatus struct {
 	// ACRAccess specifies if the identity should be used by the Shoot worker nodes to pull from an Azure Container Registry.
 	ACRAccess bool `json:"acrAccess"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// InfrastructureState infrastructure configuration resource
+type InfrastructureState struct {
+	metav1.TypeMeta `json:",inline"`
+	// Data is map to store things.
+	// +optional
+	Data map[string]string `json:"data,omitempty"`
+}

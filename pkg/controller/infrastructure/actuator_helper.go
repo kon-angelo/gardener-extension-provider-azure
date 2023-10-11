@@ -27,6 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
 	azuretypes "github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 	azureclient "github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
@@ -50,7 +52,9 @@ func patchProviderStatusAndState(
 	runtimeClient client.Client,
 ) error {
 	patch := client.MergeFrom(infra.DeepCopy())
-	infra.Status.ProviderStatus = &runtime.RawExtension{Object: status}
+	if status != nil {
+		infra.Status.ProviderStatus = &runtime.RawExtension{Object: status}
+	}
 	infra.Status.State = state
 	return runtimeClient.Status().Patch(ctx, infra, patch)
 }
@@ -91,4 +95,30 @@ func hasFlowAnnotation(infrastructure *extensionsv1alpha1.Infrastructure, cluste
 // NoOpStateInitializer is a no-op StateConfigMapInitializerFunc.
 func NoOpStateInitializer(_ context.Context, _ client.Client, _, _ string, _ *metav1.OwnerReference) error {
 	return nil
+}
+
+// NewInfrastructureState creates empty NewInfrastructureState
+func NewInfrastructureState() *v1alpha1.InfrastructureState {
+	return &v1alpha1.InfrastructureState{
+		TypeMeta: helper.InfrastructureStateTypeMeta,
+		Data:     map[string]string{},
+	}
+}
+
+func azureInfrastructureStateFromRaw(state *runtime.RawExtension) (*azure.InfrastructureState, error) {
+	infraState := &azure.InfrastructureState{}
+	if state != nil {
+		mixedInfraState := &infrainternal.InfrastructureState{}
+		if err := json.Unmarshal(state.Raw, mixedInfraState); err != nil {
+			return nil, err
+		}
+
+		var err error
+		infraState, err = helper.InfrastructureStateFromRaw(mixedInfraState.FlowState)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return infraState, nil
 }

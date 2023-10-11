@@ -30,6 +30,7 @@ import (
 	"github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow/shared"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
 
 // FlowContext is the reconciler for all managed resources
@@ -37,14 +38,16 @@ type FlowContext struct {
 	*shared.BasicFlowContext
 	logger logr.Logger
 
-	cfg        *azure.InfrastructureConfig
-	factory    client.Factory
-	auth       *internal.ClientAuth
-	infra      *extensionsv1alpha1.Infrastructure
-	cluster    *controller.Cluster
-	whiteboard shared.Whiteboard
-	adapter    *InfrastructureAdapter
-	provider   Access
+	persistFunc func(extension *runtime.RawExtension) error
+	cfg         *azure.InfrastructureConfig
+	factory     client.Factory
+	auth        *internal.ClientAuth
+	infra       *extensionsv1alpha1.Infrastructure
+	cluster     *controller.Cluster
+	whiteboard  shared.Whiteboard
+	adapter     *InfrastructureAdapter
+	provider    Access
+	state       *azure.InfrastructureState
 }
 
 // NewFlowContext creates a new FlowContext.
@@ -53,10 +56,15 @@ func NewFlowContext(factory client.Factory,
 	logger logr.Logger,
 	infra *extensionsv1alpha1.Infrastructure,
 	cluster *controller.Cluster,
+	state *azure.InfrastructureState,
+	persistFunc func(extension *runtime.RawExtension) error,
 ) (*FlowContext, error) {
 	wb := shared.NewWhiteboard()
-	bfc := shared.NewBasicFlowContext(logger, wb, nil)
+	for k, v := range state.Data {
+		wb.Set(k, v)
+	}
 
+	bfc := shared.NewBasicFlowContext(logger, wb)
 	cfg, err := helper.InfrastructureConfigFromInfrastructure(infra)
 	if err != nil {
 		return nil, err
@@ -92,9 +100,11 @@ func NewFlowContext(factory client.Factory,
 		auth:             auth,
 		logger:           logger,
 		infra:            infra,
+		state:            state,
 		cluster:          cluster,
 		cfg:              cfg,
 		whiteboard:       wb,
+		persistFunc:      persistFunc,
 		provider: &access{
 			factory,
 		},
@@ -107,7 +117,8 @@ func (f *FlowContext) Reconcile(ctx context.Context) (*v1alpha1.InfrastructureSt
 	graph := f.buildReconcileGraph()
 	fl := graph.Compile()
 	if err := fl.Run(ctx, flow.Opts{}); err != nil {
-		return nil, nil, err
+		state, err2 := f.GetInfrastructureState()
+		return nil, state, errors.Join(err, err2)
 	}
 	status, err := f.GetInfrastructureStatus(ctx)
 	state, err2 := f.GetInfrastructureState()
@@ -130,6 +141,11 @@ func (f *FlowContext) buildReconcileGraph() *flow.Graph {
 
 // Delete deletes all resources managed by the reconciler
 func (f *FlowContext) Delete(ctx context.Context) error {
+	// special case where the credentials were invalid from the beginning
+	if k := f.whiteboard.Get(infrastructure.CreatedResourcesExistKey); k == nil {
+		return nil
+	}
+
 	graph := flow.NewGraph("Azure infrastructure deletion")
 	foreignSubnets := f.AddTask(graph, "delete subnets in foreign resource group", f.DeleteSubnetsInForeignGroup)
 	f.AddTask(graph, "delete resource group", f.DeleteResourceGroup, shared.Dependencies(foreignSubnets))
@@ -143,6 +159,10 @@ func (f *FlowContext) Delete(ctx context.Context) error {
 
 func (f *FlowContext) StatePersist() shared.FlowStatePersistor {
 	return func(ctx context.Context, _ shared.FlatMap) error {
-		return nil
+		state, err := f.GetInfrastructureState()
+		if err != nil {
+			return err
+		}
+		return f.persistFunc(state)
 	}
 }
