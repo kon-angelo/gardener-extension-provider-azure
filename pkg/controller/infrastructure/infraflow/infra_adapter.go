@@ -37,6 +37,7 @@ type InfrastructureAdapter struct {
 	infra   *extensionsv1alpha1.Infrastructure
 	config  *azure.InfrastructureConfig
 	status  *azure.InfrastructureStatus
+	state   *azure.InfrastructureState
 	profile *azure.CloudProfileConfig
 	cluster *extensionscontroller.Cluster
 
@@ -51,6 +52,7 @@ func NewInfrastructureAdapter(
 	infra *extensionsv1alpha1.Infrastructure,
 	config *azure.InfrastructureConfig,
 	status *azure.InfrastructureStatus,
+	state *azure.InfrastructureState,
 	profile *azure.CloudProfileConfig,
 	cluster *extensionscontroller.Cluster,
 ) (*InfrastructureAdapter, error) {
@@ -58,6 +60,7 @@ func NewInfrastructureAdapter(
 		infra:   infra,
 		config:  config,
 		status:  status,
+		state:   state,
 		profile: profile,
 		cluster: cluster,
 	}
@@ -178,6 +181,23 @@ func (ia *InfrastructureAdapter) availabilitySetConfig() (*AvailabilitySetConfig
 		}
 		asc.CountFaultDomains = nodesAVSet.CountFaultDomains
 		asc.CountUpdateDomains = nodesAVSet.CountUpdateDomains
+	}
+
+	if ia.state != nil {
+		if asc.CountFaultDomains == nil {
+			if v, ok := ia.state.Data[infrastructure.CountFaultDomainsKey]; ok {
+				if v, err := strconv.Atoi(v); err != nil {
+					asc.CountFaultDomains = to.Ptr(int32(v))
+				}
+			}
+		}
+		if asc.CountUpdateDomains == nil {
+			if v, ok := ia.state.Data[infrastructure.CountUpdateDomainsKey]; ok {
+				if v, err := strconv.Atoi(v); err != nil {
+					asc.CountUpdateDomains = to.Ptr(int32(v))
+				}
+			}
+		}
 	}
 
 	if asc.CountFaultDomains == nil {

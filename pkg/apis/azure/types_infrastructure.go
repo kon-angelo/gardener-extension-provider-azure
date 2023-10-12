@@ -247,5 +247,12 @@ type InfrastructureState struct {
 	metav1.TypeMeta
 	// Data is map to store things.
 	// +optional
-	Data map[string]string
+	Data      map[string]string
+	Resources []AzureResource
+}
+
+type AzureResource struct {
+	Kind   string
+	Id     string
+	Parent *AzureResource
 }

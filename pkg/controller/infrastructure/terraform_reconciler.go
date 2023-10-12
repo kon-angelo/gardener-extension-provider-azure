@@ -39,33 +39,33 @@ type TerraformReconciler struct {
 }
 
 // Reconcile reconciles the infrastructure resource according to spec.
-func (r *TerraformReconciler) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) (*v1alpha1.InfrastructureStatus, *runtime.RawExtension, error) {
+func (r *TerraformReconciler) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
 	cfg, err := helper.InfrastructureConfigFromInfrastructure(infra)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 	terraformFiles, err := infrastructure.RenderTerraformerTemplate(infra, cfg, cluster)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	if err := r.Terraformer.
 		InitializeWith(ctx, terraformer.DefaultInitializer(r.Client, terraformFiles.Main, terraformFiles.Variables, terraformFiles.TFVars, r.StateInitializer)).
 		Apply(ctx); err != nil {
 
-		return nil, nil, fmt.Errorf("failed to apply the terraform config: %w", err)
+		return fmt.Errorf("failed to apply the terraform config: %w", err)
 	}
 
 	status, err := infrastructure.ComputeTerraformStatus(ctx, r.Terraformer, infra, cfg, cluster)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 	state, err := r.getState(ctx, status)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
-	return status, state, nil
+	return patchProviderStatusAndState(ctx, infra, status, state, r.Client)
 }
 
 // getState calculates the State resource after each reconciliation.

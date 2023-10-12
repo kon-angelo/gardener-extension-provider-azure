@@ -29,21 +29,29 @@ import (
 
 // Restore implements infrastructure.Actuator.
 func (a *actuator) Restore(ctx context.Context, log logr.Logger, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
-	infraState := &infrastructure.InfrastructureState{}
-	if err := json.Unmarshal(infra.Status.State.Raw, infraState); err != nil {
-		return err
-	}
-
-	terraformState, err := terraformer.UnmarshalRawState(infraState.TerraformState)
+	ok, err := hasFlowState(infra.Status)
 	if err != nil {
 		return err
 	}
 
-	patch := client.MergeFrom(infra.DeepCopy())
-	infra.Status.ProviderStatus = infraState.SavedProviderStatus
-	if err := a.client.Status().Patch(ctx, infra, patch); err != nil {
-		return err
+	var initializer terraformer.StateConfigMapInitializer
+	if !ok {
+		infraState := &infrastructure.InfrastructureState{}
+		if err := json.Unmarshal(infra.Status.State.Raw, infraState); err != nil {
+			return err
+		}
+
+		terraformState, err := terraformer.UnmarshalRawState(infraState.TerraformState)
+		if err != nil {
+			return err
+		}
+		initializer = terraformer.CreateOrUpdateState{State: &terraformState.Data}
+		patch := client.MergeFrom(infra.DeepCopy())
+		infra.Status.ProviderStatus = infraState.SavedProviderStatus
+		if err := a.client.Status().Patch(ctx, infra, patch); err != nil {
+			return err
+		}
 	}
 
-	return a.reconcile(ctx, log, SelectorFunc(OnRestore), infra, cluster, terraformer.CreateOrUpdateState{State: &terraformState.Data})
+	return a.reconcile(ctx, log, SelectorFunc(OnRestore), infra, cluster, initializer)
 }

@@ -16,9 +16,10 @@ package infraflow
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
@@ -28,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/pointer"
 
+	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
@@ -35,9 +37,9 @@ import (
 
 // Key names for the whiteboard object to pass results between the reconcilation tasks
 const (
-	routeTableIdKey    = "route_table_id"
-	securityGroupIdKey = "security_group_id"
-	// natGatewayMapKey   = "nategateway_map"
+// routeTableIdKey    = "route_table_id"
+// securityGroupIdKey = "security_group_id"
+// natGatewayMapKey   = "nategateway_map"
 )
 
 // EnsureResourceGroup creates or updates the resource group
@@ -47,15 +49,18 @@ func (f *FlowContext) EnsureResourceGroup(ctx context.Context) error {
 		return err
 	}
 
-	rg := armresources.ResourceGroup{
+	rg := &armresources.ResourceGroup{
 		Location: to.Ptr(f.infra.Spec.Region),
 	}
 
-	if _, err = rgClient.CreateOrUpdate(ctx, f.adapter.ResourceGroup(), rg); err != nil {
+	if rg, err = rgClient.CreateOrUpdate(ctx, f.adapter.ResourceGroup(), *rg); err != nil {
 		return err
 	}
-
-	f.whiteboard.Set(infrastructure.CreatedResourcesExistKey, "true")
+	f.inventory.Insert(azure.AzureResource{
+		Kind: string(ResourceGroup),
+		Id:   *rg.ID,
+	})
+	f.whiteboard.Set(infrastructure.GenerationKey, time.Now().String())
 	return nil
 }
 
@@ -88,8 +93,17 @@ func (f *FlowContext) ensureManagedVirtualNetwork(ctx context.Context) error {
 	}
 
 	vnet = vnetCfg.ToProvider(vnet)
-	_, err = c.CreateOrUpdate(ctx, vnetCfg.ResourceGroup, vnetCfg.Name, *vnet)
-	return err
+	vnet, err = c.CreateOrUpdate(ctx, vnetCfg.ResourceGroup, vnetCfg.Name, *vnet)
+	if err != nil {
+		return err
+	}
+
+	f.inventory.Insert(azure.AzureResource{
+		Kind: string(vnetCfg.Kind),
+		Id:   *vnet.ID,
+	})
+	f.whiteboard.Set(infrastructure.GenerationKey, time.Now().String())
+	return nil
 }
 
 func (f *FlowContext) ensureUserVirtualNetwork(ctx context.Context) error {
@@ -125,7 +139,7 @@ func (f *FlowContext) EnsureAvailabilitySet(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	parameters := armcompute.AvailabilitySet{
+	avset := &armcompute.AvailabilitySet{
 		Location: to.Ptr(f.adapter.Region()),
 		// the DomainCounts are computed from the current InfrastructureStatus. They cannot be updated after shoot creation.
 		Properties: &armcompute.AvailabilitySetProperties{
@@ -134,91 +148,95 @@ func (f *FlowContext) EnsureAvailabilitySet(ctx context.Context) error {
 		},
 		SKU: &armcompute.SKU{Name: to.Ptr(string(armcompute.AvailabilitySetSKUTypesAligned))}, // equal to managed = True in tf
 	}
-	_, err = asClient.CreateOrUpdate(ctx, f.adapter.ResourceGroup(), avsetCfg.Name, parameters)
+	avset, err = asClient.CreateOrUpdate(ctx, f.adapter.ResourceGroup(), avsetCfg.Name, *avset)
+	f.inventory.Insert(azure.AzureResource{
+		Kind: string(avsetCfg.Kind),
+		Id:   *avset.ID,
+	})
+	f.whiteboard.Set(infrastructure.GenerationKey, time.Now().String())
 	return err
 }
 
 // EnsureRouteTable creates or updates the route table
 func (f *FlowContext) EnsureRouteTable(ctx context.Context) error {
-	routeTable, err := f.ensureRouteTable(ctx)
-	f.whiteboard.Set(routeTableIdKey, *routeTable.ID)
-	return err
-}
-
-// EnsureRouteTables creates or updates a RouteTable
-func (f *FlowContext) ensureRouteTable(ctx context.Context) (*armnetwork.RouteTable, error) {
 	rtCfg := f.adapter.RouteTableConfig()
 
 	c, err := f.factory.RouteTables()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	rt, err := c.Get(ctx, rtCfg.ResourceGroup, rtCfg.Name)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if rt != nil {
 		if pointer.StringDeref(rt.Location, "") != f.adapter.Region() {
-			return nil, NewTerminalSpecMismatch(rtCfg.AzureResourceMetadata, "Location", f.adapter.Region())
+			return NewTerminalSpecMismatch(rtCfg.AzureResourceMetadata, "Location", f.adapter.Region())
 		}
 	}
 
 	// create the RT
 	if rt == nil {
-		parameters := armnetwork.RouteTable{
+		rt = &armnetwork.RouteTable{
 			Location:   to.Ptr(f.adapter.Region()),
 			Properties: &armnetwork.RouteTablePropertiesFormat{},
 		}
 
-		return c.CreateOrUpdate(ctx, rtCfg.ResourceGroup, rtCfg.Name, parameters)
+		rt, err = c.CreateOrUpdate(ctx, rtCfg.ResourceGroup, rtCfg.Name, *rt)
+		if err != nil {
+			return err
+		}
 	}
 
-	return rt, nil
+	f.inventory.Insert(azure.AzureResource{
+		Kind: string(rtCfg.Kind),
+		Id:   *rt.ID,
+	})
+	f.whiteboard.Set(infrastructure.GenerationKey, time.Now().String())
+	return nil
 }
 
 // EnsureSecurityGroup creates or updates a SecurityGroup
 func (f *FlowContext) EnsureSecurityGroup(ctx context.Context) error {
-	sg, err := f.ensureSecurityGroup(ctx)
-	if err != nil {
-		return err
-	}
-
-	f.whiteboard.Set(securityGroupIdKey, *sg.ID)
-	return nil
-}
-
-func (f *FlowContext) ensureSecurityGroup(ctx context.Context) (*armnetwork.SecurityGroup, error) {
 	sgCfg := f.adapter.SecurityGroupConfig()
 
 	c, err := f.factory.NetworkSecurityGroup()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	nsg, err := c.Get(ctx, sgCfg.ResourceGroup, sgCfg.Name)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if nsg != nil {
 		// if the location doesn't match, attempt to delete the NSG.
 		if pointer.StringDeref(nsg.Location, "") != f.adapter.Region() {
-			return nil, NewTerminalSpecMismatch(sgCfg.AzureResourceMetadata, "Location", f.adapter.Region())
+			return NewTerminalSpecMismatch(sgCfg.AzureResourceMetadata, "Location", f.adapter.Region())
 		}
 	}
 
 	// create the NSG if it not there
 	if nsg == nil {
-		parameters := armnetwork.SecurityGroup{
+		nsg = &armnetwork.SecurityGroup{
 			Location:   to.Ptr(f.adapter.Region()),
 			Properties: &armnetwork.SecurityGroupPropertiesFormat{},
 		}
-		return c.CreateOrUpdate(ctx, sgCfg.ResourceGroup, sgCfg.Name, parameters)
+		nsg, err = c.CreateOrUpdate(ctx, sgCfg.ResourceGroup, sgCfg.Name, *nsg)
+		if err != nil {
+			return err
+		}
 	}
 
-	return nsg, nil
+	f.inventory.Insert(azure.AzureResource{
+		Kind: string(sgCfg.Kind),
+		Id:   *nsg.ID,
+	})
+	f.whiteboard.Set(infrastructure.GenerationKey, time.Now().String())
+	return nil
 }
 
 func (f *FlowContext) EnsurePublicIPs(ctx context.Context) error {
@@ -244,6 +262,7 @@ func (f *FlowContext) ensureUserPublicIps(ctx context.Context) error {
 		return err
 	}
 
+	ips := f.whiteboard.GetChild(infrastructure.PIPKey)
 	for _, ipFromConfig := range f.adapter.IpConfigs() {
 		if !ipFromConfig.Managed {
 			continue
@@ -257,6 +276,8 @@ func (f *FlowContext) ensureUserPublicIps(ctx context.Context) error {
 			// } else {
 			// 	result[ipFromConfig.AzureResourceMetadata] = *userIP.ID
 		}
+
+		ips.Set(*userIP.ID, *userIP.Properties.IPAddress)
 	}
 
 	return joinError
@@ -268,6 +289,7 @@ func (f *FlowContext) ensurePublicIPs(ctx context.Context) error {
 	var (
 		log         = f.LogFromContext(ctx)
 		toDelete    = sets.New[string]()
+		nameToId    = make(map[string]string)
 		toReconcile = map[string]*armnetwork.PublicIPAddress{}
 		joinError   error
 	)
@@ -303,6 +325,7 @@ func (f *FlowContext) ensurePublicIPs(ctx context.Context) error {
 		if !ok {
 			log.Info("will delete public IP because it is not needed", "Resource Group", f.adapter.ResourceGroup(), "Name", name)
 			toDelete.Insert(name)
+			nameToId[name] = *current.ID
 			continue
 		}
 
@@ -310,6 +333,7 @@ func (f *FlowContext) ensurePublicIPs(ctx context.Context) error {
 		if ok, offender, v := ForceNewIp(current, toReconcile[pipCfg.Name]); ok {
 			log.Info("will delete public IP because it can't be reconciled", "Resource Group", f.adapter.ResourceGroup(), "Name", name, "Offender", offender, "Value", v)
 			toDelete.Insert(name)
+			nameToId[name] = *current.ID
 			continue
 		}
 	}
@@ -319,19 +343,30 @@ func (f *FlowContext) ensurePublicIPs(ctx context.Context) error {
 		if err != nil {
 			joinError = errors.Join(joinError, err)
 		}
+		f.inventory.Delete(azure.AzureResource{
+			Kind: string(PublicIP),
+			Id:   nameToId[ipName],
+		})
 	}
 	if joinError != nil {
 		return joinError
 	}
 
+	ips := f.whiteboard.GetChild(infrastructure.PIPKey)
 	for ipName, ip := range toReconcile {
-		_, err := c.CreateOrUpdate(ctx, f.adapter.ResourceGroup(), ipName, *ip)
+		res, err := c.CreateOrUpdate(ctx, f.adapter.ResourceGroup(), ipName, *ip)
 		if err != nil {
 			joinError = errors.Join(joinError, err)
 			continue
 		}
+		f.inventory.Insert(azure.AzureResource{
+			Kind: string(PublicIP),
+			Id:   *res.ID,
+		})
+		ips.Set(*res.ID, *res.Properties.IPAddress)
 	}
 
+	f.whiteboard.Set(infrastructure.GenerationKey, time.Now().String())
 	return joinError
 }
 
@@ -347,6 +382,7 @@ func (f *FlowContext) ensureNatGateways(ctx context.Context) error {
 		log         = f.LogFromContext(ctx)
 		joinError   error
 		toDelete    = sets.New[string]()
+		nameToId    = make(map[string]string)
 		toReconcile = map[string]*armnetwork.NatGateway{}
 	)
 
@@ -380,11 +416,13 @@ func (f *FlowContext) ensureNatGateways(ctx context.Context) error {
 		if !ok {
 			log.Info("will delete NAT Gateway because it is not needed", "Resource Group", f.adapter.ResourceGroup(), "Name", *current.Name)
 			toDelete.Insert(*current.Name)
+			nameToId[*current.Name] = *current.ID
 			continue
 		}
 		if ok, offender, v := ForceNewNat(current, target); ok {
 			log.Info("will delete NAT Gateway because it cannot be reconciled", "Resource Group", f.adapter.ResourceGroup(), "Name", *current.Name, "Offender", offender, "Value", v)
 			toDelete.Insert(*current.Name)
+			nameToId[*current.Name] = *current.ID
 			continue
 		}
 	}
@@ -394,18 +432,28 @@ func (f *FlowContext) ensureNatGateways(ctx context.Context) error {
 		if err != nil {
 			joinError = errors.Join(joinError, err)
 		}
+		f.inventory.Delete(azure.AzureResource{
+			Kind: string(NatGateway),
+			Id:   nameToId[natName],
+		})
 	}
 	if joinError != nil {
 		return joinError
 	}
 
 	for name, nat := range toReconcile {
-		_, err := c.CreateOrUpdate(ctx, f.adapter.ResourceGroup(), name, *nat)
+		res, err := c.CreateOrUpdate(ctx, f.adapter.ResourceGroup(), name, *nat)
 		if err != nil {
 			joinError = errors.Join(joinError, err)
 			continue
 		}
+		f.inventory.Insert(azure.AzureResource{
+			Kind: string(NatGateway),
+			Id:   nameToId[*res.ID],
+		})
 	}
+
+	f.whiteboard.Set(infrastructure.GenerationKey, time.Now().String())
 	return joinError
 }
 
@@ -560,16 +608,23 @@ func (f *FlowContext) GetInfrastructureState() (*runtime.RawExtension, error) {
 		TypeMeta: helper.InfrastructureStateTypeMeta,
 		Data:     map[string]string{},
 	}
-	if k := f.whiteboard.Get(infrastructure.CreatedResourcesExistKey); k != nil {
-		state.Data[infrastructure.CreatedResourcesExistKey] = *k
+	if wb := f.whiteboard.GetChild(infrastructure.PIPKey); wb != nil {
+		var res string
+		for _, v := range wb.AsMap() {
+			res = strings.TrimPrefix(fmt.Sprintf("%s,%s", res, v), ",")
+		}
+		state.Data[infrastructure.PIPKey] = res
 	}
 
-	js, err := json.Marshal(state)
-	if err != nil {
-		return nil, err
+	for _, v := range f.inventory.inv.UnsortedList() {
+		state.Resources = append(state.Resources, v1alpha1.AzureResource{
+			Kind: v.Kind,
+			Id:   v.Id,
+		})
 	}
+
 	return &runtime.RawExtension{
-		Raw: js,
+		Object: state,
 	}, nil
 }
 

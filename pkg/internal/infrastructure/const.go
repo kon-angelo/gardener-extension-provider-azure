@@ -15,5 +15,9 @@
 package infrastructure
 
 const (
-	CreatedResourcesExistKey = "resources_created"
+	CountFaultDomainsKey     = "count_fault_domains"
+	CountUpdateDomainsKey    = "count_update_domains"
+	GenerationKey            = "generation"
+	PIPKey                   = "pips"
+	CreatedResourcesExistKey = "created_resources"
 )

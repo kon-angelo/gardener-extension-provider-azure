@@ -8,11 +8,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	v1alpha1 "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
-	v1alpha10 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
+	v1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	extensions "github.com/gardener/gardener/pkg/extensions"
 	gomock "github.com/golang/mock/gomock"
-	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
 // MockReconciler is a mock of Reconciler interface.
@@ -39,7 +37,7 @@ func (m *MockReconciler) EXPECT() *MockReconcilerMockRecorder {
 }
 
 // Delete mocks base method.
-func (m *MockReconciler) Delete(arg0 context.Context, arg1 *v1alpha10.Infrastructure, arg2 *extensions.Cluster) error {
+func (m *MockReconciler) Delete(arg0 context.Context, arg1 *v1alpha1.Infrastructure, arg2 *extensions.Cluster) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -53,13 +51,11 @@ func (mr *MockReconcilerMockRecorder) Delete(arg0, arg1, arg2 interface{}) *gomo
 }
 
 // Reconcile mocks base method.
-func (m *MockReconciler) Reconcile(arg0 context.Context, arg1 *v1alpha10.Infrastructure, arg2 *extensions.Cluster) (*v1alpha1.InfrastructureStatus, *runtime.RawExtension, error) {
+func (m *MockReconciler) Reconcile(arg0 context.Context, arg1 *v1alpha1.Infrastructure, arg2 *extensions.Cluster) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Reconcile", arg0, arg1, arg2)
-	ret0, _ := ret[0].(*v1alpha1.InfrastructureStatus)
-	ret1, _ := ret[1].(*runtime.RawExtension)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Reconcile indicates an expected call of Reconcile.

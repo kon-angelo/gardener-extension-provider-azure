@@ -45,9 +45,5 @@ func (a *actuator) reconcile(ctx context.Context, logger logr.Logger, selector S
 	if err != nil {
 		return err
 	}
-	status, state, err := reconciler.Reconcile(ctx, infra, cluster)
-	if err != nil {
-		return err
-	}
-	return patchProviderStatusAndState(ctx, infra, status, state, a.client)
+	return reconciler.Reconcile(ctx, infra, cluster)
 }

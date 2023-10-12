@@ -17,17 +17,18 @@ package infrastructure
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/extensions/pkg/terraformer"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
+	azurev1alpha1 "github.com/gardener/remedy-controller/pkg/apis/azure/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
 	azuretypes "github.com/gardener/gardener-extension-provider-azure/pkg/azure"
@@ -51,12 +52,24 @@ func patchProviderStatusAndState(
 	state *runtime.RawExtension,
 	runtimeClient client.Client,
 ) error {
-	patch := client.MergeFrom(infra.DeepCopy())
+	// infraObjectKey := client.ObjectKey{
+	// 	Namespace: infra.Namespace,
+	// 	Name:      infra.Name,
+	// }
+	//
+	// infra = &extensionsv1alpha1.Infrastructure{}
+	// if err := runtimeClient.Get(ctx, infraObjectKey, infra); err != nil {
+	// 	return err
+	// }
+	modded := infra.DeepCopy()
 	if status != nil {
-		infra.Status.ProviderStatus = &runtime.RawExtension{Object: status}
+		modded.Status.ProviderStatus = &runtime.RawExtension{Object: status}
 	}
-	infra.Status.State = state
-	return runtimeClient.Status().Patch(ctx, infra, patch)
+	if state != nil {
+		modded.Status.State = state
+	}
+
+	return runtimeClient.Status().Patch(ctx, modded, client.MergeFrom(infra))
 }
 
 // CleanupTerraformerResources deletes terraformer artifacts (config, state, secrets).
@@ -77,10 +90,20 @@ func hasFlowState(status extensionsv1alpha1.InfrastructureStatus) (bool, error) 
 		return false, err
 	}
 
-	if infraState.FlowState != nil {
+	if infraState.TerraformState != nil {
+		return false, nil
+	}
+
+	flowState := runtime.TypeMeta{}
+	if err := json.Unmarshal(status.State.Raw, &flowState); err != nil {
+		return false, err
+	}
+
+	if flowState.GroupVersionKind().GroupVersion() == azurev1alpha1.SchemeGroupVersion {
 		return true, nil
 	}
-	return false, nil
+
+	return false, fmt.Errorf("unknown infrastructure state format")
 }
 
 // hasFlowAnnotation returns true if the new flow reconciler should be used for the reconciliation.
@@ -105,20 +128,20 @@ func NewInfrastructureState() *v1alpha1.InfrastructureState {
 	}
 }
 
-func azureInfrastructureStateFromRaw(state *runtime.RawExtension) (*azure.InfrastructureState, error) {
-	infraState := &azure.InfrastructureState{}
-	if state != nil {
-		mixedInfraState := &infrainternal.InfrastructureState{}
-		if err := json.Unmarshal(state.Raw, mixedInfraState); err != nil {
-			return nil, err
-		}
-
-		var err error
-		infraState, err = helper.InfrastructureStateFromRaw(mixedInfraState.FlowState)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return infraState, nil
-}
+// func azureInfrastructureStateFromRaw(state *runtime.RawExtension) (*azure.InfrastructureState, error) {
+// 	infraState := &azure.InfrastructureState{}
+// 	if state != nil {
+// 		mixedInfraState := &infrainternal.InfrastructureState{}
+// 		if err := json.Unmarshal(state.Raw, mixedInfraState); err != nil {
+// 			return nil, err
+// 		}
+//
+// 		var err error
+// 		infraState, err = helper.InfrastructureStateFromRaw(mixedInfraState.FlowState)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 	}
+//
+// 	return infraState, nil
+// }

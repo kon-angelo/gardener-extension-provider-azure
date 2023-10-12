@@ -16,6 +16,7 @@ package infrastructure
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/extensions/pkg/terraformer"
@@ -25,7 +26,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
@@ -50,59 +51,47 @@ func NewFlowReconciler(a *actuator, log logr.Logger, tf terraformer.Terraformer)
 }
 
 // Reconcile reconciles the infrastructure and returns the status (state of the world), the state (input for the next loops) and any errors that occurred.
-func (f *FlowReconciler) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) (*v1alpha1.InfrastructureStatus, *runtime.RawExtension, error) {
-	infraState, err := azureInfrastructureStateFromRaw(infra.Status.State)
+func (f *FlowReconciler) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
+	infraState, err := helper.InfrastructureStateFromRaw(infra.Status.State)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
+
 	if !f.tf.IsStateEmpty(ctx) {
+		// this is really a special case when migrating from Terraform. If TF had created any resources (meaning there is an actual tf.state written)
+		// we mark that there are infra resources created.
 		infraState.Data[infrastructure.CreatedResourcesExistKey] = "true"
-	}
-
-	persistFunc := func(state *runtime.RawExtension) error {
-		infraObjectKey := client.ObjectKey{
-			Namespace: infra.Namespace,
-			Name:      infra.Name,
-		}
-
-		infra := &extensionsv1alpha1.Infrastructure{}
-		if err := f.client.Get(ctx, infraObjectKey, infra); err != nil {
-			return err
-		}
-		return patchProviderStatusAndState(ctx, infra, nil, state, f.client)
 	}
 
 	factory, err := NewAzureClientFactory(ctx, f.client, infra.Spec.SecretRef)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	auth, err := internal.GetClientAuthData(ctx, f.client, infra.Spec.SecretRef, false)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
-	fctx, err := infraflow.NewFlowContext(factory, auth, f.log, infra, cluster, infraState)
+	persistor := func(ctx context.Context, state *runtime.RawExtension) error {
+		return patchProviderStatusAndState(ctx, infra, nil, state, f.client)
+	}
+
+	fctx, err := infraflow.NewFlowContext(factory, auth, f.log, infra, cluster, infraState, persistor)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	status, state, err := fctx.Reconcile(ctx)
 	if err != nil {
-		return nil, nil, err
-	}
-	mixedInfraState, err := (&infrastructure.InfrastructureState{
-		SavedProviderStatus: &runtime.RawExtension{
-			Object: status,
-		},
-		FlowState: state,
-	}).ToRawExtension()
-
-	if err := CleanupTerraformerResources(ctx, f.tf); err != nil {
-		return nil, nil, err
+		inErr := persistor(ctx, state)
+		return errors.Join(err, inErr)
 	}
 
-	return status, mixedInfraState, err
+	if err := patchProviderStatusAndState(ctx, infra, status, state, f.client); err != nil {
+		return err
+	}
+	return CleanupTerraformerResources(ctx, f.tf)
 }
 
 // Delete deletes the infrastructure resource using the flow reconciler.
@@ -112,12 +101,12 @@ func (f *FlowReconciler) Delete(ctx context.Context, infra *extensionsv1alpha1.I
 		return err
 	}
 
-	infraState, err := azureInfrastructureStateFromRaw(infra.Status.State)
+	infraState, err := helper.InfrastructureStateFromRaw(infra.Status.State)
 	if err != nil {
 		return err
 	}
 
-	fctx, err := infraflow.NewFlowContext(factory, nil, f.log, infra, cluster, infraState)
+	fctx, err := infraflow.NewFlowContext(factory, nil, f.log, infra, cluster, infraState, nil)
 	if err != nil {
 		return err
 	}

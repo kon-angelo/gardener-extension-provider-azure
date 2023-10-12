@@ -28,12 +28,13 @@ type AzureResourceKind string
 
 const (
 	VirtualNetwork  AzureResourceKind = "virtualNetworks"
-	RouteTable      AzureResourceKind = "routeTable"
+	RouteTable      AzureResourceKind = "routeTables"
 	SecurityGroup   AzureResourceKind = "networkSecurityGroups"
 	NatGateway      AzureResourceKind = "natGateways"
 	PublicIP        AzureResourceKind = "publicIPAddresses"
 	Subnet          AzureResourceKind = "subnets"
 	AvailabilitySet AzureResourceKind = "availabilitySets"
+	ResourceGroup   AzureResourceKind = "resourceGroups"
 )
 
 const (

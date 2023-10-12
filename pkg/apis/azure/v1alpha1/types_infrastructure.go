@@ -274,5 +274,11 @@ type InfrastructureState struct {
 	metav1.TypeMeta `json:",inline"`
 	// Data is map to store things.
 	// +optional
-	Data map[string]string `json:"data,omitempty"`
+	Data      map[string]string `json:"data,omitempty"`
+	Resources []AzureResource   `json:"resources,omitempty"`
+}
+
+type AzureResource struct {
+	Kind string `json:"kind"`
+	Id   string `json:"id"`
 }

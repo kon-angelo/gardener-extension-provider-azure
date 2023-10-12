@@ -38,16 +38,17 @@ type FlowContext struct {
 	*shared.BasicFlowContext
 	logger logr.Logger
 
-	persistFunc func(extension *runtime.RawExtension) error
+	persistFunc func(ctx context.Context, extension *runtime.RawExtension) error
 	cfg         *azure.InfrastructureConfig
 	factory     client.Factory
 	auth        *internal.ClientAuth
 	infra       *extensionsv1alpha1.Infrastructure
+	state       *azure.InfrastructureState
 	cluster     *controller.Cluster
 	whiteboard  shared.Whiteboard
 	adapter     *InfrastructureAdapter
 	provider    Access
-	state       *azure.InfrastructureState
+	inventory   *Inventory
 }
 
 // NewFlowContext creates a new FlowContext.
@@ -57,14 +58,13 @@ func NewFlowContext(factory client.Factory,
 	infra *extensionsv1alpha1.Infrastructure,
 	cluster *controller.Cluster,
 	state *azure.InfrastructureState,
-	persistFunc func(extension *runtime.RawExtension) error,
+	persistFunc func(context.Context, *runtime.RawExtension) error,
 ) (*FlowContext, error) {
 	wb := shared.NewWhiteboard()
 	for k, v := range state.Data {
 		wb.Set(k, v)
 	}
 
-	bfc := shared.NewBasicFlowContext(logger, wb)
 	cfg, err := helper.InfrastructureConfigFromInfrastructure(infra)
 	if err != nil {
 		return nil, err
@@ -87,6 +87,7 @@ func NewFlowContext(factory client.Factory,
 		infra,
 		cfg,
 		status,
+		state,
 		profile,
 		cluster,
 	)
@@ -94,22 +95,27 @@ func NewFlowContext(factory client.Factory,
 		return nil, err
 	}
 
-	return &FlowContext{
-		BasicFlowContext: bfc,
+	fc := &FlowContext{
+		BasicFlowContext: shared.NewBasicFlowContext(logger, wb, nil),
 		factory:          factory,
 		auth:             auth,
 		logger:           logger,
 		infra:            infra,
-		state:            state,
 		cluster:          cluster,
 		cfg:              cfg,
 		whiteboard:       wb,
-		persistFunc:      persistFunc,
 		provider: &access{
 			factory,
 		},
-		adapter: adapter,
-	}, nil
+		adapter:   adapter,
+		inventory: NewInventory(),
+	}
+
+	if persistFunc != nil {
+		fc.persistFunc = persistFunc
+		fc.BasicFlowContext = shared.NewBasicFlowContext(logger, wb, fc.Persistor)
+	}
+	return fc, nil
 }
 
 // Reconcile reconciles all resources
@@ -141,9 +147,11 @@ func (f *FlowContext) buildReconcileGraph() *flow.Graph {
 
 // Delete deletes all resources managed by the reconciler
 func (f *FlowContext) Delete(ctx context.Context) error {
-	// special case where the credentials were invalid from the beginning
-	if k := f.whiteboard.Get(infrastructure.CreatedResourcesExistKey); k == nil {
-		return nil
+	if len(f.state.Resources) == 0 {
+		// special case where the credentials were invalid from the beginning
+		if _, ok := f.state.Data[infrastructure.CreatedResourcesExistKey]; ok {
+			return nil
+		}
 	}
 
 	graph := flow.NewGraph("Azure infrastructure deletion")
@@ -157,12 +165,10 @@ func (f *FlowContext) Delete(ctx context.Context) error {
 	return nil
 }
 
-func (f *FlowContext) StatePersist() shared.FlowStatePersistor {
-	return func(ctx context.Context, _ shared.FlatMap) error {
-		state, err := f.GetInfrastructureState()
-		if err != nil {
-			return err
-		}
-		return f.persistFunc(state)
+func (f *FlowContext) Persistor(ctx context.Context, _ shared.FlatMap) error {
+	state, err := f.GetInfrastructureState()
+	if err != nil {
+		return err
 	}
+	return f.persistFunc(ctx, state)
 }

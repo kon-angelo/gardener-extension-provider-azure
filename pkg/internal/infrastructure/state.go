@@ -27,8 +27,8 @@ type InfrastructureState struct {
 	SavedProviderStatus *runtime.RawExtension `json:"savedProviderStatus,omitempty"`
 	// TerraformState contains the state of the last applied terraform config.
 	TerraformState *runtime.RawExtension `json:"terraformState,omitempty"`
-	// FlowState contains the state of the last applied Flow reconciliation.
-	FlowState *runtime.RawExtension `json:"flowState,omitempty"`
+	// // FlowState contains the state of the last applied Flow reconciliation.
+	// FlowState *runtime.RawExtension `json:"flowState,omitempty"`
 }
 
 // ToRawExtension marshalls the struct and returns a runtime.RawExtension.

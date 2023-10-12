@@ -17,6 +17,9 @@ package infraflow
 import (
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow/shared"
 )
 
@@ -100,4 +103,40 @@ func Join[K comparable, V any](m1, m2 map[K]V) map[K]V {
 		m1[k] = v
 	}
 	return m1
+}
+
+type Inventory struct {
+	inv      sets.Set[azure.AzureResource]
+	byParent map[azure.AzureResource]sets.Set[azure.AzureResource]
+}
+
+func NewInventory() *Inventory {
+	return &Inventory{
+		inv:      sets.New[azure.AzureResource](),
+		byParent: make(map[azure.AzureResource]sets.Set[azure.AzureResource]),
+	}
+}
+func (i *Inventory) Insert(a azure.AzureResource) {
+	i.inv.Insert(a)
+	if a.Parent != nil {
+		if _, ok := i.byParent[*a.Parent]; !ok {
+			i.byParent[*a.Parent] = sets.New[azure.AzureResource]()
+		}
+		i.byParent[*a.Parent].Insert(a)
+	}
+}
+
+func (i *Inventory) Delete(a azure.AzureResource) {
+	i.inv.Delete(a)
+	if i.byParent[a] != nil {
+		for _, v := range i.byParent[a].UnsortedList() {
+			i.Delete(v)
+		}
+	}
+
+	if a.Parent == nil {
+		return
+	}
+
+	i.byParent[*a.Parent].Delete(a)
 }

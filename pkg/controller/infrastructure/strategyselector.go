@@ -9,9 +9,7 @@ import (
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	"github.com/gardener/gardener/pkg/extensions"
 	"github.com/go-logr/logr"
-	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
 	infrainternal "github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
@@ -19,7 +17,7 @@ import (
 // Reconciler is an interface for the infrastructure reconciliation.
 type Reconciler interface {
 	// Reconcile manages infrastructure resources according to spec.It returns the provider's InfrastructureStatus, a State object to persist and an error.
-	Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) (*v1alpha1.InfrastructureStatus, *runtime.RawExtension, error)
+	Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error
 	// Delete removes any created infrastructure resource on the provider.
 	Delete(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error
 }
