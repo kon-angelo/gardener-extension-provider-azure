@@ -15,6 +15,7 @@
 package azure
 
 import (
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -248,11 +249,23 @@ type InfrastructureState struct {
 	// Data is map to store things.
 	// +optional
 	Data      map[string]string
-	Resources []AzureResource
+	Inventory []Identifier
 }
 
-type AzureResource struct {
-	Kind   string
-	Id     string
-	Parent *AzureResource
+type Identifier struct {
+	Kind  string
+	Id    string
+	Owner *Identifier
+}
+
+func (a *Identifier) GetId() string {
+	return a.Id
+}
+
+func (a *Identifier) GetOwnerId() *string {
+	if a.Owner != nil {
+		return to.Ptr(a.Owner.Id)
+	}
+
+	return nil
 }

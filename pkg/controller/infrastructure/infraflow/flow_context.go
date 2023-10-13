@@ -48,7 +48,7 @@ type FlowContext struct {
 	whiteboard  shared.Whiteboard
 	adapter     *InfrastructureAdapter
 	provider    Access
-	inventory   *Inventory
+	inventory   *SimpleInventory[*azure.Identifier]
 }
 
 // NewFlowContext creates a new FlowContext.
@@ -108,7 +108,7 @@ func NewFlowContext(factory client.Factory,
 			factory,
 		},
 		adapter:   adapter,
-		inventory: NewInventory(),
+		inventory: NewSimpleInventory[*azure.Identifier](),
 	}
 
 	if persistFunc != nil {
@@ -147,7 +147,7 @@ func (f *FlowContext) buildReconcileGraph() *flow.Graph {
 
 // Delete deletes all resources managed by the reconciler
 func (f *FlowContext) Delete(ctx context.Context) error {
-	if len(f.state.Resources) == 0 {
+	if len(f.state.Inventory) == 0 {
 		// special case where the credentials were invalid from the beginning
 		if _, ok := f.state.Data[infrastructure.CreatedResourcesExistKey]; ok {
 			return nil

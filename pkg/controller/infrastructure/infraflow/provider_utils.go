@@ -26,15 +26,19 @@ import (
 
 type AzureResourceKind string
 
+func (a AzureResourceKind) String() string {
+	return string(a)
+}
+
 const (
-	VirtualNetwork  AzureResourceKind = "virtualNetworks"
-	RouteTable      AzureResourceKind = "routeTables"
-	SecurityGroup   AzureResourceKind = "networkSecurityGroups"
-	NatGateway      AzureResourceKind = "natGateways"
-	PublicIP        AzureResourceKind = "publicIPAddresses"
-	Subnet          AzureResourceKind = "subnets"
-	AvailabilitySet AzureResourceKind = "availabilitySets"
-	ResourceGroup   AzureResourceKind = "resourceGroups"
+	VirtualNetwork    AzureResourceKind = "virtualNetworks"
+	RouteTable        AzureResourceKind = "routeTables"
+	SecurityGroup     AzureResourceKind = "networkSecurityGroups"
+	NatGateway        AzureResourceKind = "natGateways"
+	PublicIP          AzureResourceKind = "publicIPAddresses"
+	Subnet            AzureResourceKind = "subnets"
+	AvailabilitySet   AzureResourceKind = "availabilitySets"
+	KindResourceGroup AzureResourceKind = "resourceGroups"
 )
 
 const (
@@ -43,7 +47,12 @@ const (
 	SecurityGroupTemplate     = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s"
 	RouteTableTemplate        = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/routeTables/%s"
 	AvailabilitySetIDTemplate = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/availabilitySets/%s"
+	ResourceGroupIDTemplate   = "/subscriptions/%s/resourceGroups/%s"
 )
+
+func ResourceGroupIdFromTemplate(subscription, name string) string {
+	return fmt.Sprintf(ResourceGroupIDTemplate, subscription, name)
+}
 
 func GetIdFromTemplate(template, subscription, rgName, name string) string {
 	return fmt.Sprintf(template, subscription, rgName, name)

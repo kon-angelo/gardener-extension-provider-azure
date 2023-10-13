@@ -35,13 +35,6 @@ import (
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
 
-// Key names for the whiteboard object to pass results between the reconcilation tasks
-const (
-// routeTableIdKey    = "route_table_id"
-// securityGroupIdKey = "security_group_id"
-// natGatewayMapKey   = "nategateway_map"
-)
-
 // EnsureResourceGroup creates or updates the resource group
 func (f *FlowContext) EnsureResourceGroup(ctx context.Context) error {
 	rgClient, err := f.factory.Group()
@@ -50,17 +43,18 @@ func (f *FlowContext) EnsureResourceGroup(ctx context.Context) error {
 	}
 
 	rg := &armresources.ResourceGroup{
-		Location: to.Ptr(f.infra.Spec.Region),
+		Location: to.Ptr(f.adapter.Region()),
 	}
 
 	if rg, err = rgClient.CreateOrUpdate(ctx, f.adapter.ResourceGroup(), *rg); err != nil {
 		return err
 	}
-	f.inventory.Insert(azure.AzureResource{
-		Kind: string(ResourceGroup),
+	f.inventory.Insert(&azure.Identifier{
+		Kind: KindResourceGroup.String(),
 		Id:   *rg.ID,
 	})
-	f.whiteboard.Set(infrastructure.GenerationKey, time.Now().String())
+
+	f.ForceGen()
 	return nil
 }
 
@@ -98,11 +92,12 @@ func (f *FlowContext) ensureManagedVirtualNetwork(ctx context.Context) error {
 		return err
 	}
 
-	f.inventory.Insert(azure.AzureResource{
-		Kind: string(vnetCfg.Kind),
-		Id:   *vnet.ID,
+	f.inventory.Insert(&azure.Identifier{
+		Kind:  string(vnetCfg.Kind),
+		Id:    *vnet.ID,
+		Owner: to.Ptr(ResourceGroupIdFromTemplate(f.auth.SubscriptionID, vnetCfg.ResourceGroup)),
 	})
-	f.whiteboard.Set(infrastructure.GenerationKey, time.Now().String())
+	f.ForceGen()
 	return nil
 }
 
@@ -149,7 +144,7 @@ func (f *FlowContext) EnsureAvailabilitySet(ctx context.Context) error {
 		SKU: &armcompute.SKU{Name: to.Ptr(string(armcompute.AvailabilitySetSKUTypesAligned))}, // equal to managed = True in tf
 	}
 	avset, err = asClient.CreateOrUpdate(ctx, f.adapter.ResourceGroup(), avsetCfg.Name, *avset)
-	f.inventory.Insert(azure.AzureResource{
+	f.inventory.Insert(&azure.Identifier{
 		Kind: string(avsetCfg.Kind),
 		Id:   *avset.ID,
 	})
@@ -190,7 +185,7 @@ func (f *FlowContext) EnsureRouteTable(ctx context.Context) error {
 		}
 	}
 
-	f.inventory.Insert(azure.AzureResource{
+	f.inventory.Insert(&azure.Identifier{
 		Kind: string(rtCfg.Kind),
 		Id:   *rt.ID,
 	})
@@ -231,7 +226,7 @@ func (f *FlowContext) EnsureSecurityGroup(ctx context.Context) error {
 		}
 	}
 
-	f.inventory.Insert(azure.AzureResource{
+	f.inventory.Insert(azure.Identifier{
 		Kind: string(sgCfg.Kind),
 		Id:   *nsg.ID,
 	})
@@ -343,7 +338,7 @@ func (f *FlowContext) ensurePublicIPs(ctx context.Context) error {
 		if err != nil {
 			joinError = errors.Join(joinError, err)
 		}
-		f.inventory.Delete(azure.AzureResource{
+		f.inventory.Delete(azure.Identifier{
 			Kind: string(PublicIP),
 			Id:   nameToId[ipName],
 		})
@@ -359,7 +354,7 @@ func (f *FlowContext) ensurePublicIPs(ctx context.Context) error {
 			joinError = errors.Join(joinError, err)
 			continue
 		}
-		f.inventory.Insert(azure.AzureResource{
+		f.inventory.Insert(azure.Identifier{
 			Kind: string(PublicIP),
 			Id:   *res.ID,
 		})
@@ -432,7 +427,7 @@ func (f *FlowContext) ensureNatGateways(ctx context.Context) error {
 		if err != nil {
 			joinError = errors.Join(joinError, err)
 		}
-		f.inventory.Delete(azure.AzureResource{
+		f.inventory.Delete(azure.Identifier{
 			Kind: string(NatGateway),
 			Id:   nameToId[natName],
 		})
@@ -447,7 +442,7 @@ func (f *FlowContext) ensureNatGateways(ctx context.Context) error {
 			joinError = errors.Join(joinError, err)
 			continue
 		}
-		f.inventory.Insert(azure.AzureResource{
+		f.inventory.Insert(azure.Identifier{
 			Kind: string(NatGateway),
 			Id:   nameToId[*res.ID],
 		})
@@ -617,7 +612,7 @@ func (f *FlowContext) GetInfrastructureState() (*runtime.RawExtension, error) {
 	}
 
 	for _, v := range f.inventory.inv.UnsortedList() {
-		state.Resources = append(state.Resources, v1alpha1.AzureResource{
+		state.Inventory = append(state.Inventory, v1alpha1.Identifier{
 			Kind: v.Kind,
 			Id:   v.Id,
 		})

@@ -80,7 +80,7 @@ func (ia *InfrastructureAdapter) TechnicalName() string {
 	return ia.infra.Namespace
 }
 
-// ResourceGroup the name of the resource group.
+// KindResourceGroup the name of the resource group.
 func (ia *InfrastructureAdapter) ResourceGroup() string {
 	return ia.TechnicalName()
 }

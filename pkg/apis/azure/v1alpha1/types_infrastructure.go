@@ -275,10 +275,10 @@ type InfrastructureState struct {
 	// Data is map to store things.
 	// +optional
 	Data      map[string]string `json:"data,omitempty"`
-	Resources []AzureResource   `json:"resources,omitempty"`
+	Inventory []Identifier      `json:"inventory,omitempty"`
 }
 
-type AzureResource struct {
+type Identifier struct {
 	Kind string `json:"kind"`
 	Id   string `json:"id"`
 }

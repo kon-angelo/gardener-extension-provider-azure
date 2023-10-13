@@ -16,11 +16,10 @@ package infraflow
 
 import (
 	"fmt"
+	"time"
 
-	"k8s.io/apimachinery/pkg/util/sets"
-
-	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow/shared"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
 
 // GetObject returns the object and attempts to cast it to the specified type.
@@ -105,38 +104,46 @@ func Join[K comparable, V any](m1, m2 map[K]V) map[K]V {
 	return m1
 }
 
-type Inventory struct {
-	inv      sets.Set[azure.AzureResource]
-	byParent map[azure.AzureResource]sets.Set[azure.AzureResource]
+type Identifier interface {
+	GetId() string
+	GetOwnerId() *string
 }
 
-func NewInventory() *Inventory {
-	return &Inventory{
-		inv:      sets.New[azure.AzureResource](),
-		byParent: make(map[azure.AzureResource]sets.Set[azure.AzureResource]),
+type SimpleInventory[T Identifier] struct {
+	inventory map[string]T
+	byOwner   map[string]map[string]T
+}
+
+func NewSimpleInventory[T Identifier]() *SimpleInventory[T] {
+	return &SimpleInventory[T]{
+		inventory: make(map[string]T),
+		byOwner:   make(map[string]map[string]T),
 	}
 }
-func (i *Inventory) Insert(a azure.AzureResource) {
-	i.inv.Insert(a)
-	if a.Parent != nil {
-		if _, ok := i.byParent[*a.Parent]; !ok {
-			i.byParent[*a.Parent] = sets.New[azure.AzureResource]()
+
+func (i *SimpleInventory[T]) Insert(t T) {
+	i.inventory[t.GetId()] = t
+
+	if pid := t.GetOwnerId(); pid != nil {
+		if _, ok := i.byOwner[*pid]; !ok {
+			i.byOwner[*pid] = make(map[string]T)
 		}
-		i.byParent[*a.Parent].Insert(a)
+		i.byOwner[*pid][t.GetId()] = t
 	}
 }
 
-func (i *Inventory) Delete(a azure.AzureResource) {
-	i.inv.Delete(a)
-	if i.byParent[a] != nil {
-		for _, v := range i.byParent[a].UnsortedList() {
-			i.Delete(v)
-		}
+func (i *SimpleInventory[T]) Delete(t T) {
+	delete(i.inventory, t.GetId())
+
+	if t.GetOwnerId() != nil {
+		delete(i.byOwner[*t.GetOwnerId()], t.GetId())
 	}
 
-	if a.Parent == nil {
-		return
+	if _, ok := i.byOwner[t.GetId()]; ok {
+		delete(i.byOwner, t.GetId())
 	}
+}
 
-	i.byParent[*a.Parent].Delete(a)
+func (f *FlowContext) ForceGen() {
+	f.whiteboard.Set(infrastructure.GenerationKey, time.Now().String())
 }
