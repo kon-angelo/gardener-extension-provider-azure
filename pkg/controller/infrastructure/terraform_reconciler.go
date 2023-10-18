@@ -2,12 +2,14 @@ package infrastructure
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/extensions/pkg/terraformer"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	"github.com/go-logr/logr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -19,12 +21,11 @@ import (
 )
 
 // NewTerraformReconciler creates a new TerraformReconciler
-func NewTerraformReconciler(a *actuator, logger logr.Logger, tf terraformer.Terraformer, stateInitializer terraformer.StateConfigMapInitializer) (Reconciler, error) {
+func NewTerraformReconciler(a *actuator, logger logr.Logger, tf terraformer.Terraformer) (Reconciler, error) {
 	return &TerraformReconciler{
-		Client:           a.client,
-		Logger:           logger,
-		StateInitializer: stateInitializer,
-		Terraformer:      tf,
+		Client:      a.client,
+		Logger:      logger,
+		Terraformer: tf,
 	}, nil
 }
 
@@ -32,14 +33,38 @@ var _ Reconciler = &TerraformReconciler{}
 
 // TerraformReconciler can reconcile infrastructure objects using Terraform.
 type TerraformReconciler struct {
-	Client           client.Client
-	Logger           logr.Logger
-	StateInitializer terraformer.StateConfigMapInitializer
-	Terraformer      terraformer.Terraformer
+	Client      client.Client
+	Logger      logr.Logger
+	Terraformer terraformer.Terraformer
+}
+
+func (r *TerraformReconciler) Restore(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
+	var initializer terraformer.StateConfigMapInitializer
+	infraState := &infrastructure.InfrastructureState{}
+	if err := json.Unmarshal(infra.Status.State.Raw, infraState); err != nil {
+		return err
+	}
+
+	terraformState, err := terraformer.UnmarshalRawState(infraState.TerraformState)
+	if err != nil {
+		return err
+	}
+	initializer = terraformer.CreateOrUpdateState{State: &terraformState.Data}
+	patch := client.MergeFrom(infra.DeepCopy())
+	infra.Status.ProviderStatus = infraState.SavedProviderStatus
+	if err := r.Client.Status().Patch(ctx, infra, patch); err != nil {
+		return err
+	}
+
+	return r.reconcile(ctx, infra, cluster, initializer)
+}
+
+func (r *TerraformReconciler) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
+	return r.reconcile(ctx, infra, cluster, terraformer.StateConfigMapInitializerFunc(terraformer.CreateState))
 }
 
 // Reconcile reconciles the infrastructure resource according to spec.
-func (r *TerraformReconciler) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
+func (r *TerraformReconciler) reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster, initializer terraformer.StateConfigMapInitializer) error {
 	cfg, err := helper.InfrastructureConfigFromInfrastructure(infra)
 	if err != nil {
 		return err
@@ -50,7 +75,7 @@ func (r *TerraformReconciler) Reconcile(ctx context.Context, infra *extensionsv1
 	}
 
 	if err := r.Terraformer.
-		InitializeWith(ctx, terraformer.DefaultInitializer(r.Client, terraformFiles.Main, terraformFiles.Variables, terraformFiles.TFVars, r.StateInitializer)).
+		InitializeWith(ctx, terraformer.DefaultInitializer(r.Client, terraformFiles.Main, terraformFiles.Variables, terraformFiles.TFVars, initializer)).
 		Apply(ctx); err != nil {
 
 		return fmt.Errorf("failed to apply the terraform config: %w", err)
@@ -65,7 +90,7 @@ func (r *TerraformReconciler) Reconcile(ctx context.Context, infra *extensionsv1
 		return err
 	}
 
-	return patchProviderStatusAndState(ctx, infra, status, state, r.Client)
+	return patchProviderStatusAndState(ctx, r.Client, infra, status, state)
 }
 
 // getState calculates the State resource after each reconciliation.
@@ -149,7 +174,12 @@ func (r *TerraformReconciler) Delete(ctx context.Context, infra *extensionsv1alp
 	}
 
 	return tf.
-		InitializeWith(ctx, terraformer.DefaultInitializer(r.Client, terraformFiles.Main, terraformFiles.Variables, terraformFiles.TFVars, r.StateInitializer)).
+		InitializeWith(ctx, terraformer.DefaultInitializer(r.Client, terraformFiles.Main, terraformFiles.Variables, terraformFiles.TFVars, terraformer.StateConfigMapInitializerFunc(NoOpStateInitializer))).
 		SetEnvVars(internal.TerraformerEnvVars(infra.Spec.SecretRef)...).
 		Destroy(ctx)
+}
+
+// NoOpStateInitializer is a no-op StateConfigMapInitializerFunc.
+func NoOpStateInitializer(_ context.Context, _ client.Client, _, _ string, _ *metav1.OwnerReference) error {
+	return nil
 }

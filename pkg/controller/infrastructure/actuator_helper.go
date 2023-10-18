@@ -23,9 +23,7 @@ import (
 	"github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/extensions/pkg/terraformer"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
-	azurev1alpha1 "github.com/gardener/remedy-controller/pkg/apis/azure/v1alpha1"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -47,10 +45,10 @@ func newAzureClientFactory(ctx context.Context, client client.Client, secretRef 
 
 func patchProviderStatusAndState(
 	ctx context.Context,
+	runtimeClient client.Client,
 	infra *extensionsv1alpha1.Infrastructure,
 	status *v1alpha1.InfrastructureStatus,
 	state *runtime.RawExtension,
-	runtimeClient client.Client,
 ) error {
 	// infraObjectKey := client.ObjectKey{
 	// 	Namespace: infra.Namespace,
@@ -99,7 +97,7 @@ func hasFlowState(status extensionsv1alpha1.InfrastructureStatus) (bool, error) 
 		return false, err
 	}
 
-	if flowState.GroupVersionKind().GroupVersion() == azurev1alpha1.SchemeGroupVersion {
+	if flowState.GroupVersionKind().GroupVersion() == v1alpha1.SchemeGroupVersion {
 		return true, nil
 	}
 
@@ -113,11 +111,6 @@ func hasFlowAnnotation(infrastructure *extensionsv1alpha1.Infrastructure, cluste
 
 	seedAnnotation := cluster.Seed != nil && cluster.Seed.Annotations != nil && strings.EqualFold(cluster.Seed.Annotations[azuretypes.AnnotationKeyUseFlow], "true")
 	return shootAnnotation || seedAnnotation
-}
-
-// NoOpStateInitializer is a no-op StateConfigMapInitializerFunc.
-func NoOpStateInitializer(_ context.Context, _ client.Client, _, _ string, _ *metav1.OwnerReference) error {
-	return nil
 }
 
 // NewInfrastructureState creates empty NewInfrastructureState

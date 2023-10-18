@@ -80,8 +80,22 @@ func (ia *InfrastructureAdapter) TechnicalName() string {
 	return ia.infra.Namespace
 }
 
-// KindResourceGroup the name of the resource group.
-func (ia *InfrastructureAdapter) ResourceGroup() string {
+type ResourceGroupConfig struct {
+	AzureResourceMetadata
+	Location string
+}
+
+func (ia *InfrastructureAdapter) ResourceGroup() ResourceGroupConfig {
+	return ResourceGroupConfig{
+		AzureResourceMetadata: AzureResourceMetadata{
+			Name: ia.ResourceGroupName(),
+			Kind: KindResourceGroup,
+		},
+		Location: ia.infra.Spec.Region,
+	}
+}
+
+func (ia *InfrastructureAdapter) ResourceGroupName() string {
 	return ia.TechnicalName()
 }
 
@@ -108,7 +122,7 @@ func (ia *InfrastructureAdapter) VirtualNetworkConfig() VirtualNetworkConfig {
 
 func (ia *InfrastructureAdapter) virtualNetworkConfig() VirtualNetworkConfig {
 	name := ia.TechnicalName()
-	rg := ia.ResourceGroup()
+	rg := ia.ResourceGroupName()
 	managed := ia.isGardenerManagedVirtualNetwork()
 	if !managed {
 		name = *ia.config.Networks.VNet.Name
@@ -118,7 +132,7 @@ func (ia *InfrastructureAdapter) virtualNetworkConfig() VirtualNetworkConfig {
 		AzureResourceMetadata: AzureResourceMetadata{
 			Name:          name,
 			ResourceGroup: rg,
-			Kind:          VirtualNetwork,
+			Kind:          KindVirtualNetwork,
 		},
 		Managed:  managed,
 		Location: ia.Region(),
@@ -147,6 +161,7 @@ type AvailabilitySetConfig struct {
 	CountFaultDomains *int32
 	// countFaultDomains is the update domain count for the AV set.
 	CountUpdateDomains *int32
+	Location           string
 }
 
 // AvailabilitySetRequired returns true if gardener should create an availability set for the shoot.
@@ -168,37 +183,37 @@ func (ia *InfrastructureAdapter) availabilitySetConfig() (*AvailabilitySetConfig
 
 	asc := &AvailabilitySetConfig{
 		AzureResourceMetadata: AzureResourceMetadata{
-			ResourceGroup: ia.ResourceGroup(),
+			ResourceGroup: ia.ResourceGroupName(),
 			Name:          fmt.Sprintf("%s-avset-workers", ia.TechnicalName()),
-			Kind:          AvailabilitySet,
+			Kind:          KindAvailabilitySet,
 		},
 	}
 
-	if ia.status != nil {
-		nodesAVSet, err := helper.FindAvailabilitySetByPurpose(ia.status.AvailabilitySets, azure.PurposeNodes)
-		if err != nil {
-			return nil, fmt.Errorf("error obtaining update and fault domain counts from infrastructure status: %v", err)
-		}
-		asc.CountFaultDomains = nodesAVSet.CountFaultDomains
-		asc.CountUpdateDomains = nodesAVSet.CountUpdateDomains
-	}
-
-	if ia.state != nil {
-		if asc.CountFaultDomains == nil {
-			if v, ok := ia.state.Data[infrastructure.CountFaultDomainsKey]; ok {
-				if v, err := strconv.Atoi(v); err != nil {
-					asc.CountFaultDomains = to.Ptr(int32(v))
-				}
-			}
-		}
-		if asc.CountUpdateDomains == nil {
-			if v, ok := ia.state.Data[infrastructure.CountUpdateDomainsKey]; ok {
-				if v, err := strconv.Atoi(v); err != nil {
-					asc.CountUpdateDomains = to.Ptr(int32(v))
-				}
-			}
-		}
-	}
+	// if ia.status != nil {
+	// 	nodesAVSet, err := helper.FindAvailabilitySetByPurpose(ia.status.AvailabilitySets, azure.PurposeNodes)
+	// 	if err != nil {
+	// 		return nil, fmt.Errorf("error obtaining update and fault domain counts from infrastructure status: %v", err)
+	// 	}
+	// 	asc.CountFaultDomains = nodesAVSet.CountFaultDomains
+	// 	asc.CountUpdateDomains = nodesAVSet.CountUpdateDomains
+	// }
+	//
+	// if ia.state != nil {
+	// 	if asc.CountFaultDomains == nil {
+	// 		if v, ok := ia.state.Data[CountFaultDomainsKey]; ok {
+	// 			if v, err := strconv.Atoi(v); err != nil {
+	// 				asc.CountFaultDomains = to.Ptr(int32(v))
+	// 			}
+	// 		}
+	// 	}
+	// 	if asc.CountUpdateDomains == nil {
+	// 		if v, ok := ia.state.Data[CountUpdateDomainsKey]; ok {
+	// 			if v, err := strconv.Atoi(v); err != nil {
+	// 				asc.CountUpdateDomains = to.Ptr(int32(v))
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	if asc.CountFaultDomains == nil {
 		count, err := helper.FindDomainCountByRegion(ia.profile.CountFaultDomains, ia.Region())
@@ -226,9 +241,9 @@ type RouteTableConfig struct {
 func (ia *InfrastructureAdapter) RouteTableConfig() RouteTableConfig {
 	return RouteTableConfig{
 		AzureResourceMetadata{
-			ResourceGroup: ia.ResourceGroup(),
+			ResourceGroup: ia.ResourceGroupName(),
 			Name:          "worker_route_table",
-			Kind:          RouteTable,
+			Kind:          KindRouteTable,
 		},
 	}
 }
@@ -241,9 +256,9 @@ type SecurityGroupConfig struct {
 func (ia *InfrastructureAdapter) SecurityGroupConfig() SecurityGroupConfig {
 	return SecurityGroupConfig{
 		AzureResourceMetadata{
-			ResourceGroup: ia.ResourceGroup(),
+			ResourceGroup: ia.ResourceGroupName(),
 			Name:          fmt.Sprintf("%s-workers", ia.TechnicalName()),
-			Kind:          SecurityGroup,
+			Kind:          KindSecurityGroup,
 		},
 	}
 }
@@ -322,7 +337,7 @@ func (ia *InfrastructureAdapter) zonesConfig() []ZoneConfig {
 					ResourceGroup: ia.vnetConfig.ResourceGroup,
 					Name:          ia.subnetName(&configZone.Name),
 					Parent:        ia.vnetConfig.Name,
-					Kind:          Subnet,
+					Kind:          KindSubnet,
 				},
 				cidr:            configZone.CIDR,
 				serviceEndpoint: configZone.ServiceEndpoints,
@@ -334,9 +349,9 @@ func (ia *InfrastructureAdapter) zonesConfig() []ZoneConfig {
 		if configZone.NatGateway != nil && configZone.NatGateway.Enabled {
 			ngw := &NatGatewayConfig{
 				AzureResourceMetadata: AzureResourceMetadata{
-					ResourceGroup: ia.ResourceGroup(),
+					ResourceGroup: ia.ResourceGroupName(),
 					Name:          ia.natGatewayNameForZone(configZone.Name, isMigratedZone),
-					Kind:          NatGateway,
+					Kind:          KindNatGateway,
 				},
 				IdleTimeout: configZone.NatGateway.IdleConnectionTimeoutMinutes,
 				Location:    ia.Region(),
@@ -350,7 +365,7 @@ func (ia *InfrastructureAdapter) zonesConfig() []ZoneConfig {
 						AzureResourceMetadata: AzureResourceMetadata{
 							ResourceGroup: ipRef.ResourceGroup,
 							Name:          ipRef.Name,
-							Kind:          PublicIP,
+							Kind:          KindPublicIP,
 						},
 						Zones:   []string{zoneString},
 						Managed: true,
@@ -360,9 +375,9 @@ func (ia *InfrastructureAdapter) zonesConfig() []ZoneConfig {
 			} else {
 				ip := PublicIPConfig{
 					AzureResourceMetadata: AzureResourceMetadata{
-						ResourceGroup: ia.ResourceGroup(),
+						ResourceGroup: ia.ResourceGroupName(),
 						Name:          ia.publicIPName(ngw.Name),
-						Kind:          PublicIP,
+						Kind:          KindPublicIP,
 					},
 					Managed:  false,
 					Zones:    []string{zoneString},
@@ -385,7 +400,7 @@ func (ia *InfrastructureAdapter) defaultZone() []ZoneConfig {
 				ResourceGroup: ia.vnetConfig.ResourceGroup,
 				Name:          ia.subnetName(nil),
 				Parent:        ia.vnetConfig.Name,
-				Kind:          Subnet,
+				Kind:          KindSubnet,
 			},
 			cidr:            *config.Networks.Workers,
 			serviceEndpoint: config.Networks.ServiceEndpoints,
@@ -398,9 +413,9 @@ func (ia *InfrastructureAdapter) defaultZone() []ZoneConfig {
 
 	ngw := &NatGatewayConfig{
 		AzureResourceMetadata: AzureResourceMetadata{
-			ResourceGroup: ia.ResourceGroup(),
+			ResourceGroup: ia.ResourceGroupName(),
 			Name:          ia.natGatewayName(),
-			Kind:          NatGateway,
+			Kind:          KindNatGateway,
 		},
 		IdleTimeout: config.Networks.NatGateway.IdleConnectionTimeoutMinutes,
 		Location:    ia.Region(),
@@ -415,7 +430,7 @@ func (ia *InfrastructureAdapter) defaultZone() []ZoneConfig {
 				AzureResourceMetadata: AzureResourceMetadata{
 					ResourceGroup: ipRef.ResourceGroup,
 					Name:          ipRef.Name,
-					Kind:          PublicIP,
+					Kind:          KindPublicIP,
 				},
 				Managed: true,
 			}
@@ -425,9 +440,9 @@ func (ia *InfrastructureAdapter) defaultZone() []ZoneConfig {
 	} else {
 		ip := PublicIPConfig{
 			AzureResourceMetadata: AzureResourceMetadata{
-				ResourceGroup: ia.ResourceGroup(),
+				ResourceGroup: ia.ResourceGroupName(),
 				Name:          ia.publicIPName(ngw.Name),
-				Kind:          PublicIP,
+				Kind:          KindPublicIP,
 			},
 			Managed:  false,
 			Location: ia.Region(),

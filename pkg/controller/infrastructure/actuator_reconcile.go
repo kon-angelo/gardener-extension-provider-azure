@@ -18,29 +18,28 @@ import (
 	"context"
 
 	"github.com/gardener/gardener/extensions/pkg/controller"
-	"github.com/gardener/gardener/extensions/pkg/terraformer"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	"github.com/go-logr/logr"
 )
 
 // Reconcile implements infrastructure.Actuator.
 func (a *actuator) Reconcile(ctx context.Context, log logr.Logger, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
-	return a.reconcile(ctx, log, SelectorFunc(OnReconcile), infra, cluster, terraformer.StateConfigMapInitializerFunc(terraformer.CreateState))
+	return a.reconcile(ctx, log, SelectorFunc(OnReconcile), infra, cluster)
 }
 
-func (a *actuator) reconcile(ctx context.Context, logger logr.Logger, selector StrategySelector, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster, stateInitializer terraformer.StateConfigMapInitializer) error {
+func (a *actuator) reconcile(ctx context.Context, logger logr.Logger, selector StrategySelector, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
 	useFlow, err := selector.Select(infra, cluster)
 	if err != nil {
 		return err
 	}
 
 	factory := ReconcilerFactoryImpl{
-		ctx:              ctx,
-		log:              logger,
-		a:                a,
-		infra:            infra,
-		stateInitializer: stateInitializer,
+		ctx:   ctx,
+		log:   logger,
+		a:     a,
+		infra: infra,
 	}
+
 	reconciler, err := factory.Build(useFlow)
 	if err != nil {
 		return err

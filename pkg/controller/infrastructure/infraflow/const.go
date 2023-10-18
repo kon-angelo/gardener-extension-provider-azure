@@ -12,7 +12,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 
-package infrastructure
+package infraflow
 
 const (
 	CountFaultDomainsKey     = "count_fault_domains"
@@ -20,4 +20,7 @@ const (
 	GenerationKey            = "generation"
 	PIPKey                   = "pips"
 	CreatedResourcesExistKey = "created_resources"
+
+	KeyManagedIdentityClientId = "managed_identity_client_id"
+	KeyManagedIdentityId       = "managed_identity_id"
 )

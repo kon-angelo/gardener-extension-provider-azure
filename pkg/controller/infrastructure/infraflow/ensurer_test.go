@@ -17,12 +17,16 @@ package infraflow_test
 import (
 	"context"
 	"fmt"
+	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	"github.com/Azure/azure-sdk-for-go/services/msi/mgmt/2018-11-30/msi"
+	"github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
+	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
+	"github.com/go-logr/logr"
 	"github.com/gofrs/uuid"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
@@ -30,8 +34,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
 	mockclient "github.com/gardener/gardener-extension-provider-azure/pkg/azure/client/mock"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow/shared"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
 
@@ -124,7 +131,7 @@ var _ = Describe("AzureReconciler", func() {
 		cfg := newBasicConfig()
 		It("calls the client with correct route table name", func() {
 			mock := NewMockFactoryWrapper(resourceGroupName, location)
-			// parameters := armnetwork.RouteTable{
+			// parameters := armnetwork.KindRouteTable{
 			//	Location:   to.Ptr(location),
 			//	Properties: &armnetwork.RouteTablePropertiesFormat{
 			//		//AddressSpace: &armnetwork.AddressSpace{
@@ -192,7 +199,7 @@ var _ = Describe("AzureReconciler", func() {
 			})
 		})
 	})
-	Describe("PublicIP reconcilation", func() {
+	Describe("KindPublicIP reconcilation", func() {
 		Context("with 2 Zones, no NAT enabled and user managed IP", func() {
 			cfg := newBasicConfig()
 			cfg.Networks.NatGateway = &azure.NatGatewayConfig{
@@ -325,13 +332,13 @@ var _ = Describe("AzureReconciler", func() {
 				})
 			})
 		})
-		Describe("Subnet reconcilation", func() {
+		Describe("KindSubnet reconcilation", func() {
 			cfg := newBasicConfig()
 			Context("with 2 Zones", func() {
 				cfg.Networks.Zones = []azure.Zone{{Name: 1, CIDR: "10.0.0.0/16", NatGateway: &azure.ZonedNatGatewayConfig{Enabled: true, IPAddresses: []azure.ZonedPublicIPReference{{Name: "my-ip", ResourceGroup: resourceGroupName}}}}, {Name: 2, CIDR: "10.1.0.0/16"}}
 				It("calls the client with correct nat gateway name and parameters", func() {
 					mock := NewMockFactoryWrapper(resourceGroupName, location)
-					// parameters := armnetwork.NatGateway{
+					// parameters := armnetwork.KindNatGateway{
 					//	Location: to.Ptr(location),
 					//	Properties: &armnetwork.NatGatewayPropertiesFormat{
 					//		PublicIPAddresses: []*armnetwork.SubResource{
@@ -380,7 +387,7 @@ var _ = Describe("AzureReconciler", func() {
 				cfg := newBasicConfig()
 				cfg.Networks.Zones = []azure.Zone{{Name: 1, CIDR: "10.0.0.0/16", NatGateway: &azure.ZonedNatGatewayConfig{Enabled: true, IPAddresses: []azure.ZonedPublicIPReference{{Name: "my-ip", ResourceGroup: resourceGroupName}}}}, {Name: 2, CIDR: "10.1.0.0/16"}}
 				cfg.Zoned = true
-				It("returns the correct (static) infrastructure status without AvailabilitySet and identity enrichment", func() {
+				It("returns the correct (static) infrastructure status without KindAvailabilitySet and identity enrichment", func() {
 					sut, err := infraflow.NewAzureReconciler(infra, cfg, cluster, factory)
 					Expect(err).ToNot(HaveOccurred())
 					infra, err := sut.GetInfrastructureStatus(context.TODO())
@@ -400,7 +407,7 @@ var _ = Describe("AzureReconciler", func() {
 				cfg.Zoned = false
 				cfg.Identity = &azure.IdentityConfig{Name: "my-identity", ResourceGroup: resourceGroupName}
 
-				It("enriches the status with the AvailabilitySet and identity", func() {
+				It("enriches the status with the KindAvailabilitySet and identity", func() {
 					ctrl := gomock.NewController(GinkgoT())
 					aclient := mockclient.NewMockAvailabilitySet(ctrl)
 					aclient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(&armcompute.AvailabilitySet{ID: to.Ptr("av-id")}, nil)
@@ -460,4 +467,56 @@ func (m MatchParameters) Matches(x interface{}) bool {
 func (m MatchParameters) String() string {
 	bytes, _ := armnetwork.VirtualNetwork(m).MarshalJSON()
 	return string(bytes)
+}
+
+func TestFlowContext_ensureUserPublicIp(t *testing.T) {
+	type fields struct {
+		BasicFlowContext *shared.BasicFlowContext
+		logger           logr.Logger
+		persistFunc      infraflow.PersistStateFunc
+		cfg              *azure.InfrastructureConfig
+		factory          client.Factory
+		auth             *internal.ClientAuth
+		infra            *extensionsv1alpha1.Infrastructure
+		state            *azure.InfrastructureState
+		cluster          *controller.Cluster
+		whiteboard       shared.Whiteboard
+		adapter          *InfrastructureAdapter
+		provider         infraflow.Access
+		inventory        *SimpleInventory[*azure.Identifier]
+	}
+	type args struct {
+		ctx   context.Context
+		ipCfg infraflow.PublicIPConfig
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &infraflow.FlowContext{
+				BasicFlowContext: tt.fields.BasicFlowContext,
+				logger:           tt.fields.logger,
+				persistFunc:      tt.fields.persistFunc,
+				cfg:              tt.fields.cfg,
+				factory:          tt.fields.factory,
+				auth:             tt.fields.auth,
+				infra:            tt.fields.infra,
+				state:            tt.fields.state,
+				cluster:          tt.fields.cluster,
+				whiteboard:       tt.fields.whiteboard,
+				adapter:          tt.fields.adapter,
+				provider:         tt.fields.provider,
+				inventory:        tt.fields.inventory,
+			}
+			if err := f.ensureUserPublicIp(tt.args.ctx, tt.args.ipCfg); (err != nil) != tt.wantErr {
+				t.Errorf("ensureUserPublicIp() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
 }

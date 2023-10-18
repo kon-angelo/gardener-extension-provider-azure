@@ -279,6 +279,7 @@ type InfrastructureState struct {
 }
 
 type Identifier struct {
-	Kind string `json:"kind"`
-	Id   string `json:"id"`
+	Kind  string `json:"kind"`
+	Id    string `json:"id"`
+	Owner string `json:"owner,omitempty"`
 }

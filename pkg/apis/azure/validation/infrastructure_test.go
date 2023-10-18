@@ -450,7 +450,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 					Expect(errorList).To(ConsistOfFields(Fields{
 						"Type":   Equal(field.ErrorTypeRequired),
 						"Field":  Equal("networks.natGateway.ipAddresses[0].resourceGroup"),
-						"Detail": Equal("ResourceGroup for NatGateway public ip resouce is required"),
+						"Detail": Equal("ResourceGroupName for NatGateway public ip resouce is required"),
 					}))
 				})
 			})

@@ -30,15 +30,18 @@ import (
 	"github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow/shared"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
-	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
+
+// type PersistFunc func(ctx context.Context, runtimeClient k8sclient.Client, infra *extensionsv1alpha1.Infrastructure, status *v1alpha1.InfrastructureStatus, state *runtime.RawExtension) error
+
+type PersistStateFunc func(ctx context.Context, state *runtime.RawExtension) error
 
 // FlowContext is the reconciler for all managed resources
 type FlowContext struct {
 	*shared.BasicFlowContext
 	logger logr.Logger
 
-	persistFunc func(ctx context.Context, extension *runtime.RawExtension) error
+	persistFunc PersistStateFunc
 	cfg         *azure.InfrastructureConfig
 	factory     client.Factory
 	auth        *internal.ClientAuth
@@ -48,7 +51,7 @@ type FlowContext struct {
 	whiteboard  shared.Whiteboard
 	adapter     *InfrastructureAdapter
 	provider    Access
-	inventory   *SimpleInventory[*azure.Identifier]
+	inventory   *SimpleInventory[azure.Identifier]
 }
 
 // NewFlowContext creates a new FlowContext.
@@ -58,7 +61,7 @@ func NewFlowContext(factory client.Factory,
 	infra *extensionsv1alpha1.Infrastructure,
 	cluster *controller.Cluster,
 	state *azure.InfrastructureState,
-	persistFunc func(context.Context, *runtime.RawExtension) error,
+	persistFunc PersistStateFunc,
 ) (*FlowContext, error) {
 	wb := shared.NewWhiteboard()
 	for k, v := range state.Data {
@@ -83,6 +86,11 @@ func NewFlowContext(factory client.Factory,
 		}
 	}
 
+	inv := NewSimpleInventory[azure.Identifier]()
+	for _, r := range state.Inventory {
+		inv.Insert(r)
+	}
+
 	adapter, err := NewInfrastructureAdapter(
 		infra,
 		cfg,
@@ -101,6 +109,7 @@ func NewFlowContext(factory client.Factory,
 		auth:             auth,
 		logger:           logger,
 		infra:            infra,
+		state:            state,
 		cluster:          cluster,
 		cfg:              cfg,
 		whiteboard:       wb,
@@ -108,12 +117,12 @@ func NewFlowContext(factory client.Factory,
 			factory,
 		},
 		adapter:   adapter,
-		inventory: NewSimpleInventory[*azure.Identifier](),
+		inventory: inv,
 	}
 
 	if persistFunc != nil {
 		fc.persistFunc = persistFunc
-		fc.BasicFlowContext = shared.NewBasicFlowContext(logger, wb, fc.Persistor)
+		fc.BasicFlowContext = shared.NewBasicFlowContext(logger, wb, fc.Persist)
 	}
 	return fc, nil
 }
@@ -139,7 +148,7 @@ func (f *FlowContext) buildReconcileGraph() *flow.Graph {
 	f.AddTask(g, "ensure availability set", f.EnsureAvailabilitySet, shared.DoIf(f.adapter.AvailabilitySetConfig() != nil), shared.Dependencies(resourceGroup))
 	routeTable := f.AddTask(g, "ensure route table", f.EnsureRouteTable, shared.Dependencies(resourceGroup))
 	securityGroup := f.AddTask(g, "ensure security group", f.EnsureSecurityGroup, shared.Dependencies(resourceGroup))
-	ip := f.AddTask(g, "ensure pips", f.EnsurePublicIPs, shared.Dependencies(resourceGroup))
+	ip := f.AddTask(g, "ensure pips", f.EnsurePublicIps, shared.Dependencies(resourceGroup))
 	nat := f.AddTask(g, "ensure nats", f.EnsureNatGateways, shared.Dependencies(resourceGroup, ip))
 	f.AddTask(g, "ensure subnets", f.EnsureSubnets, shared.Dependencies(vnet, routeTable, securityGroup, nat))
 	return g
@@ -149,7 +158,7 @@ func (f *FlowContext) buildReconcileGraph() *flow.Graph {
 func (f *FlowContext) Delete(ctx context.Context) error {
 	if len(f.state.Inventory) == 0 {
 		// special case where the credentials were invalid from the beginning
-		if _, ok := f.state.Data[infrastructure.CreatedResourcesExistKey]; ok {
+		if _, ok := f.state.Data[CreatedResourcesExistKey]; ok {
 			return nil
 		}
 	}
@@ -165,7 +174,7 @@ func (f *FlowContext) Delete(ctx context.Context) error {
 	return nil
 }
 
-func (f *FlowContext) Persistor(ctx context.Context, _ shared.FlatMap) error {
+func (f *FlowContext) Persist(ctx context.Context, _ shared.FlatMap) error {
 	state, err := f.GetInfrastructureState()
 	if err != nil {
 		return err

@@ -16,12 +16,9 @@ package infraflow
 
 import (
 	"fmt"
-	"net/url"
 	"reflect"
-	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
-	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
 )
 
 type AzureResourceKind string
@@ -31,27 +28,38 @@ func (a AzureResourceKind) String() string {
 }
 
 const (
-	VirtualNetwork    AzureResourceKind = "virtualNetworks"
-	RouteTable        AzureResourceKind = "routeTables"
-	SecurityGroup     AzureResourceKind = "networkSecurityGroups"
-	NatGateway        AzureResourceKind = "natGateways"
-	PublicIP          AzureResourceKind = "publicIPAddresses"
-	Subnet            AzureResourceKind = "subnets"
-	AvailabilitySet   AzureResourceKind = "availabilitySets"
-	KindResourceGroup AzureResourceKind = "resourceGroups"
+	KindResourceGroup   AzureResourceKind = "resourceGroups"
+	KindVirtualNetwork  AzureResourceKind = "virtualNetworks"
+	KindRouteTable      AzureResourceKind = "routeTables"
+	KindSecurityGroup   AzureResourceKind = "networkSecurityGroups"
+	KindNatGateway      AzureResourceKind = "natGateways"
+	KindPublicIP        AzureResourceKind = "publicIPAddresses"
+	KindSubnet          AzureResourceKind = "subnets"
+	KindAvailabilitySet AzureResourceKind = "availabilitySets"
 )
 
+var ResourceCatalog = []AzureResourceKind{
+	KindResourceGroup,
+	KindVirtualNetwork,
+	KindRouteTable,
+	KindSecurityGroup,
+	KindNatGateway,
+	KindPublicIP,
+	KindAvailabilitySet,
+	KindSubnet,
+}
+
 const (
-	PublicIPTemplate          = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/publicIPAddresses/%s"
+	PublicIPIdTemplate        = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/publicIPAddresses/%s"
 	NatGatewayIdTemplate      = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/natGateways/%s"
-	SecurityGroupTemplate     = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s"
-	RouteTableTemplate        = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/routeTables/%s"
-	AvailabilitySetIDTemplate = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/availabilitySets/%s"
-	ResourceGroupIDTemplate   = "/subscriptions/%s/resourceGroups/%s"
+	SecurityGroupIdTemplate   = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s"
+	RouteTableIdTemplate      = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/routeTables/%s"
+	AvailabilitySetIdTemplate = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/availabilitySets/%s"
+	ResourceGroupIdTemplate   = "/subscriptions/%s/resourceGroups/%s"
 )
 
 func ResourceGroupIdFromTemplate(subscription, name string) string {
-	return fmt.Sprintf(ResourceGroupIDTemplate, subscription, name)
+	return fmt.Sprintf(ResourceGroupIdTemplate, subscription, name)
 }
 
 func GetIdFromTemplate(template, subscription, rgName, name string) string {
@@ -63,43 +71,6 @@ type AzureResourceMetadata struct {
 	Name          string
 	Parent        string
 	Kind          AzureResourceKind
-}
-
-// AzureResourceIdentifierFromID returns the identifier from parsing the object ID. It will always return a non-nil
-// identifier if there was no error.
-func AzureResourceIdentifierFromID(id string) (*AzureResourceMetadata, error) {
-	rid, err := resourceids.ParseAzureResourceID(id)
-	if err != nil {
-		return nil, err
-	}
-
-	// the Name of the resource is not always there, especially in cases where they are referenced as subresources
-	// from dependent resources.
-	name, err := ResourceNameFromID(id)
-	if err != nil {
-		return nil, err
-	}
-
-	return &AzureResourceMetadata{
-		ResourceGroup: rid.ResourceGroup,
-		Name:          name,
-	}, nil
-}
-
-// ResourceNameFromID returns the name of a resource based on its assigned ID.
-func ResourceNameFromID(id string) (string, error) {
-	idURL, err := url.ParseRequestURI(id)
-	if err != nil {
-		return "", err
-	}
-
-	path := idURL.Path
-
-	path = strings.TrimPrefix(path, "/")
-	path = strings.TrimSuffix(path, "/")
-
-	components := strings.Split(path, "/")
-	return components[len(components)-1], nil
 }
 
 // ForceNewIp checks if the resource can be reconciled. If not, returns the offender's name.

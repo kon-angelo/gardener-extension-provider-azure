@@ -437,44 +437,6 @@ int32
 </tr>
 </tbody>
 </table>
-<h3 id="azure.provider.extensions.gardener.cloud/v1alpha1.AzureResource">AzureResource
-</h3>
-<p>
-(<em>Appears on:</em>
-<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.InfrastructureState">InfrastructureState</a>)
-</p>
-<p>
-</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<code>kind</code></br>
-<em>
-string
-</em>
-</td>
-<td>
-</td>
-</tr>
-<tr>
-<td>
-<code>id</code></br>
-<em>
-string
-</em>
-</td>
-<td>
-</td>
-</tr>
-</tbody>
-</table>
 <h3 id="azure.provider.extensions.gardener.cloud/v1alpha1.CloudControllerManagerConfig">CloudControllerManagerConfig
 </h3>
 <p>
@@ -543,6 +505,54 @@ int32
 </td>
 <td>
 <p>Count is the count value for the respective domain count.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="azure.provider.extensions.gardener.cloud/v1alpha1.Identifier">Identifier
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.InfrastructureState">InfrastructureState</a>)
+</p>
+<p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>kind</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>id</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>owner</code></br>
+<em>
+string
+</em>
+</td>
+<td>
 </td>
 </tr>
 </tbody>
@@ -679,10 +689,10 @@ map[string]string
 </tr>
 <tr>
 <td>
-<code>resources</code></br>
+<code>inventory</code></br>
 <em>
-<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.AzureResource">
-[]AzureResource
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.Identifier">
+[]Identifier
 </a>
 </em>
 </td>

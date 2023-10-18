@@ -21,16 +21,17 @@ import (
 type TerminalSpecMismatchError struct {
 	AzureResourceMetadata
 	Offender string
-	Expected string
+	Expected any
+	Found    any
 }
 
-func NewTerminalSpecMismatch(identifier AzureResourceMetadata, offender, expected string) *TerminalSpecMismatchError {
-	return &TerminalSpecMismatchError{identifier, offender, expected}
+func NewTerminalSpecMismatch(identifier AzureResourceMetadata, offender string, expected, found any) *TerminalSpecMismatchError {
+	return &TerminalSpecMismatchError{AzureResourceMetadata: identifier, Offender: offender, Expected: expected, Found: found}
 }
 
 func (t *TerminalSpecMismatchError) Error() string {
 	return fmt.Sprintf("differences between the current and target spec require the object to be deleted, but "+
-		"the operation is not supported yet. Resource: %s, Name: %s, Offender: %s, Expected: %s", t.Kind, t.Name, t.Offender, t.Expected)
+		"the operation is not supported. Resource: %s, Name: %s, Offender: %s, Expected: %v, Found: %v", t.Kind, t.Name, t.Offender, t.Expected, t.Found)
 }
 
 type TerminalConditionError struct {
@@ -43,7 +44,7 @@ func NewTerminalConditionError(identifier AzureResourceMetadata, err error) *Ter
 }
 
 func (t *TerminalConditionError) Error() string {
-	return fmt.Sprintf("Unreconcilable error occured. Resource: %s, Name: %s, Error: %s", t.Kind, t.Name, t.error)
+	return fmt.Sprintf("terminal error prevents successful reconciliation. Resource: %s, Name: %s, Error: %s", t.Kind, t.Name, t.error)
 }
 
 func (t *TerminalConditionError) Unwrap() error {

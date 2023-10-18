@@ -16,7 +16,6 @@ package infrastructure
 
 import (
 	"context"
-	"errors"
 
 	"github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/extensions/pkg/terraformer"
@@ -29,7 +28,6 @@ import (
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
-	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
 
 // FlowReconciler an implementation of an infrastructure reconciler using native SDKs.
@@ -58,14 +56,9 @@ func (f *FlowReconciler) Reconcile(ctx context.Context, infra *extensionsv1alpha
 	}
 
 	if !f.tf.IsStateEmpty(ctx) {
-		// this is really a special case when migrating from Terraform. If TF had created any resources (meaning there is an actual tf.state written)
+		// this is a special case when migrating from Terraform. If TF had created any resources (meaning there is an actual tf.state written)
 		// we mark that there are infra resources created.
-		infraState.Data[infrastructure.CreatedResourcesExistKey] = "true"
-	}
-
-	factory, err := NewAzureClientFactory(ctx, f.client, infra.Spec.SecretRef)
-	if err != nil {
-		return err
+		infraState.Data[infraflow.CreatedResourcesExistKey] = "true"
 	}
 
 	auth, err := internal.GetClientAuthData(ctx, f.client, infra.Spec.SecretRef, false)
@@ -73,22 +66,26 @@ func (f *FlowReconciler) Reconcile(ctx context.Context, infra *extensionsv1alpha
 		return err
 	}
 
-	persistor := func(ctx context.Context, state *runtime.RawExtension) error {
-		return patchProviderStatusAndState(ctx, infra, nil, state, f.client)
+	factory, err := NewAzureClientFactory(ctx, f.client, infra.Spec.SecretRef)
+	if err != nil {
+		return err
 	}
 
-	fctx, err := infraflow.NewFlowContext(factory, auth, f.log, infra, cluster, infraState, persistor)
+	persistFunc := func(ctx context.Context, state *runtime.RawExtension) error {
+		return patchProviderStatusAndState(ctx, f.client, infra, nil, state)
+	}
+
+	fctx, err := infraflow.NewFlowContext(factory, auth, f.log, infra, cluster, infraState, persistFunc)
 	if err != nil {
 		return err
 	}
 
 	status, state, err := fctx.Reconcile(ctx)
 	if err != nil {
-		inErr := persistor(ctx, state)
-		return errors.Join(err, inErr)
+		return err
 	}
 
-	if err := patchProviderStatusAndState(ctx, infra, status, state, f.client); err != nil {
+	if err := patchProviderStatusAndState(ctx, f.client, infra, status, state); err != nil {
 		return err
 	}
 	return CleanupTerraformerResources(ctx, f.tf)
@@ -112,4 +109,8 @@ func (f *FlowReconciler) Delete(ctx context.Context, infra *extensionsv1alpha1.I
 	}
 
 	return fctx.Delete(ctx)
+}
+
+func (f *FlowReconciler) Restore(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
+	return f.Reconcile(ctx, infra, cluster)
 }

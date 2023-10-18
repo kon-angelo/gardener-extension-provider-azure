@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow/shared"
-	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
 
 // GetObject returns the object and attempts to cast it to the specified type.
@@ -78,6 +77,15 @@ func ToMap[T comparable, Y comparable](arr []T, f func(T) Y) map[Y]T {
 	return res
 }
 
+func ToList[T comparable, Y any](m map[T]Y) []Y {
+	res := make([]Y, 0, len(m))
+	for _, v := range m {
+		res = append(res, v)
+	}
+
+	return res
+}
+
 func CopyMap[T comparable, Y any](src map[T]Y) map[T]Y {
 	if src == nil {
 		return nil
@@ -106,7 +114,7 @@ func Join[K comparable, V any](m1, m2 map[K]V) map[K]V {
 
 type Identifier interface {
 	GetId() string
-	GetOwnerId() *string
+	GetOwnerId() string
 }
 
 type SimpleInventory[T Identifier] struct {
@@ -124,19 +132,19 @@ func NewSimpleInventory[T Identifier]() *SimpleInventory[T] {
 func (i *SimpleInventory[T]) Insert(t T) {
 	i.inventory[t.GetId()] = t
 
-	if pid := t.GetOwnerId(); pid != nil {
-		if _, ok := i.byOwner[*pid]; !ok {
-			i.byOwner[*pid] = make(map[string]T)
+	if pid := t.GetOwnerId(); len(pid) > 0 {
+		if _, ok := i.byOwner[pid]; !ok {
+			i.byOwner[pid] = make(map[string]T)
 		}
-		i.byOwner[*pid][t.GetId()] = t
+		i.byOwner[pid][t.GetId()] = t
 	}
 }
 
 func (i *SimpleInventory[T]) Delete(t T) {
 	delete(i.inventory, t.GetId())
 
-	if t.GetOwnerId() != nil {
-		delete(i.byOwner[*t.GetOwnerId()], t.GetId())
+	if pid := t.GetOwnerId(); len(pid) > 0 {
+		delete(i.byOwner[pid], t.GetId())
 	}
 
 	if _, ok := i.byOwner[t.GetId()]; ok {
@@ -144,6 +152,10 @@ func (i *SimpleInventory[T]) Delete(t T) {
 	}
 }
 
+func (i *SimpleInventory[T]) ToList() []T {
+	return ToList(i.inventory)
+}
+
 func (f *FlowContext) ForceGen() {
-	f.whiteboard.Set(infrastructure.GenerationKey, time.Now().String())
+	f.whiteboard.Set(GenerationKey, time.Now().String())
 }

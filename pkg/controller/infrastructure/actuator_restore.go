@@ -16,42 +16,33 @@ package infrastructure
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/gardener/gardener/extensions/pkg/controller"
-	"github.com/gardener/gardener/extensions/pkg/terraformer"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	"github.com/go-logr/logr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
 
 // Restore implements infrastructure.Actuator.
 func (a *actuator) Restore(ctx context.Context, log logr.Logger, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
-	ok, err := hasFlowState(infra.Status)
+	return a.restore(ctx, log, SelectorFunc(OnRestore), infra, cluster)
+}
+
+func (a *actuator) restore(ctx context.Context, logger logr.Logger, selector StrategySelector, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
+	useFlow, err := selector.Select(infra, cluster)
 	if err != nil {
 		return err
 	}
 
-	var initializer terraformer.StateConfigMapInitializer
-	if !ok {
-		infraState := &infrastructure.InfrastructureState{}
-		if err := json.Unmarshal(infra.Status.State.Raw, infraState); err != nil {
-			return err
-		}
-
-		terraformState, err := terraformer.UnmarshalRawState(infraState.TerraformState)
-		if err != nil {
-			return err
-		}
-		initializer = terraformer.CreateOrUpdateState{State: &terraformState.Data}
-		patch := client.MergeFrom(infra.DeepCopy())
-		infra.Status.ProviderStatus = infraState.SavedProviderStatus
-		if err := a.client.Status().Patch(ctx, infra, patch); err != nil {
-			return err
-		}
+	factory := ReconcilerFactoryImpl{
+		ctx:   ctx,
+		log:   logger,
+		a:     a,
+		infra: infra,
 	}
 
-	return a.reconcile(ctx, log, SelectorFunc(OnRestore), infra, cluster, initializer)
+	reconciler, err := factory.Build(useFlow)
+	if err != nil {
+		return err
+	}
+	return reconciler.Restore(ctx, infra, cluster)
 }

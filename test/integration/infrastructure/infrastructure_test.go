@@ -79,6 +79,7 @@ var (
 	region         = flag.String("region", "", "Azure region")
 	secretYamlPath = flag.String("secret-path", "", "Yaml file with secret including Azure credentials")
 	useFlow        = flag.Bool("use-flow", false, "Set annotation to use flow for reconcilation")
+	migrateFlow    = flag.Bool("migrate-flow", false, "Set annotation to use flow for reconcilation")
 )
 
 type azureClientSet struct {

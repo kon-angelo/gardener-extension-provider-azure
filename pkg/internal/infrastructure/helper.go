@@ -25,6 +25,7 @@ import (
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	apiv1alpha1 "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
@@ -121,4 +122,31 @@ func DeleteNodeSubnetIfExists(ctx context.Context, factory azureclient.Factory, 
 	}
 
 	return nil
+}
+
+func PatchProviderStatusAndState(
+	ctx context.Context,
+	infra *extensionsv1alpha1.Infrastructure,
+	status *apiv1alpha1.InfrastructureStatus,
+	state *runtime.RawExtension,
+	runtimeClient client.Client,
+) error {
+	// infraObjectKey := client.ObjectKey{
+	// 	Namespace: infra.Namespace,
+	// 	Name:      infra.Name,
+	// }
+	//
+	// infra = &extensionsv1alpha1.Infrastructure{}
+	// if err := runtimeClient.Get(ctx, infraObjectKey, infra); err != nil {
+	// 	return err
+	// }
+	modded := infra.DeepCopy()
+	if status != nil {
+		modded.Status.ProviderStatus = &runtime.RawExtension{Object: status}
+	}
+	if state != nil {
+		modded.Status.State = state
+	}
+
+	return runtimeClient.Status().Patch(ctx, modded, client.MergeFrom(infra))
 }

@@ -63,3 +63,17 @@ func (mr *MockReconcilerMockRecorder) Reconcile(arg0, arg1, arg2 interface{}) *g
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reconcile", reflect.TypeOf((*MockReconciler)(nil).Reconcile), arg0, arg1, arg2)
 }
+
+// Restore mocks base method.
+func (m *MockReconciler) Restore(arg0 context.Context, arg1 *v1alpha1.Infrastructure, arg2 *extensions.Cluster) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Restore", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Restore indicates an expected call of Restore.
+func (mr *MockReconcilerMockRecorder) Restore(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restore", reflect.TypeOf((*MockReconciler)(nil).Restore), arg0, arg1, arg2)
+}

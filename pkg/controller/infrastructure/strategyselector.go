@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/gardener/gardener/extensions/pkg/controller"
-	"github.com/gardener/gardener/extensions/pkg/terraformer"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	"github.com/gardener/gardener/pkg/extensions"
 	"github.com/go-logr/logr"
@@ -20,6 +19,9 @@ type Reconciler interface {
 	Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error
 	// Delete removes any created infrastructure resource on the provider.
 	Delete(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error
+	// Restore restores the infrastructure after a control plane migration. Effectively it performs a recovery of data from the infrastructure.status.state and
+	// proceeds to reconcile.
+	Restore(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error
 }
 
 // ReconcilerFactory can construct the different infrastructure reconciler implementations.
@@ -29,11 +31,10 @@ type ReconcilerFactory interface {
 
 // ReconcilerFactoryImpl is an implementation of a ReconcilerFactory
 type ReconcilerFactoryImpl struct {
-	ctx              context.Context
-	log              logr.Logger
-	a                *actuator
-	infra            *extensionsv1alpha1.Infrastructure
-	stateInitializer terraformer.StateConfigMapInitializer
+	ctx   context.Context
+	log   logr.Logger
+	a     *actuator
+	infra *extensionsv1alpha1.Infrastructure
 }
 
 // Build builds the Reconciler according to the arguments.
@@ -51,7 +52,7 @@ func (f ReconcilerFactoryImpl) Build(useFlow bool) (Reconciler, error) {
 		return reconciler, nil
 	}
 
-	reconciler, err := NewTerraformReconciler(f.a, f.log, tf, f.stateInitializer)
+	reconciler, err := NewTerraformReconciler(f.a, f.log, tf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init terraform reconciler: %w", err)
 	}

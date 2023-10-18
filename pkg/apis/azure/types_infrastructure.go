@@ -15,7 +15,6 @@
 package azure
 
 import (
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -255,17 +254,13 @@ type InfrastructureState struct {
 type Identifier struct {
 	Kind  string
 	Id    string
-	Owner *Identifier
+	Owner string
 }
 
-func (a *Identifier) GetId() string {
+func (a Identifier) GetId() string {
 	return a.Id
 }
 
-func (a *Identifier) GetOwnerId() *string {
-	if a.Owner != nil {
-		return to.Ptr(a.Owner.Id)
-	}
-
-	return nil
+func (a Identifier) GetOwnerId() string {
+	return a.Owner
 }
