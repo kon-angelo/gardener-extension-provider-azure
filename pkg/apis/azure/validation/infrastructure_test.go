@@ -420,7 +420,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 					Expect(errorList).To(ConsistOfFields(Fields{
 						"Type":   Equal(field.ErrorTypeInvalid),
 						"Field":  Equal("networks.natGateway.zone"),
-						"Detail": Equal("Public IPs can only be selected for zonal NatGateways"),
+						"Detail": Equal("Public IpConfigs can only be selected for zonal NatGateways"),
 					}))
 				})
 
@@ -450,7 +450,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 					Expect(errorList).To(ConsistOfFields(Fields{
 						"Type":   Equal(field.ErrorTypeRequired),
 						"Field":  Equal("networks.natGateway.ipAddresses[0].resourceGroup"),
-						"Detail": Equal("ResourceGroup for NatGateway public ip resouce is required"),
+						"Detail": Equal("ResourceGroupName for NatGateway public ip resouce is required"),
 					}))
 				})
 			})
@@ -540,7 +540,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 				Expect(ValidateInfrastructureConfig(infrastructureConfig, &networking, hasVmoAlphaAnnotation, providerPath)).To(BeEmpty())
 			})
 
-			It("should succeed with NAT Gateway and  public IPs", func() {
+			It("should succeed with NAT Gateway and  public IpConfigs", func() {
 				infrastructureConfig.Networks.Zones[0].NatGateway = &apisazure.ZonedNatGatewayConfig{
 					Enabled: true,
 					IPAddresses: []apisazure.ZonedPublicIPReference{
