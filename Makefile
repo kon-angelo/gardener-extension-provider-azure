@@ -24,6 +24,7 @@ EFFECTIVE_VERSION           := $(VERSION)-$(shell git rev-parse HEAD)
 LD_FLAGS                    := "-w $(shell $(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/get-build-ld-flags.sh k8s.io/component-base $(REPO_ROOT)/VERSION $(EXTENSION_PREFIX))"
 LEADER_ELECTION             := false
 IGNORE_OPERATION_ANNOTATION := true
+TEST_RECONCILER             := tf
 
 WEBHOOK_CONFIG_PORT	:= 8443
 WEBHOOK_CONFIG_MODE	:= url
@@ -167,7 +168,8 @@ integration-test-infra:
 		--tenant-id='$(shell cat $(TENANT_ID_FILE))' \
 		--client-id='$(shell cat $(CLIENT_ID_FILE))' \
 		--client-secret='$(shell cat $(CLIENT_SECRET_FILE))' \
-		--region=$(REGION)
+		--region=$(REGION) \
+		--reconciler=$(TEST_RECONCILER)
 
 .PHONY: integration-test-bastion
 integration-test-bastion:

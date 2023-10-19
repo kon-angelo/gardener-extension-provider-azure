@@ -16,7 +16,6 @@ package infraflow
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow/shared"
 )
@@ -154,8 +153,4 @@ func (i *SimpleInventory[T]) Delete(t T) {
 
 func (i *SimpleInventory[T]) ToList() []T {
 	return ToList(i.inventory)
-}
-
-func (f *FlowContext) ForceGen() {
-	f.whiteboard.Set(GenerationKey, time.Now().String())
 }

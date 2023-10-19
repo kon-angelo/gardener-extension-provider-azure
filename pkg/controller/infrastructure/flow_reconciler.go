@@ -108,7 +108,11 @@ func (f *FlowReconciler) Delete(ctx context.Context, infra *extensionsv1alpha1.I
 		return err
 	}
 
-	return fctx.Delete(ctx)
+	err = fctx.Delete(ctx)
+	if err != nil {
+		return err
+	}
+	return CleanupTerraformerResources(ctx, f.tf)
 }
 
 func (f *FlowReconciler) Restore(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {

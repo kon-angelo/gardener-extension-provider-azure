@@ -78,6 +78,9 @@ func OnReconcile(infra *extensionsv1alpha1.Infrastructure, cluster *extensions.C
 	if err != nil {
 		return false, err
 	}
+	if hasState {
+		return true, nil
+	}
 	return hasState || hasFlowAnnotation(infra, cluster), nil
 }
 

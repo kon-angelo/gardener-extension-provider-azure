@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
-	"testing"
 
 	extensionswebhook "github.com/gardener/gardener/extensions/pkg/webhook"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
@@ -37,11 +36,6 @@ const (
 	workerCIDR = "10.0.0.0/16"
 )
 
-func TestController(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Infrastructure Webhook Suite")
-}
-
 var _ = Describe("Mutate", func() {
 	var ctrl *gomock.Controller
 
@@ -57,7 +51,7 @@ var _ = Describe("Mutate", func() {
 		var mutator extensionswebhook.Mutator
 
 		BeforeEach(func() {
-			mutator = New(logger, NetworkLayoutMigrationMutate)
+			mutator = NewLayoutMutator(logger, NetworkLayoutMigrationMutate)
 		})
 
 		Context("add migration annotation", func() {

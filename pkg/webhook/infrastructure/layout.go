@@ -31,21 +31,21 @@ import (
 // MutateFunc is a function that can perform a mutation on Infrastructure objects.
 type MutateFunc func(ctx context.Context, logger logr.Logger, new, old *extensionsv1alpha1.Infrastructure) error
 
-type mutator struct {
+type layoutMutator struct {
 	logger     logr.Logger
 	mutateFunc MutateFunc
 }
 
-// New returns a new Infrastructure mutator that uses mutateFunc to perform the mutation.
-func New(logger logr.Logger, mutateFunc MutateFunc) extensionswebhook.Mutator {
-	return &mutator{
+// NewLayoutMutator returns a new Infrastructure layoutMutator that uses mutateFunc to perform the mutation.
+func NewLayoutMutator(logger logr.Logger, mutateFunc MutateFunc) extensionswebhook.Mutator {
+	return &layoutMutator{
 		logger:     logger,
 		mutateFunc: mutateFunc,
 	}
 }
 
 // Mutate mutates the given object using the mutateFunc
-func (m *mutator) Mutate(ctx context.Context, new, old client.Object) error {
+func (m *layoutMutator) Mutate(ctx context.Context, new, old client.Object) error {
 	var (
 		newInfra, oldInfra *extensionsv1alpha1.Infrastructure
 		ok                 bool

@@ -131,7 +131,12 @@ func NewFlowContext(factory client.Factory,
 func (f *FlowContext) Reconcile(ctx context.Context) (*v1alpha1.InfrastructureStatus, *runtime.RawExtension, error) {
 	graph := f.buildReconcileGraph()
 	fl := graph.Compile()
-	if err := fl.Run(ctx, flow.Opts{}); err != nil {
+	if err := fl.Run(ctx, flow.Opts{
+		Log:              f.Log,
+		ProgressReporter: nil,
+		ErrorCleaner:     nil,
+		ErrorContext:     nil,
+	}); err != nil {
 		state, err2 := f.GetInfrastructureState()
 		return nil, state, errors.Join(err, err2)
 	}
@@ -146,6 +151,7 @@ func (f *FlowContext) buildReconcileGraph() *flow.Graph {
 	resourceGroup := f.AddTask(g, "ensure resource group", f.EnsureResourceGroup)
 	vnet := f.AddTask(g, "ensure vnet", f.EnsureVirtualNetwork, shared.Dependencies(resourceGroup))
 	f.AddTask(g, "ensure availability set", f.EnsureAvailabilitySet, shared.DoIf(f.adapter.AvailabilitySetConfig() != nil), shared.Dependencies(resourceGroup))
+	f.AddTask(g, "ensure managed identity", f.EnsureManagedIdentity, shared.DoIf(f.cfg.Identity != nil))
 	routeTable := f.AddTask(g, "ensure route table", f.EnsureRouteTable, shared.Dependencies(resourceGroup))
 	securityGroup := f.AddTask(g, "ensure security group", f.EnsureSecurityGroup, shared.Dependencies(resourceGroup))
 	ip := f.AddTask(g, "ensure pips", f.EnsurePublicIps, shared.Dependencies(resourceGroup))

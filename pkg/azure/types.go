@@ -154,8 +154,10 @@ const (
 	// that hold service principal information to a corresponding AD tenant.
 	ExtensionPurposeServicePrincipalSecret = "tenant-service-principal-secret"
 
-	// AnnotationKeyUseFlow is the annotation key used to enable reconciliation with flow instead of terraformer.
+	// AnnotationKeyUseFlow is the annotation key used to enable reconciliation with flow.
 	AnnotationKeyUseFlow = "azure.provider.extensions.gardener.cloud/use-flow"
+	// AnnotationKeyUseTF is the annotation key used to enable reconciliation terraformer.
+	AnnotationKeyUseTF = "azure.provider.extensions.gardener.cloud/use-tf"
 	// SeedLabelKeyUseFlow is the label for seeds to enable flow reconciliation for all of its shoots if value is `true`
 	// or for new shoots only with value `new`
 	SeedLabelKeyUseFlow = AnnotationKeyUseFlow

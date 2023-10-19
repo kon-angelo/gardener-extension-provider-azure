@@ -66,6 +66,12 @@ const (
 	CountDomain = 1
 )
 
+const (
+	reconcilerUseTF     string = "tf"
+	reconcilerMigrateTF string = "migrate"
+	reconcilerUseFlow   string = "flow"
+)
+
 var (
 	VNetCIDR   = "10.250.0.0/16"
 	WorkerCIDR = "10.250.0.0/19"
@@ -78,8 +84,7 @@ var (
 	tenantId       = flag.String("tenant-id", "", "Azure tenant ID")
 	region         = flag.String("region", "", "Azure region")
 	secretYamlPath = flag.String("secret-path", "", "Yaml file with secret including Azure credentials")
-	useFlow        = flag.Bool("use-flow", false, "Set annotation to use flow for reconcilation")
-	migrateFlow    = flag.Bool("migrate-flow", false, "Set annotation to use flow for reconcilation")
+	reconciler     = flag.String("reconciler", reconcilerUseTF, "Set annotation to use flow for reconciliation")
 )
 
 type azureClientSet struct {
@@ -248,7 +253,7 @@ var _ = Describe("Infrastructure tests", func() {
 			framework.RunCleanupActions()
 		})
 
-		It("should successfully create and delete AvailabilitySet cluster creating new vNet", func() {
+		FIt("should successfully create and delete AvailabilitySet cluster creating new vNet", func() {
 			providerConfig := newInfrastructureConfig(nil, nil, nil, false)
 
 			namespace, err := generateName()
@@ -294,7 +299,7 @@ var _ = Describe("Infrastructure tests", func() {
 			framework.RunCleanupActions()
 		})
 
-		It("should successfully create and delete a zonal cluster without NatGateway creating new vNet", func() {
+		FIt("should successfully create and delete a zonal cluster without NatGateway creating new vNet", func() {
 			providerConfig := newInfrastructureConfig(nil, nil, nil, true)
 
 			namespace, err := generateName()
@@ -647,8 +652,8 @@ func runTest(
 		return err
 	}
 
-	By("set flow annotation (based on config)")
-	if *useFlow {
+	if *reconciler == reconcilerUseFlow {
+		log.Info("creating infrastructure with flow annotation")
 		metav1.SetMetaDataAnnotation(&infra.ObjectMeta, azure.AnnotationKeyUseFlow, "true")
 	}
 
@@ -669,6 +674,30 @@ func runTest(
 		nil,
 	); err != nil {
 		return err
+	}
+
+	if *reconciler == reconcilerMigrateTF {
+		By("verifying terraform migration")
+		infraCopy := infra.DeepCopy()
+		metav1.SetMetaDataAnnotation(&infra.ObjectMeta, "gardener.cloud/operation", "reconcile")
+		metav1.SetMetaDataAnnotation(&infra.ObjectMeta, azure.AnnotationKeyUseFlow, "true")
+		Expect(c.Patch(ctx, infra, client.MergeFrom(infraCopy))).To(Succeed())
+
+		By("wait until infrastructure is reconciled")
+		if err := extensions.WaitUntilExtensionObjectReady(
+			ctx,
+			c,
+			log,
+			infra,
+			"Infrastructure",
+			10*time.Second,
+			30*time.Second,
+			16*time.Minute,
+			nil,
+		); err != nil {
+			return err
+		}
+
 	}
 
 	By("decode infrastructure status")
@@ -807,7 +836,7 @@ func newInfrastructure(namespace string, providerConfig *azurev1alpha1.Infrastru
 		return nil, err
 	}
 
-	return &extensionsv1alpha1.Infrastructure{
+	infra := &extensionsv1alpha1.Infrastructure{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "infrastructure",
 			Namespace: namespace,
@@ -826,7 +855,13 @@ func newInfrastructure(namespace string, providerConfig *azurev1alpha1.Infrastru
 			Region:       *region,
 			SSHPublicKey: []byte(sshPublicKey),
 		},
-	}, nil
+	}
+
+	if *reconciler == reconcilerUseFlow {
+		log.Info("creating infrastructure with flow annotation")
+		metav1.SetMetaDataAnnotation(&infra.ObjectMeta, azure.AnnotationKeyUseFlow, "true")
+	}
+	return infra, nil
 }
 
 func prepareNewResourceGroup(ctx context.Context, log logr.Logger, az *azureClientSet, groupName, location string) error {

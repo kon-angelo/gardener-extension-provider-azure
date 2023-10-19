@@ -35,9 +35,12 @@ func FilterNotFoundError(err error) error {
 	return err
 }
 
-func isAzureAPStatusError(err error, status int) bool {
+func isAzureAPIStatusError(err error, status int) bool {
 	switch e := err.(type) {
 	case autorest.DetailedError: // error from old azure client
+		if code, ok := e.StatusCode.(int); ok && code == status {
+			return true
+		}
 		if e.Response != nil && e.Response.StatusCode == status {
 			return true
 		}
@@ -57,12 +60,12 @@ func isAzureAPStatusError(err error, status int) bool {
 
 // IsAzureAPINotFoundError tries to determine if an error is a resource not found error.
 func IsAzureAPINotFoundError(err error) bool {
-	return isAzureAPStatusError(err, http.StatusNotFound)
+	return isAzureAPIStatusError(err, http.StatusNotFound)
 }
 
 // IsAzureAPIUnauthorized tries to determine if the API error is due to unauthorized access
 func IsAzureAPIUnauthorized(err error) bool {
-	if isAzureAPStatusError(err, http.StatusUnauthorized) {
+	if isAzureAPIStatusError(err, http.StatusUnauthorized) {
 		return true
 	}
 

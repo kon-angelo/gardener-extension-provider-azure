@@ -41,8 +41,12 @@ func (f *FlowContext) EnsureResourceGroup(ctx context.Context) error {
 		return err
 	}
 
+	r, err := arm.ParseResourceID(*rg.ID)
+	if err != nil {
+		return err
+	}
 	f.inventory.Insert(azure.Identifier{
-		Kind: KindResourceGroup.String(),
+		Kind: r.ResourceType.String(),
 		Id:   *rg.ID,
 	})
 	f.whiteboard.Set(KindResourceGroup.String(), *rg.ID)
@@ -51,8 +55,6 @@ func (f *FlowContext) EnsureResourceGroup(ctx context.Context) error {
 }
 
 func (f *FlowContext) ensureResourceGroup(ctx context.Context) (*armresources.ResourceGroup, error) {
-	log := f.LogFromContext(ctx)
-
 	rgClient, err := f.factory.Group()
 	if err != nil {
 		return nil, err
@@ -66,7 +68,7 @@ func (f *FlowContext) ensureResourceGroup(ctx context.Context) (*armresources.Re
 
 	if rg != nil {
 		if location := pointer.StringDeref(rg.Location, ""); location != rgCfg.Location {
-			log.Error(NewTerminalSpecMismatch(rgCfg.AzureResourceMetadata, "location", rgCfg.Location, location), "error occurred but reconciliation will continue.")
+			return nil, NewTerminalSpecMismatch(rgCfg.AzureResourceMetadata, "location", rgCfg.Location, location)
 		}
 
 		return rg, nil
@@ -172,8 +174,12 @@ func (f *FlowContext) EnsureAvailabilitySet(ctx context.Context) error {
 		return err
 	}
 
+	r, err := arm.ParseResourceID(*avset.ID)
+	if err != nil {
+		return err
+	}
 	f.inventory.Insert(azure.Identifier{
-		Kind:  string(avsetCfg.Kind),
+		Kind:  r.ResourceType.String(),
 		Id:    *avset.ID,
 		Owner: *f.whiteboard.Get(KindResourceGroup.String()),
 	})
@@ -218,8 +224,12 @@ func (f *FlowContext) EnsureRouteTable(ctx context.Context) error {
 		return err
 	}
 
+	r, err := arm.ParseResourceID(*rt.ID)
+	if err != nil {
+		return err
+	}
 	f.inventory.Insert(azure.Identifier{
-		Kind:  KindRouteTable.String(),
+		Kind:  r.ResourceType.String(),
 		Id:    *rt.ID,
 		Owner: *f.whiteboard.Get(KindResourceGroup.String()),
 	})
@@ -264,8 +274,12 @@ func (f *FlowContext) EnsureSecurityGroup(ctx context.Context) error {
 		return err
 	}
 
+	r, err := arm.ParseResourceID(*sg.ID)
+	if err != nil {
+		return err
+	}
 	f.inventory.Insert(azure.Identifier{
-		Kind:  KindSecurityGroup.String(),
+		Kind:  r.ResourceType.String(),
 		Id:    *sg.ID,
 		Owner: *f.whiteboard.Get(KindResourceGroup.String()),
 	})
@@ -273,6 +287,7 @@ func (f *FlowContext) EnsureSecurityGroup(ctx context.Context) error {
 	f.whiteboard.Set(KindSecurityGroup.String(), *sg.ID)
 	return nil
 }
+
 func (f *FlowContext) ensureSecurityGroup(ctx context.Context) (*armnetwork.SecurityGroup, error) {
 	log := f.LogFromContext(ctx)
 	sgCfg := f.adapter.SecurityGroupConfig()
@@ -405,8 +420,12 @@ func (f *FlowContext) ensurePublicIps(ctx context.Context) error {
 			continue
 		}
 
+		r, err := arm.ParseResourceID(*ip.ID)
+		if err != nil {
+			return err
+		}
 		f.inventory.Insert(azure.Identifier{
-			Kind:  KindPublicIP.String(),
+			Kind:  r.ResourceType.String(),
 			Id:    *ip.ID,
 			Owner: *f.whiteboard.Get(KindResourceGroup.String()),
 		})
@@ -451,7 +470,7 @@ func (f *FlowContext) ensureNatGateways(ctx context.Context) error {
 	for name, cfg := range natsCfg {
 		target := cfg.ToProvider(mappedNats[name])
 		for _, ip := range cfg.PublicIPList {
-			target.Properties.PublicIPAddresses = append(target.Properties.PublicIPAddresses, &armnetwork.SubResource{ID: to.Ptr(GetIdFromTemplate(PublicIPIdTemplate, f.auth.SubscriptionID, ip.ResourceGroup, ip.Name))})
+			target.Properties.PublicIPAddresses = append(target.Properties.PublicIPAddresses, &armnetwork.SubResource{ID: to.Ptr(GetIdFromTemplate(TemplatePublicIP, f.auth.SubscriptionID, ip.ResourceGroup, ip.Name))})
 		}
 		toReconcile[name] = target
 	}
@@ -489,8 +508,12 @@ func (f *FlowContext) ensureNatGateways(ctx context.Context) error {
 			joinError = errors.Join(joinError, err)
 			continue
 		}
+		r, err := arm.ParseResourceID(*nat.ID)
+		if err != nil {
+			return err
+		}
 		f.inventory.Insert(azure.Identifier{
-			Kind:  KindNatGateway.String(),
+			Kind:  r.ResourceType.String(),
 			Id:    *nat.ID,
 			Owner: *f.whiteboard.Get(KindResourceGroup.String()),
 		})
@@ -529,8 +552,6 @@ func (f *FlowContext) ensureSubnets(ctx context.Context) (err error) {
 		return f.adapter.HasShootPrefix(s.Name)
 	})
 	mappedSubnets := ToMap(filteredSubnets, func(s *armnetwork.Subnet) string {
-		r, _ := arm.ParseResourceID(*s.ID)
-		_ = r
 		return *s.Name
 	})
 
@@ -539,10 +560,10 @@ func (f *FlowContext) ensureSubnets(ctx context.Context) (err error) {
 		actual := z.Subnet.ToProvider(mappedSubnets[z.Subnet.Name])
 		rtCfg := f.adapter.RouteTableConfig()
 		sgCfg := f.adapter.SecurityGroupConfig()
-		actual.Properties.RouteTable = &armnetwork.RouteTable{ID: to.Ptr(GetIdFromTemplate(RouteTableIdTemplate, f.auth.SubscriptionID, rtCfg.ResourceGroup, rtCfg.Name))}
-		actual.Properties.NetworkSecurityGroup = &armnetwork.SecurityGroup{ID: to.Ptr(GetIdFromTemplate(SecurityGroupIdTemplate, f.auth.SubscriptionID, sgCfg.ResourceGroup, sgCfg.Name))}
+		actual.Properties.RouteTable = &armnetwork.RouteTable{ID: to.Ptr(GetIdFromTemplate(TemplateRouteTable, f.auth.SubscriptionID, rtCfg.ResourceGroup, rtCfg.Name))}
+		actual.Properties.NetworkSecurityGroup = &armnetwork.SecurityGroup{ID: to.Ptr(GetIdFromTemplate(TemplateSecurityGroup, f.auth.SubscriptionID, sgCfg.ResourceGroup, sgCfg.Name))}
 		if z.NatGateway != nil {
-			actual.Properties.NatGateway = &armnetwork.SubResource{ID: to.Ptr(GetIdFromTemplate(NatGatewayIdTemplate, f.auth.SubscriptionID, z.NatGateway.ResourceGroup, z.NatGateway.Name))}
+			actual.Properties.NatGateway = &armnetwork.SubResource{ID: to.Ptr(GetIdFromTemplate(TemplateNatGateway, f.auth.SubscriptionID, z.NatGateway.ResourceGroup, z.NatGateway.Name))}
 		}
 		toReconcile[z.Subnet.Name] = actual
 	}
@@ -581,8 +602,12 @@ func (f *FlowContext) ensureSubnets(ctx context.Context) (err error) {
 			joinErr = errors.Join(joinErr, err)
 			continue
 		}
+		r, err := arm.ParseResourceID(*subnet.ID)
+		if err != nil {
+			return err
+		}
 		f.inventory.Insert(azure.Identifier{
-			Kind:  KindSubnet.String(),
+			Kind:  r.ResourceType.String(),
 			Id:    *subnet.ID,
 			Owner: *f.whiteboard.Get(KindVirtualNetwork.String()),
 		})
@@ -664,7 +689,7 @@ func (f *FlowContext) GetInfrastructureStatus(ctx context.Context) (*v1alpha1.In
 		status.AvailabilitySets = []v1alpha1.AvailabilitySet{
 			{
 				Purpose:            v1alpha1.PurposeNodes,
-				ID:                 GetIdFromTemplate(AvailabilitySetIdTemplate, f.auth.SubscriptionID, cfg.ResourceGroup, cfg.Name),
+				ID:                 GetIdFromTemplate(TemplateAvailabilitySet, f.auth.SubscriptionID, cfg.ResourceGroup, cfg.Name),
 				Name:               cfg.Name,
 				CountFaultDomains:  cfg.CountFaultDomains,
 				CountUpdateDomains: cfg.CountUpdateDomains,

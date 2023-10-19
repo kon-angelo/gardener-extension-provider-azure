@@ -19,6 +19,7 @@ import (
 	"flag"
 	"os"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"gopkg.in/yaml.v2"
 )
@@ -51,6 +52,9 @@ func validateFlags() {
 	}
 	if len(*region) == 0 {
 		panic("region flag is not specified")
+	}
+	if len(*reconciler) == 0 {
+		reconciler = to.Ptr(reconcilerUseTF)
 	}
 }
 

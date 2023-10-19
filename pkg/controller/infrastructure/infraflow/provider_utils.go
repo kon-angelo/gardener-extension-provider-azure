@@ -28,38 +28,38 @@ func (a AzureResourceKind) String() string {
 }
 
 const (
-	KindResourceGroup   AzureResourceKind = "resourceGroups"
-	KindVirtualNetwork  AzureResourceKind = "virtualNetworks"
-	KindRouteTable      AzureResourceKind = "routeTables"
-	KindSecurityGroup   AzureResourceKind = "networkSecurityGroups"
-	KindNatGateway      AzureResourceKind = "natGateways"
-	KindPublicIP        AzureResourceKind = "publicIPAddresses"
-	KindSubnet          AzureResourceKind = "subnets"
-	KindAvailabilitySet AzureResourceKind = "availabilitySets"
+	KindAvailabilitySet AzureResourceKind = "Microsoft.Compute/availabilitySets"
+	KindNatGateway      AzureResourceKind = "Microsoft.Network/natGateways"
+	KindPublicIP        AzureResourceKind = "Microsoft.Network/publicIPAddresses"
+	KindResourceGroup   AzureResourceKind = "Microsoft.Resources/resourceGroups"
+	KindRouteTable      AzureResourceKind = "Microsoft.Network/routeTables"
+	KindSecurityGroup   AzureResourceKind = "Microsoft.Network/networkSecurityGroups"
+	KindSubnet          AzureResourceKind = "Microsoft.Network/virtualNetworks/subnets"
+	KindVirtualNetwork  AzureResourceKind = "Microsoft.Network/virtualNetworks"
 )
 
 var ResourceCatalog = []AzureResourceKind{
-	KindResourceGroup,
-	KindVirtualNetwork,
-	KindRouteTable,
-	KindSecurityGroup,
+	KindAvailabilitySet,
 	KindNatGateway,
 	KindPublicIP,
-	KindAvailabilitySet,
+	KindResourceGroup,
+	KindRouteTable,
+	KindSecurityGroup,
 	KindSubnet,
+	KindVirtualNetwork,
 }
 
 const (
-	PublicIPIdTemplate        = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/publicIPAddresses/%s"
-	NatGatewayIdTemplate      = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/natGateways/%s"
-	SecurityGroupIdTemplate   = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s"
-	RouteTableIdTemplate      = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/routeTables/%s"
-	AvailabilitySetIdTemplate = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/availabilitySets/%s"
-	ResourceGroupIdTemplate   = "/subscriptions/%s/resourceGroups/%s"
+	TemplateAvailabilitySet = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/availabilitySets/%s"
+	TemplateNatGateway      = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/natGateways/%s"
+	TemplatePublicIP        = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/publicIPAddresses/%s"
+	TemplateResourceGroup   = "/subscriptions/%s/resourceGroups/%s"
+	TemplateRouteTable      = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/routeTables/%s"
+	TemplateSecurityGroup   = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s"
 )
 
 func ResourceGroupIdFromTemplate(subscription, name string) string {
-	return fmt.Sprintf(ResourceGroupIdTemplate, subscription, name)
+	return fmt.Sprintf(TemplateResourceGroup, subscription, name)
 }
 
 func GetIdFromTemplate(template, subscription, rgName, name string) string {

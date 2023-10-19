@@ -17,9 +17,7 @@ package infraflow
 const (
 	CountFaultDomainsKey     = "count_fault_domains"
 	CountUpdateDomainsKey    = "count_update_domains"
-	GenerationKey            = "generation"
-	PIPKey                   = "pips"
-	CreatedResourcesExistKey = "created_resources"
+	CreatedResourcesExistKey = "resources_exist"
 
 	KeyManagedIdentityClientId = "managed_identity_client_id"
 	KeyManagedIdentityId       = "managed_identity_id"

@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
 	azuretypes "github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 	azureclient "github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
@@ -106,35 +105,17 @@ func hasFlowState(status extensionsv1alpha1.InfrastructureStatus) (bool, error) 
 
 // hasFlowAnnotation returns true if the new flow reconciler should be used for the reconciliation.
 func hasFlowAnnotation(infrastructure *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) bool {
-	shootAnnotation := (infrastructure.Annotations != nil && strings.EqualFold(infrastructure.Annotations[azuretypes.AnnotationKeyUseFlow], "true")) ||
-		(cluster.Shoot != nil && cluster.Shoot.Annotations != nil && strings.EqualFold(cluster.Shoot.Annotations[azuretypes.AnnotationKeyUseFlow], "true"))
-
-	seedAnnotation := cluster.Seed != nil && cluster.Seed.Annotations != nil && strings.EqualFold(cluster.Seed.Annotations[azuretypes.AnnotationKeyUseFlow], "true")
-	return shootAnnotation || seedAnnotation
-}
-
-// NewInfrastructureState creates empty NewInfrastructureState
-func NewInfrastructureState() *v1alpha1.InfrastructureState {
-	return &v1alpha1.InfrastructureState{
-		TypeMeta: helper.InfrastructureStateTypeMeta,
-		Data:     map[string]string{},
+	if hasShootAnnotation(infrastructure, cluster, azuretypes.AnnotationKeyUseTF) {
+		return false
 	}
+
+	if hasShootAnnotation(infrastructure, cluster, azuretypes.AnnotationKeyUseFlow) {
+		return true
+	}
+
+	return cluster.Seed != nil && cluster.Seed.Annotations != nil && strings.EqualFold(cluster.Seed.Annotations[azuretypes.AnnotationKeyUseFlow], "true")
 }
 
-// func azureInfrastructureStateFromRaw(state *runtime.RawExtension) (*azure.InfrastructureState, error) {
-// 	infraState := &azure.InfrastructureState{}
-// 	if state != nil {
-// 		mixedInfraState := &infrainternal.InfrastructureState{}
-// 		if err := json.Unmarshal(state.Raw, mixedInfraState); err != nil {
-// 			return nil, err
-// 		}
-//
-// 		var err error
-// 		infraState, err = helper.InfrastructureStateFromRaw(mixedInfraState.FlowState)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 	}
-//
-// 	return infraState, nil
-// }
+func hasShootAnnotation(infrastructure *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster, key string) bool {
+	return (infrastructure.Annotations != nil && strings.EqualFold(key, "true")) || (cluster.Shoot != nil && cluster.Shoot.Annotations != nil && strings.EqualFold(key, "true"))
+}
