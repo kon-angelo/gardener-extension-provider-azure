@@ -103,8 +103,8 @@ func hasFlowState(status extensionsv1alpha1.InfrastructureStatus) (bool, error) 
 	return false, fmt.Errorf("unknown infrastructure state format")
 }
 
-// hasFlowAnnotation returns true if the new flow reconciler should be used for the reconciliation.
-func hasFlowAnnotation(infrastructure *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) bool {
+// HasFlowAnnotation returns true if the new flow reconciler should be used for the reconciliation.
+func HasFlowAnnotation(infrastructure *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) bool {
 	if hasShootAnnotation(infrastructure, cluster, azuretypes.AnnotationKeyUseTF) {
 		return false
 	}

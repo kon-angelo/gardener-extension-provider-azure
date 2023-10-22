@@ -74,6 +74,10 @@ func (p *access) DisassociatePublicIP(ctx context.Context, rgName, natName, pipI
 	}
 
 	nat, err := natClient.Get(ctx, rgName, natName, nil)
+	if err != nil {
+		return err
+	}
+
 	var natPips []*armnetwork.SubResource
 	for _, natPip := range nat.Properties.PublicIPAddresses {
 		if natPip != nil && !reflect.DeepEqual(*natPip.ID, pipId) {

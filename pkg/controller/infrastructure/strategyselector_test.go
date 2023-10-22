@@ -31,42 +31,44 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
 	azuretypes "github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow"
 	imock "github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/mock"
 	internalinfra "github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
+	"github.com/gardener/gardener-extension-provider-azure/test/utils"
 )
 
 var _ = Describe("ShouldUseFlow", func() {
 	Context("without any flow annotation", func() {
 		It("should not use FlowContext", func() {
-			cluster := internalinfra.MakeCluster("11.0.0.0/16", "12.0.0.0/16", "europe", 1, 1)
-			Expect(infrastructure.hasFlowAnnotation(&extensionsv1alpha1.Infrastructure{}, cluster)).To(BeFalse())
+			cluster := utils.MakeCluster("11.0.0.0/16", "12.0.0.0/16", "europe", 1, 1)
+			Expect(infrastructure.HasFlowAnnotation(&extensionsv1alpha1.Infrastructure{}, cluster)).To(BeFalse())
 		})
 	})
 	Context("with flow annotation in infrastruture", func() {
 		infra := &extensionsv1alpha1.Infrastructure{}
-		cluster := internalinfra.MakeCluster("11.0.0.0/16", "12.0.0.0/16", "europe", 1, 1)
+		cluster := utils.MakeCluster("11.0.0.0/16", "12.0.0.0/16", "europe", 1, 1)
 		metav1.SetMetaDataAnnotation(&infra.ObjectMeta, azuretypes.AnnotationKeyUseFlow, "true")
 		It("should use the FlowContext", func() {
-			Expect(infrastructure.hasFlowAnnotation(infra, cluster)).To(BeTrue())
+			Expect(infrastructure.HasFlowAnnotation(infra, cluster)).To(BeTrue())
 		})
 	})
 	Context("with flow annotation in shoot", func() {
-		cluster := internalinfra.MakeCluster("11.0.0.0/16", "12.0.0.0/16", "europe", 1, 1)
+		cluster := utils.MakeCluster("11.0.0.0/16", "12.0.0.0/16", "europe", 1, 1)
 		metav1.SetMetaDataAnnotation(&cluster.Shoot.ObjectMeta, azuretypes.AnnotationKeyUseFlow, "true")
 		It("should use the FlowContext", func() {
-			Expect(infrastructure.hasFlowAnnotation(&extensionsv1alpha1.Infrastructure{}, cluster)).To(BeTrue())
+			Expect(infrastructure.HasFlowAnnotation(&extensionsv1alpha1.Infrastructure{}, cluster)).To(BeTrue())
 		})
 	})
 	Context("with flow annotation in seed", func() {
-		cluster := internalinfra.MakeCluster("11.0.0.0/16", "12.0.0.0/16", "europe", 1, 1)
+		cluster := utils.MakeCluster("11.0.0.0/16", "12.0.0.0/16", "europe", 1, 1)
 		cluster.Seed = &v1beta1.Seed{}
 		metav1.SetMetaDataAnnotation(&cluster.Seed.ObjectMeta, azuretypes.AnnotationKeyUseFlow, "true")
 		It("should use the FlowContext", func() {
-			Expect(infrastructure.hasFlowAnnotation(&extensionsv1alpha1.Infrastructure{}, cluster)).To(BeTrue())
+			Expect(infrastructure.HasFlowAnnotation(&extensionsv1alpha1.Infrastructure{}, cluster)).To(BeTrue())
 		})
 	})
 })
@@ -77,20 +79,18 @@ var _ = Describe("ReconcilationStrategy", func() {
 		infra := &extensionsv1alpha1.Infrastructure{}
 		metav1.SetMetaDataAnnotation(&infra.ObjectMeta, azuretypes.AnnotationKeyUseFlow, "true")
 
-		sut := infrastructure.OnReconcile{}
+		sut := infrastructure.SelectorFunc(infrastructure.OnReconcile)
 		useFlow, err := sut.Select(infra, cluster)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(useFlow).To(BeTrue())
 	})
 	It("should use Flow if resources were reconciled with Flow before, regardless of annotation", func() {
-		emptyState := infraflow.NewPersistentState()
-		stateRaw, err := emptyState.ToJSON()
-		Expect(err).NotTo(HaveOccurred())
+		state := newInfrastructureState()
 		infra := &extensionsv1alpha1.Infrastructure{}
-		infra.Status.State = &runtime.RawExtension{Raw: stateRaw}
+		infra.Status.State = &runtime.RawExtension{Object: state}
 
-		sut := infrastructure.StrategySelector{}
-		useFlow, err := sut.OnReconcile(infra, cluster)
+		sut := infrastructure.SelectorFunc(infrastructure.OnReconcile)
+		useFlow, err := sut.Select(infra, cluster)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(useFlow).To(BeTrue())
 	})
@@ -99,98 +99,32 @@ var _ = Describe("ReconcilationStrategy", func() {
 		infra := &extensionsv1alpha1.Infrastructure{}
 		infra.Status.State = &runtime.RawExtension{Raw: getRawTerraformState(`{"provider": "terraform"}`)}
 
-		sut := infrastructure.StrategySelector{}
-		useFlow, err := sut.OnReconcile(infra, cluster)
+		sut := infrastructure.SelectorFunc(infrastructure.OnReconcile)
+		useFlow, err := sut.Select(infra, cluster)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(useFlow).To(BeFalse())
 	})
 
 	It("should delete with Terraform if resources were reconciled with Terraform", func() {
-		stateRaw := getRawTerraformState(`{"provider": "terraform"}`)
-
 		infra := &extensionsv1alpha1.Infrastructure{}
-		ctrl := gomock.NewController(GinkgoT())
-		mockClient, patchedInfra := expectStatusAndStatePatch(ctrl, infra, stateRaw)
-
-		sut := infrastructure.StrategySelector{
-			Factory: MockFactory{ctrl, stateRaw},
-			Client:  mockClient,
-		}
-		err := sut.Reconcile(context.TODO(), infra, &azure.InfrastructureConfig{}, cluster, false)
+		infra.Status.State = &runtime.RawExtension{Raw: getRawTerraformState(`{"provider": "terraform"}`)}
+		sut := infrastructure.SelectorFunc(infrastructure.OnDelete)
+		useFlow, err := sut.Select(infra, cluster)
 		Expect(err).NotTo(HaveOccurred())
-
-		deleteWithFlow, err := sut.OnDelete(patchedInfra.Status)
-		Expect(err).NotTo(HaveOccurred())
-
-		Expect(deleteWithFlow).To(BeFalse())
+		Expect(useFlow).To(BeFalse())
 	})
 	It("should delete with Flow if resources were reconciled with Flow", func() {
-		emptyState := infraflow.NewPersistentState()
-		stateRaw, err := emptyState.ToJSON()
-		Expect(err).NotTo(HaveOccurred())
-
 		infra := &extensionsv1alpha1.Infrastructure{}
-		ctrl := gomock.NewController(GinkgoT())
-		mockClient, patchedInfra := expectStatusAndStatePatch(ctrl, infra, stateRaw)
-		sut := infrastructure.StrategySelector{
-			Factory: MockFactory{ctrl, stateRaw},
-			Client:  mockClient,
-		}
+		state := newInfrastructureState()
+		infra.Status.State = &runtime.RawExtension{Object: state}
 
-		err = sut.Reconcile(context.TODO(), infra, &azure.InfrastructureConfig{}, cluster, true)
+		sut := infrastructure.SelectorFunc(infrastructure.OnDelete)
+		useFlow, err := sut.Select(infra, cluster)
 		Expect(err).NotTo(HaveOccurred())
-
-		resFlow, err := sut.OnDelete(patchedInfra.Status)
-		Expect(err).NotTo(HaveOccurred())
-
-		Expect(resFlow).To(BeTrue())
+		Expect(useFlow).To(BeTrue())
 	})
 
 })
-
-func getRawTerraformState(jsonContent string) []byte {
-	state := infrastructure.InfrastructureState{
-		TerraformState: &runtime.RawExtension{
-			Raw: []byte(jsonContent),
-		},
-	}
-	stateRaw, _ := json.Marshal(state)
-	return stateRaw
-}
-
-func expectStatusAndStatePatch(ctrl *gomock.Controller, infra *extensionsv1alpha1.Infrastructure, expectedTfStateRaw []byte) (*mockclient.MockClient, *extensionsv1alpha1.Infrastructure) {
-	mClient := mockclient.NewMockClient(ctrl)
-	sw := mockclient.NewMockStatusWriter(ctrl)
-	mClient.EXPECT().Status().Return(sw).AnyTimes()
-
-	patchedInfra := infra.DeepCopy()
-	patchedInfra.Status.State = &runtime.RawExtension{Raw: expectedTfStateRaw}
-	patchedInfra.Status.ProviderStatus = &runtime.RawExtension{Object: &v1alpha1.InfrastructureStatus{}} // reconciler mock returns an empty status
-	// expect patch with new State and Status
-	sw.EXPECT().Patch(gomock.Any(), EqMatcher(patchedInfra), gomock.Any()).Return(nil)
-	return mClient, patchedInfra
-}
-
-type MockFactory struct {
-	*gomock.Controller
-	tfState []byte
-}
-
-func (f MockFactory) Build(useFlow bool) (infrastructure.Reconciler, error) {
-	reconciler := imock.NewMockReconciler(f.Controller)
-	reconciler.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(&v1alpha1.InfrastructureStatus{}, nil)
-	if useFlow {
-		emptyState := infraflow.NewPersistentState()
-		byteState, err := emptyState.ToJSON()
-		if err != nil {
-			panic(err)
-		}
-		reconciler.EXPECT().GetState(gomock.Any(), gomock.Any()).Return(byteState, nil).AnyTimes()
-	} else {
-		reconciler.EXPECT().GetState(gomock.Any(), gomock.Any()).Return(f.tfState, nil).AnyTimes()
-	}
-	return reconciler, nil
-}
 
 type eqMatcher struct {
 	want interface{}
@@ -212,4 +146,20 @@ func (eq eqMatcher) Got(got interface{}) string {
 
 func (eq eqMatcher) String() string {
 	return fmt.Sprintf("%v (%T)\n", eq.want, eq.want)
+}
+
+func newInfrastructureState() *v1alpha1.InfrastructureState {
+	return &v1alpha1.InfrastructureState{
+		TypeMeta: helper.InfrastructureStateTypeMeta,
+	}
+}
+
+func getRawTerraformState(jsonContent string) []byte {
+	state := infrastructure.InfrastructureState{
+		TerraformState: &runtime.RawExtension{
+			Raw: []byte(jsonContent),
+		},
+	}
+	stateRaw, _ := json.Marshal(state)
+	return stateRaw
 }

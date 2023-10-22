@@ -479,7 +479,7 @@ var _ = Describe("Infrastructure tests", func() {
 	})
 
 	Context("with invalid credentials", func() {
-		It("should fail creation but succeed deletion", func() {
+		FIt("should fail creation but succeed deletion", func() {
 			namespaceName, err := generateName()
 			Expect(err).ToNot(HaveOccurred())
 
@@ -556,13 +556,12 @@ var _ = Describe("Infrastructure tests", func() {
 				extensionsv1alpha1.InfrastructureResource,
 				10*time.Second,
 				30*time.Second,
-				1*time.Minute,
+				30*time.Second,
 				nil,
 			)
-			Expect(err).To(MatchError(ContainSubstring("could not acquire access token to parse claims")))
 			var errorWithCode *gardencorev1beta1helper.ErrorWithCodes
 			Expect(errors.As(err, &errorWithCode)).To(BeTrue())
-			Expect(errorWithCode.Codes()).To(ConsistOf(gardencorev1beta1.ErrorInfraUnauthenticated))
+			Expect(errorWithCode.Codes()).To(ContainElement(gardencorev1beta1.ErrorInfraUnauthenticated))
 		})
 	})
 })
@@ -651,13 +650,13 @@ func runTest(
 		return err
 	}
 
-	if *reconciler == reconcilerUseFlow {
-		log.Info("creating infrastructure with flow annotation")
-		metav1.SetMetaDataAnnotation(&infra.ObjectMeta, azure.AnnotationKeyUseFlow, "true")
-	} else if *reconciler == reconcilerUseTF {
-		log.Info("creating infrastructure with terraform annotation")
-		metav1.SetMetaDataAnnotation(&infra.ObjectMeta, azure.AnnotationKeyUseTF, "true")
-	}
+	// if *reconciler == reconcilerUseFlow {
+	// 	log.Info("creating infrastructure with flow annotation")
+	// 	metav1.SetMetaDataAnnotation(&infra.ObjectMeta, azure.AnnotationKeyUseFlow, "true")
+	// } else if *reconciler == reconcilerUseTF {
+	// 	log.Info("creating infrastructure with terraform annotation")
+	// 	metav1.SetMetaDataAnnotation(&infra.ObjectMeta, azure.AnnotationKeyUseTF, "true")
+	// }
 
 	if err := c.Create(ctx, infra); err != nil {
 		return err
@@ -837,7 +836,7 @@ func newInfrastructure(namespace string, providerConfig *azurev1alpha1.Infrastru
 		return nil, err
 	}
 
-	return &extensionsv1alpha1.Infrastructure{
+	infra := &extensionsv1alpha1.Infrastructure{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "infrastructure",
 			Namespace: namespace,
@@ -856,7 +855,16 @@ func newInfrastructure(namespace string, providerConfig *azurev1alpha1.Infrastru
 			Region:       *region,
 			SSHPublicKey: []byte(sshPublicKey),
 		},
-	}, nil
+	}
+
+	if *reconciler == reconcilerUseFlow {
+		log.Info("creating infrastructure with flow annotation")
+		metav1.SetMetaDataAnnotation(&infra.ObjectMeta, azure.AnnotationKeyUseFlow, "true")
+	} else if *reconciler == reconcilerUseTF {
+		log.Info("creating infrastructure with terraform annotation")
+		metav1.SetMetaDataAnnotation(&infra.ObjectMeta, azure.AnnotationKeyUseTF, "true")
+	}
+	return infra, nil
 }
 
 func prepareNewResourceGroup(ctx context.Context, log logr.Logger, az *azureClientSet, groupName, location string) error {

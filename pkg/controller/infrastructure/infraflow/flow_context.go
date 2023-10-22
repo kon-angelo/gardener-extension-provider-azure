@@ -141,8 +141,7 @@ func (f *FlowContext) Reconcile(ctx context.Context) (*v1alpha1.InfrastructureSt
 			if !ok {
 				err = fmt.Errorf("panic: %v", r)
 			}
-			err = fmt.Errorf("panic occurred: %w", err)
-			f.Log.Info("recovered from panic")
+			f.LogFromContext(ctx).Error(err, "recovered from panic")
 		}
 	}()
 
@@ -156,8 +155,9 @@ func (f *FlowContext) Reconcile(ctx context.Context) (*v1alpha1.InfrastructureSt
 	}); err != nil {
 		// even if the run ends with an error we should still update our state.
 		err = flow.Causes(err)
-		state, errInternal := f.GetInfrastructureState()
-		return nil, state, errors.Join(err, errInternal)
+		f.forceGen()
+		errInternal := f.PersistState(ctx, true)
+		return nil, nil, errors.Join(err, errInternal)
 	}
 
 	status, err := f.GetInfrastructureStatus(ctx)
@@ -201,7 +201,7 @@ func (f *FlowContext) buildReconcileGraph() *flow.Graph {
 func (f *FlowContext) Delete(ctx context.Context) error {
 	if len(f.state.Items) == 0 {
 		// special case where the credentials were invalid from the beginning
-		if _, ok := f.state.Data[CreatedResourcesExistKey]; ok {
+		if _, ok := f.state.Data[CreatedResourcesExistKey]; !ok {
 			return nil
 		}
 	}
@@ -227,4 +227,8 @@ func (f *FlowContext) Persist(ctx context.Context, _ shared.FlatMap) error {
 		return err
 	}
 	return f.persistFunc(ctx, state)
+}
+
+func (f *FlowContext) forceGen() {
+	f.whiteboard.Set("time", time.Now().String())
 }

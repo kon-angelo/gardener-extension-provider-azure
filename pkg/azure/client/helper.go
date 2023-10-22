@@ -70,8 +70,5 @@ func IsAzureAPIUnauthorized(err error) bool {
 	}
 
 	inErr := &azidentity.AuthenticationFailedError{}
-	if errors.As(err, &inErr) {
-		return true
-	}
-	return false
+	return errors.As(err, &inErr)
 }

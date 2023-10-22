@@ -280,6 +280,7 @@ type NatGatewayConfig struct {
 	PublicIPList []PublicIPConfig
 }
 
+// SubnetConfig is the specification for a subnet
 type SubnetConfig struct {
 	AzureResourceMetadata
 	cidr            string
@@ -287,6 +288,7 @@ type SubnetConfig struct {
 	zone            *string
 }
 
+// ZoneConfig is the specification for a zone.
 type ZoneConfig struct {
 	Subnet     SubnetConfig
 	NatGateway *NatGatewayConfig
@@ -317,6 +319,7 @@ func (ia *InfrastructureAdapter) publicIPName(natName string) string {
 	return fmt.Sprintf("%s-ip", natName)
 }
 
+// Zones returns the target specification for the zones that need to be reconciled.
 func (ia *InfrastructureAdapter) Zones() []ZoneConfig {
 	return ia.zoneConfigs
 }

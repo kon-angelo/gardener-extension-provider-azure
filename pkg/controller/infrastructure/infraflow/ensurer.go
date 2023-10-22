@@ -328,6 +328,7 @@ func (f *FlowContext) ensureSecurityGroup(ctx context.Context) (*armnetwork.Secu
 	return sg, nil
 }
 
+// EnsurePublicIps reconciles the public IPs for the shoot.
 func (f *FlowContext) EnsurePublicIps(ctx context.Context) error {
 	return errors.Join(f.ensurePublicIps(ctx), f.ensureUserPublicIps(ctx))
 }
@@ -637,6 +638,7 @@ func (f *FlowContext) ensureSubnets(ctx context.Context) (err error) {
 	return joinErr
 }
 
+// EnsureManagedIdentity reconciles the managed identity specificed in the config.
 func (f *FlowContext) EnsureManagedIdentity(ctx context.Context) (err error) {
 	if f.cfg.Identity == nil {
 		return nil
@@ -659,7 +661,7 @@ func (f *FlowContext) EnsureManagedIdentity(ctx context.Context) (err error) {
 	return err
 }
 
-// GetInfrastructureStatus returns the infrastructure status
+// GetInfrastructureStatus returns the infrastructure status.
 func (f *FlowContext) GetInfrastructureStatus(ctx context.Context) (*v1alpha1.InfrastructureStatus, error) {
 	status := &v1alpha1.InfrastructureStatus{
 		TypeMeta: infrastructure.StatusTypeMeta,

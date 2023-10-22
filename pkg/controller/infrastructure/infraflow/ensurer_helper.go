@@ -152,6 +152,7 @@ func (i *SimpleInventory) ReplaceByKind(kind AzureResourceKind, ids ...string) e
 	return nil
 }
 
+// ByKind returns a list of all the IDs of stored objects of a particular kind.
 func (i *SimpleInventory) ByKind(kind AzureResourceKind) []string {
 	i.Lock()
 	defer i.Unlock()

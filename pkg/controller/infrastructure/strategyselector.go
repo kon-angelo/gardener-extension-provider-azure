@@ -81,7 +81,7 @@ func OnReconcile(infra *extensionsv1alpha1.Infrastructure, cluster *extensions.C
 	if hasState {
 		return true, nil
 	}
-	return hasState || hasFlowAnnotation(infra, cluster), nil
+	return hasState || HasFlowAnnotation(infra, cluster), nil
 }
 
 // OnDelete returns true if the operation should use the Flow deletion for the given cluster.
