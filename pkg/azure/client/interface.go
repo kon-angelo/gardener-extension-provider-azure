@@ -61,7 +61,7 @@ type DeleteFunc[T any] interface {
 	Delete(ctx context.Context, resourceGroupName string, resourceName string) error
 }
 
-// DeleteFunc deletes a resource.
+// DeleteWithOptsFunc deletes a resource with the specified deleteOpts.
 type DeleteWithOptsFunc[T, O any] interface {
 	Delete(ctx context.Context, resourceGroupName string, resourceName string, opts O) error
 }
@@ -71,18 +71,22 @@ type SubResourceDeleteFunc[T any] interface {
 	Delete(ctx context.Context, resourceGroupName string, parentResourceName string, resourceName string) error
 }
 
+// ContainerCreateOrUpdateFunc creates or updates a container resource for example resource groups.
 type ContainerCreateOrUpdateFunc[T any] interface {
 	CreateOrUpdate(ctx context.Context, container string, resourceParam T) (*T, error)
 }
 
+// ContainerGetFunc retrieves a container resource.
 type ContainerGetFunc[T any] interface {
 	Get(ctx context.Context, container string) (*T, error)
 }
 
+// ContainerDeleteFunc deletes the specified container resource.
 type ContainerDeleteFunc[T any] interface {
 	Delete(ctx context.Context, container string) error
 }
 
+// ContainerCheckExistenceFunc checks if the container resource exists in the infrastructure.
 type ContainerCheckExistenceFunc[T any] interface {
 	CheckExistence(ctx context.Context, container string) (bool, error)
 }

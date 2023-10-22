@@ -32,7 +32,7 @@ import (
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 )
 
-// EnsureResourceGroup creates or updates the resource group
+// EnsureResourceGroup creates or updates the shoot's resource group.
 func (f *FlowContext) EnsureResourceGroup(ctx context.Context) error {
 	log := f.LogFromContext(ctx)
 	rg, err := f.ensureResourceGroup(ctx)
@@ -87,6 +87,8 @@ func (f *FlowContext) ensureResourceGroup(ctx context.Context) (*armresources.Re
 	return rg, nil
 }
 
+// EnsureVirtualNetwork reconciles the shoot's virtual network. At the end of the step the VNet should be
+// created or in the case of user-provided vnet verify that it exists.
 func (f *FlowContext) EnsureVirtualNetwork(ctx context.Context) error {
 	var vnet *armnetwork.VirtualNetwork
 	var err error
@@ -444,6 +446,7 @@ func (f *FlowContext) ensurePublicIps(ctx context.Context) error {
 	return joinError
 }
 
+// EnsureNatGateways reconciles all the NAT Gateways for the shoot.
 func (f *FlowContext) EnsureNatGateways(ctx context.Context) error {
 	err := f.ensureNatGateways(ctx)
 	return err
@@ -727,6 +730,7 @@ func (f *FlowContext) GetInfrastructureStatus(ctx context.Context) (*v1alpha1.In
 	return status, nil
 }
 
+// GetInfrastructureState returns tha shoot's infrastructure state.
 func (f *FlowContext) GetInfrastructureState() (*runtime.RawExtension, error) {
 	state := &v1alpha1.InfrastructureState{
 		TypeMeta: helper.InfrastructureStateTypeMeta,
@@ -750,6 +754,7 @@ func (f *FlowContext) enrichStatusWithIdentity(_ context.Context, status *v1alph
 	return nil
 }
 
+// DeleteResourceGroup deletes the shoot's resource group.
 func (f *FlowContext) DeleteResourceGroup(ctx context.Context) error {
 	c, err := f.factory.Group()
 	if err != nil {

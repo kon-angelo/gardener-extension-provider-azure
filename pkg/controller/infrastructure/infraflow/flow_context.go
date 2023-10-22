@@ -128,7 +128,7 @@ func NewFlowContext(factory client.Factory,
 
 	if persistFunc != nil {
 		fc.persistFunc = persistFunc
-		fc.BasicFlowContext = shared.NewBasicFlowContext(logger, wb, fc.Persist)
+		fc.BasicFlowContext = shared.NewBasicFlowContext(logger, wb, fc.persist)
 	}
 	return fc, nil
 }
@@ -221,7 +221,8 @@ func (f *FlowContext) Delete(ctx context.Context) error {
 	return nil
 }
 
-func (f *FlowContext) Persist(ctx context.Context, _ shared.FlatMap) error {
+// persist is an implementations of the BasicFlowContext's persistFunc.
+func (f *FlowContext) persist(ctx context.Context, _ shared.FlatMap) error {
 	state, err := f.GetInfrastructureState()
 	if err != nil {
 		return err

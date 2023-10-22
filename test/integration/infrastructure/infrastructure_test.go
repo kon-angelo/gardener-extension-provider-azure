@@ -479,7 +479,7 @@ var _ = Describe("Infrastructure tests", func() {
 	})
 
 	Context("with invalid credentials", func() {
-		FIt("should fail creation but succeed deletion", func() {
+		It("should fail creation but succeed deletion", func() {
 			namespaceName, err := generateName()
 			Expect(err).ToNot(HaveOccurred())
 

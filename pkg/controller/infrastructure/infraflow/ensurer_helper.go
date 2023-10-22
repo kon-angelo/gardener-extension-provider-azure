@@ -33,6 +33,7 @@ func GetObject[T any](wb shared.Whiteboard, key string) T {
 	return o.(T)
 }
 
+// Filter filters the given array based on the provided functions.
 func Filter[T any](arr []T, fs ...func(T) bool) []T {
 	var res []T
 	for _, t := range arr {
@@ -63,26 +64,6 @@ func ToMap[T comparable, Y comparable](arr []T, f func(T) Y) map[Y]T {
 	return res
 }
 
-func ToList[T comparable, Y any](m map[T]Y) []Y {
-	res := make([]Y, 0, len(m))
-	for _, v := range m {
-		res = append(res, v)
-	}
-
-	return res
-}
-
-func CopyMap[T comparable, Y any](src map[T]Y) map[T]Y {
-	if src == nil {
-		return nil
-	}
-	dst := map[T]Y{}
-	for k, v := range src {
-		dst[k] = v
-	}
-	return dst
-}
-
 // Join merges maps by appending m2 to m1.
 func Join[K comparable, V any](m1, m2 map[K]V) map[K]V {
 	if m2 == nil {
@@ -98,17 +79,20 @@ func Join[K comparable, V any](m1, m2 map[K]V) map[K]V {
 	return m1
 }
 
+// SimpleInventory is responsible for managing a list of all infrastructure created objects.
 type SimpleInventory struct {
 	sync.Mutex
 	inventory map[string]*arm.ResourceID
 }
 
+// NewSimpleInventory returns a new instance of SimpleInventory.
 func NewSimpleInventory() *SimpleInventory {
 	return &SimpleInventory{
 		inventory: map[string]*arm.ResourceID{},
 	}
 }
 
+// Insert inserts the id to the inventory.
 func (i *SimpleInventory) Insert(id string) error {
 	i.Lock()
 	defer i.Unlock()
@@ -121,35 +105,19 @@ func (i *SimpleInventory) Insert(id string) error {
 	return nil
 }
 
+// Delete deletes the item with ID==id from the inventory and any children it may have. That means that it deletes any ID prefixed by id,
+// since azure IDs are hierarchical.
 func (i *SimpleInventory) Delete(id string) {
 	i.Lock()
 	defer i.Unlock()
 	delete(i.inventory, id)
 
 	// since azure IDs are hierarchical, we remove from our inventory all items that are prefixed by the Id we want to remove.
-	for k, _ := range i.inventory {
+	for k := range i.inventory {
 		if strings.HasPrefix(k, id) {
 			delete(i.inventory, id)
 		}
 	}
-}
-
-func (i *SimpleInventory) ReplaceByKind(kind AzureResourceKind, ids ...string) error {
-	i.Lock()
-	defer i.Unlock()
-	for k, v := range i.inventory {
-		if v.ResourceType.String() == kind.String() {
-			delete(i.inventory, k)
-		}
-	}
-
-	for _, v := range ids {
-		if err := i.Insert(v); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // ByKind returns a list of all the IDs of stored objects of a particular kind.
@@ -167,6 +135,7 @@ func (i *SimpleInventory) ByKind(kind AzureResourceKind) []string {
 	return res
 }
 
+// ToList returns a list of v1alpha1 API objects that correspond to the current inventory list.
 func (i *SimpleInventory) ToList() []v1alpha1.AzureResource {
 	i.Lock()
 	defer i.Unlock()

@@ -18,6 +18,7 @@ import (
 	"fmt"
 )
 
+// TerminalSpecMismatchError is an error to indicate that the reconciliation cannot proceed or the operation requested is not supported.
 type TerminalSpecMismatchError struct {
 	AzureResourceMetadata
 	Offender string
@@ -25,6 +26,7 @@ type TerminalSpecMismatchError struct {
 	Found    any
 }
 
+// NewTerminalSpecMismatch creates a TerminalSpecMismatch error.
 func NewTerminalSpecMismatch(identifier AzureResourceMetadata, offender string, expected, found any) *TerminalSpecMismatchError {
 	return &TerminalSpecMismatchError{AzureResourceMetadata: identifier, Offender: offender, Expected: expected, Found: found}
 }
@@ -34,11 +36,13 @@ func (t *TerminalSpecMismatchError) Error() string {
 		"the operation is not supported. Resource: %s, Name: %s, Field: %s, Expected: %v, Found: %v", t.Kind, t.Name, t.Offender, t.Expected, t.Found)
 }
 
+// TerminalConditionError is an error to mark cases where the reconciliation cannot continue.
 type TerminalConditionError struct {
 	AzureResourceMetadata
 	error
 }
 
+// NewTerminalConditionError creates a TerminalConditinoError.
 func NewTerminalConditionError(identifier AzureResourceMetadata, err error) *TerminalConditionError {
 	return &TerminalConditionError{identifier, err}
 }

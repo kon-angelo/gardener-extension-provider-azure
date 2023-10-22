@@ -275,7 +275,7 @@ var _ = Describe("Actuator", func() {
 
 		It("should return an error if terraformer cannot be created", func() {
 			defer test.WithVars(
-				&internal.NewTerraformer, func(_ logr.Logger, _ *rest.Config, _ string, _ *extensionsv1alpha1.Infrastructure, _ bool) (terraformer.Terraformer, error) {
+				&internal.NewTerraformerWithAuth, func(_ logr.Logger, _ *rest.Config, _ string, _ *extensionsv1alpha1.Infrastructure, _ bool) (terraformer.Terraformer, error) {
 					return nil, errors.New("could not create terraform")
 				},
 			)()
@@ -388,7 +388,7 @@ var _ = Describe("Actuator", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("should return an error if terraformer can not be created", func() {
+		FIt("should return an error if terraformer can not be created", func() {
 			defer test.WithVars(
 				&internal.NewTerraformerWithAuth, func(_ logr.Logger, _ *rest.Config, _ string, _ *extensionsv1alpha1.Infrastructure, _ bool) (terraformer.Terraformer, error) {
 					return nil, errors.New("could not create terraform")

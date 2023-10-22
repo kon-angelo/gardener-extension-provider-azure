@@ -78,11 +78,13 @@ func (ia *InfrastructureAdapter) TechnicalName() string {
 	return ia.infra.Namespace
 }
 
+// ResourceGroupConfig contains the configuration for a resource group.
 type ResourceGroupConfig struct {
 	AzureResourceMetadata
 	Location string
 }
 
+// ResourceGroup returns the configuration for the shoot's resource group.
 func (ia *InfrastructureAdapter) ResourceGroup() ResourceGroupConfig {
 	return ResourceGroupConfig{
 		AzureResourceMetadata: AzureResourceMetadata{
@@ -93,6 +95,7 @@ func (ia *InfrastructureAdapter) ResourceGroup() ResourceGroupConfig {
 	}
 }
 
+// ResourceGroupName returns the shoot's resource group's name.
 func (ia *InfrastructureAdapter) ResourceGroupName() string {
 	return ia.TechnicalName()
 }
@@ -169,6 +172,7 @@ func (ia *InfrastructureAdapter) availabilitySetRequired() (bool, error) {
 	return infrastructure.IsPrimaryAvailabilitySetRequired(ia.infra, ia.config, ia.cluster)
 }
 
+// AvailabilitySetConfig returns the configuration for the shoot's availability set.
 func (ia *InfrastructureAdapter) AvailabilitySetConfig() *AvailabilitySetConfig {
 	return ia.avSetConfig
 }
@@ -233,37 +237,43 @@ func (ia *InfrastructureAdapter) availabilitySetConfig() (*AvailabilitySetConfig
 	return asc, nil
 }
 
+// RouteTableConfig is the desired configuration for a route table.
 type RouteTableConfig struct {
 	AzureResourceMetadata
+	Location string
 }
 
-// RouteTableConfig returns the name of the shoot's route table.
+// RouteTableConfig returns configuration for the shoot's route table.
 func (ia *InfrastructureAdapter) RouteTableConfig() RouteTableConfig {
 	return RouteTableConfig{
-		AzureResourceMetadata{
+		AzureResourceMetadata: AzureResourceMetadata{
 			ResourceGroup: ia.ResourceGroupName(),
 			Name:          "worker_route_table",
 			Kind:          KindRouteTable,
 		},
+		Location: ia.Region(),
 	}
 }
 
+// SecurityGroupConfig is the desired configuration for a security group.
 type SecurityGroupConfig struct {
 	AzureResourceMetadata
+	Location string
 }
 
-// SecurityGroupConfig returns the name of the shoot's security group.
+// SecurityGroupConfig returns the configuration for our desired security group.
 func (ia *InfrastructureAdapter) SecurityGroupConfig() SecurityGroupConfig {
 	return SecurityGroupConfig{
-		AzureResourceMetadata{
+		AzureResourceMetadata: AzureResourceMetadata{
 			ResourceGroup: ia.ResourceGroupName(),
 			Name:          fmt.Sprintf("%s-workers", ia.TechnicalName()),
 			Kind:          KindSecurityGroup,
 		},
+		Location: ia.Region(),
 	}
 }
 
-// PublicIPConfig contains configuration for a puplic IP resource.
+// PublicIPConfig contains configuration for a public IP resource.
 type PublicIPConfig struct {
 	AzureResourceMetadata
 	Zones    []string
@@ -460,6 +470,7 @@ func (ia *InfrastructureAdapter) defaultZone() []ZoneConfig {
 	return []ZoneConfig{z}
 }
 
+// ManagedIpConfigs returns a filtered list of only the public IPs that are managed by gardener.
 func (ia *InfrastructureAdapter) ManagedIpConfigs() map[string]PublicIPConfig {
 	res := make(map[string]PublicIPConfig)
 	for _, z := range ia.zoneConfigs {
@@ -478,6 +489,7 @@ func (ia *InfrastructureAdapter) ManagedIpConfigs() map[string]PublicIPConfig {
 	return res
 }
 
+// IpConfigs is the configuration for the desired public IPs.
 func (ia *InfrastructureAdapter) IpConfigs() []PublicIPConfig {
 	var res []PublicIPConfig
 	for _, z := range ia.zoneConfigs {
@@ -490,6 +502,7 @@ func (ia *InfrastructureAdapter) IpConfigs() []PublicIPConfig {
 	return res
 }
 
+// NatGatewayConfigs is the configuration for the desired NAT Gateways.
 func (ia *InfrastructureAdapter) NatGatewayConfigs() map[string]NatGatewayConfig {
 	res := make(map[string]NatGatewayConfig)
 	for _, z := range ia.Zones() {
@@ -501,17 +514,6 @@ func (ia *InfrastructureAdapter) NatGatewayConfigs() map[string]NatGatewayConfig
 	return res
 }
 
-func (ia *InfrastructureAdapter) SubnetToNatMapping() map[string]string {
-	res := map[string]string{}
-	for _, z := range ia.Zones() {
-		if z.NatGateway == nil {
-			continue
-		}
-		res[z.Subnet.Name] = res[z.NatGateway.Name]
-	}
-	return res
-}
-
 // HasShootPrefix returns true if the target resource's name is prefixed with the shoot's canonical name.
 func (ia *InfrastructureAdapter) HasShootPrefix(name *string) bool {
 	if name == nil {
@@ -520,6 +522,7 @@ func (ia *InfrastructureAdapter) HasShootPrefix(name *string) bool {
 	return strings.HasPrefix(*name, ia.TechnicalName())
 }
 
+// ToProvider translates the config into the actual provider object.
 func (ip *PublicIPConfig) ToProvider(base *armnetwork.PublicIPAddress) *armnetwork.PublicIPAddress {
 	target := &armnetwork.PublicIPAddress{
 		Location: to.Ptr(ip.Location),
@@ -546,6 +549,7 @@ func (ip *PublicIPConfig) ToProvider(base *armnetwork.PublicIPAddress) *armnetwo
 	return target
 }
 
+// ToProvider translates the config into the actual provider object.
 func (nat *NatGatewayConfig) ToProvider(base *armnetwork.NatGateway) *armnetwork.NatGateway {
 	target := &armnetwork.NatGateway{
 		ID:       nil,
@@ -570,6 +574,7 @@ func (nat *NatGatewayConfig) ToProvider(base *armnetwork.NatGateway) *armnetwork
 	return target
 }
 
+// ToProvider translates the config into the actual provider object.
 func (s *SubnetConfig) ToProvider(base *armnetwork.Subnet) *armnetwork.Subnet {
 	target := &armnetwork.Subnet{
 		Name: to.Ptr(s.Name),
@@ -601,6 +606,7 @@ func (s *SubnetConfig) ToProvider(base *armnetwork.Subnet) *armnetwork.Subnet {
 	return target
 }
 
+// ToProvider translates the config into the actual provider object.
 func (v *VirtualNetworkConfig) ToProvider(base *armnetwork.VirtualNetwork) *armnetwork.VirtualNetwork {
 	target := &armnetwork.VirtualNetwork{
 		Location: to.Ptr(v.Location),

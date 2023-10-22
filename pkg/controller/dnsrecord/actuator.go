@@ -42,6 +42,7 @@ const (
 	requeueAfterOnProviderError = 30 * time.Second
 )
 
+// DefaultAzureClientFactoryFunc is the default function for creating a DNS client. It can be overridden for tests.
 var DefaultAzureClientFactoryFunc = azureclient.NewAzureClientFactoryWithDNSSecret
 
 type actuator struct {

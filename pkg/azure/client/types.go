@@ -27,9 +27,6 @@ import (
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal"
 )
 
-type Interface interface {
-}
-
 // Factory represents a factory to produce clients for various Azure services.
 type Factory interface {
 	Auth() *internal.ClientAuth

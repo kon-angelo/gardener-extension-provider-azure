@@ -26,6 +26,7 @@ import (
 
 var _ ResourceGroup = &ResourceGroupClient{}
 
+// ResourceGroupClient is a client for resource groups.
 type ResourceGroupClient struct {
 	client *armresources.ResourceGroupsClient
 }
@@ -36,7 +37,7 @@ func NewResourceGroupsClient(auth *internal.ClientAuth, tc azcore.TokenCredentia
 	return &ResourceGroupClient{client}, err
 }
 
-// Get gets a resource group
+// Get gets a resource group.
 func (c *ResourceGroupClient) Get(ctx context.Context, resourceGroupName string) (*armresources.ResourceGroup, error) {
 	res, err := c.client.Get(ctx, resourceGroupName, nil)
 	if err != nil {

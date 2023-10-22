@@ -1,42 +1,32 @@
-// Copyright (c) 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+//  Copyright (c) 2023 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+//       http://www.apache.org/licenses/LICENSE-2.0
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
 
 package infrastructure_test
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
-	"strings"
 
 	"github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
-	mockclient "github.com/gardener/gardener/pkg/mock/controller-runtime/client"
-	"github.com/golang/mock/gomock"
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
 	azuretypes "github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure"
-	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow"
-	imock "github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/mock"
 	internalinfra "github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
 	"github.com/gardener/gardener-extension-provider-azure/test/utils"
 )
@@ -126,40 +116,18 @@ var _ = Describe("ReconcilationStrategy", func() {
 
 })
 
-type eqMatcher struct {
-	want interface{}
-}
-
-func EqMatcher(want interface{}) eqMatcher {
-	return eqMatcher{
-		want: want,
-	}
-}
-
-func (eq eqMatcher) Matches(got interface{}) bool {
-	return gomock.Eq(eq.want).Matches(got)
-}
-
-func (eq eqMatcher) Got(got interface{}) string {
-	return fmt.Sprintf("%v (%T)\nDiff (-got +want):\n%s", got, got, strings.TrimSpace(cmp.Diff(got, eq.want)))
-}
-
-func (eq eqMatcher) String() string {
-	return fmt.Sprintf("%v (%T)\n", eq.want, eq.want)
-}
-
-func newInfrastructureState() *v1alpha1.InfrastructureState {
-	return &v1alpha1.InfrastructureState{
-		TypeMeta: helper.InfrastructureStateTypeMeta,
-	}
-}
-
 func getRawTerraformState(jsonContent string) []byte {
-	state := infrastructure.InfrastructureState{
+	state := internalinfra.InfrastructureState{
 		TerraformState: &runtime.RawExtension{
 			Raw: []byte(jsonContent),
 		},
 	}
 	stateRaw, _ := json.Marshal(state)
 	return stateRaw
+}
+
+func newInfrastructureState() *v1alpha1.InfrastructureState {
+	return &v1alpha1.InfrastructureState{
+		TypeMeta: helper.InfrastructureStateTypeMeta,
+	}
 }

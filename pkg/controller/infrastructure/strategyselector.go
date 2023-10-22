@@ -15,7 +15,7 @@ import (
 
 // Reconciler is an interface for the infrastructure reconciliation.
 type Reconciler interface {
-	// Reconcile manages infrastructure resources according to spec.It returns the provider's InfrastructureStatus, a State object to persist and an error.
+	// Reconcile manages infrastructure resources according to desired spec.
 	Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error
 	// Delete removes any created infrastructure resource on the provider.
 	Delete(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error

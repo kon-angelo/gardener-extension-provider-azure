@@ -114,6 +114,7 @@ func (f *FlowReconciler) Delete(ctx context.Context, infra *extensionsv1alpha1.I
 	return CleanupTerraformerResources(ctx, f.tf)
 }
 
+// Restore implements the restoration of an infrastructure resource during the control plane migration.
 func (f *FlowReconciler) Restore(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
 	return f.Reconcile(ctx, infra, cluster)
 }

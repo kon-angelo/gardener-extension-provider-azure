@@ -33,8 +33,6 @@ func (a *actuator) Migrate(ctx context.Context, log logr.Logger, infra *extensio
 	if err != nil {
 		return err
 	}
-	if err := CleanupTerraformerResources(ctx, tf); err != nil {
-		return util.DetermineError(err, helper.KnownCodes)
-	}
-	return nil
+	err = CleanupTerraformerResources(ctx, tf)
+	return util.DetermineError(err, helper.KnownCodes)
 }

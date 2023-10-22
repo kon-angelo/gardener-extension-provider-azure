@@ -71,6 +71,9 @@ func patchProviderStatusAndState(
 
 // CleanupTerraformerResources deletes terraformer artifacts (config, state, secrets).
 func CleanupTerraformerResources(ctx context.Context, tf terraformer.Terraformer) error {
+	if err := tf.EnsureCleanedUp(ctx); err != nil {
+		return nil
+	}
 	if err := tf.CleanupConfiguration(ctx); err != nil {
 		return err
 	}
@@ -82,6 +85,20 @@ func hasFlowState(status extensionsv1alpha1.InfrastructureStatus) (bool, error) 
 		return false, nil
 	}
 
+	flowState := runtime.TypeMeta{}
+	stateJson, err := status.State.MarshalJSON()
+	if err != nil {
+		return false, err
+	}
+
+	if err := json.Unmarshal(stateJson, &flowState); err != nil {
+		return false, err
+	}
+
+	if flowState.GroupVersionKind().GroupVersion() == v1alpha1.SchemeGroupVersion {
+		return true, nil
+	}
+
 	infraState := &infrainternal.InfrastructureState{}
 	if err := json.Unmarshal(status.State.Raw, infraState); err != nil {
 		return false, err
@@ -89,15 +106,6 @@ func hasFlowState(status extensionsv1alpha1.InfrastructureStatus) (bool, error) 
 
 	if infraState.TerraformState != nil {
 		return false, nil
-	}
-
-	flowState := runtime.TypeMeta{}
-	if err := json.Unmarshal(status.State.Raw, &flowState); err != nil {
-		return false, err
-	}
-
-	if flowState.GroupVersionKind().GroupVersion() == v1alpha1.SchemeGroupVersion {
-		return true, nil
 	}
 
 	return false, fmt.Errorf("unknown infrastructure state format")

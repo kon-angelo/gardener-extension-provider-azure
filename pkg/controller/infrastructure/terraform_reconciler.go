@@ -38,6 +38,8 @@ type TerraformReconciler struct {
 	Terraformer terraformer.Terraformer
 }
 
+// Restore restores the infrastructure after a control plane migration. Effectively it performs a recovery of data from the infrastructure.status.state and
+// proceeds to reconcile.
 func (r *TerraformReconciler) Restore(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
 	var initializer terraformer.StateConfigMapInitializer
 	infraState := &infrastructure.InfrastructureState{}
@@ -59,6 +61,7 @@ func (r *TerraformReconciler) Restore(ctx context.Context, infra *extensionsv1al
 	return r.reconcile(ctx, infra, cluster, initializer)
 }
 
+// Reconcile manages infrastructure resources according to desired spec.
 func (r *TerraformReconciler) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
 	return r.reconcile(ctx, infra, cluster, terraformer.StateConfigMapInitializerFunc(terraformer.CreateState))
 }

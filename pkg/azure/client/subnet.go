@@ -26,11 +26,12 @@ import (
 
 var _ Subnet = &SubnetsClient{}
 
+// SubnetsClient implements the interface for the subnets client.
 type SubnetsClient struct {
 	client *armnetwork.SubnetsClient
 }
 
-// NewSubnetsClient creates a new subnets client.
+// NewSubnetsClient creates a new client for the subnets API.
 func NewSubnetsClient(auth internal.ClientAuth, tc azcore.TokenCredential, opts *arm.ClientOptions) (*SubnetsClient, error) {
 	client, err := armnetwork.NewSubnetsClient(auth.SubscriptionID, tc, opts)
 	return &SubnetsClient{client}, err

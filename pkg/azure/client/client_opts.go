@@ -27,19 +27,23 @@ import (
 )
 
 const (
-	DefaultMaxRetries    = 3
+	// DefaultMaxRetries is the default value for max retries on retryable operations.
+	DefaultMaxRetries = 3
+	// DefaultMaxRetryDelay is the default maximum value for delay on retryable operations.
 	DefaultMaxRetryDelay = math.MaxInt64
-	DefaultRetryDelay    = 5 * time.Second
+	// DefaultRetryDelay is the default value for the initial delay on retry for retryable operations.
+	DefaultRetryDelay = 5 * time.Second
 )
 
 var (
+	// DefaultAzureClientOpts generates clientOptions for the azure clients.
 	DefaultAzureClientOpts func() *arm.ClientOptions
 	once                   sync.Once
 )
 
 func init() {
 	once.Do(func() {
-		DefaultAzureClientOpts = GetAzureClientOpts
+		DefaultAzureClientOpts = getAzureClientOpts
 	})
 }
 
@@ -60,14 +64,14 @@ func getTransport() *http.Transport {
 		},
 	}
 }
-func GetAzureClientOpts() *arm.ClientOptions {
+func getAzureClientOpts() *arm.ClientOptions {
 	return &arm.ClientOptions{
 		ClientOptions: policy.ClientOptions{
 			Retry: policy.RetryOptions{
 				RetryDelay:    DefaultRetryDelay,
 				MaxRetryDelay: DefaultMaxRetryDelay,
 				MaxRetries:    DefaultMaxRetries,
-				StatusCodes:   GetRetriableStatusCode(),
+				StatusCodes:   getRetriableStatusCode(),
 			},
 			Transport: &http.Client{
 				Transport: getTransport(),
@@ -76,7 +80,7 @@ func GetAzureClientOpts() *arm.ClientOptions {
 	}
 }
 
-func GetRetriableStatusCode() []int {
+func getRetriableStatusCode() []int {
 	return []int{
 		http.StatusRequestTimeout,      // 408
 		http.StatusInternalServerError, // 500

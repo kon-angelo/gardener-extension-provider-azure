@@ -15,9 +15,13 @@ package utils
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/gardener/gardener/extensions/pkg/controller"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	"github.com/google/go-cmp/cmp"
+	"go.uber.org/mock/gomock"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -61,4 +65,30 @@ func MakeCluster(pods, services string, region string, countFaultDomain, countUp
 		Shoot:        &shoot,
 		CloudProfile: &cloudProfile,
 	}
+}
+
+type eqMatcher struct {
+	want interface{}
+}
+
+// EqMatcher is an equality matcher with custom error format.
+func EqMatcher(want interface{}) eqMatcher {
+	return eqMatcher{
+		want: want,
+	}
+}
+
+// Matches returns true if argument matches.
+func (eq eqMatcher) Matches(got interface{}) bool {
+	return gomock.Eq(eq.want).Matches(got)
+}
+
+// Got returns the value that was compared to.
+func (eq eqMatcher) Got(got interface{}) string {
+	return fmt.Sprintf("%v (%T)\nDiff (-got +want):\n%s", got, got, strings.TrimSpace(cmp.Diff(got, eq.want)))
+}
+
+// String returns the value that was expected.
+func (eq eqMatcher) String() string {
+	return fmt.Sprintf("%v (%T)\n", eq.want, eq.want)
 }

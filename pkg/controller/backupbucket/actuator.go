@@ -28,6 +28,7 @@ import (
 	azureclient "github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
 )
 
+// DefaultClientFactoryFunc is the default function to get a backup bucket client. Can be overridden for tests.
 var DefaultClientFactoryFunc = azureclient.NewAzureClientFactory
 
 type actuator struct {
