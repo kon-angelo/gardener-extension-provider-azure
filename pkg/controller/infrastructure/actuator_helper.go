@@ -49,15 +49,6 @@ func patchProviderStatusAndState(
 	status *v1alpha1.InfrastructureStatus,
 	state *runtime.RawExtension,
 ) error {
-	// infraObjectKey := client.ObjectKey{
-	// 	Namespace: infra.Namespace,
-	// 	Name:      infra.Name,
-	// }
-	//
-	// infra = &extensionsv1alpha1.Infrastructure{}
-	// if err := runtimeClient.Get(ctx, infraObjectKey, infra); err != nil {
-	// 	return err
-	// }
 	modded := infra.DeepCopy()
 	if status != nil {
 		modded.Status.ProviderStatus = &runtime.RawExtension{Object: status}

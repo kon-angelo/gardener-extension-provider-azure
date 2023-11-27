@@ -484,7 +484,7 @@ package infraflow_test
 // 		whiteboard       shared.Whiteboard
 // 		adapter          *InfrastructureAdapter
 // 		provider         infraflow.Access
-// 		inventory        *SimpleInventory[*azure.Identifier]
+// 		inventory        *Inventory[*azure.Identifier]
 // 	}
 // 	type args struct {
 // 		ctx   context.Context
