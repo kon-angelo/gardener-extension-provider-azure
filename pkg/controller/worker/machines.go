@@ -158,6 +158,9 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			}
 		}
 
+		pool.Labels["gardener.cloud/shoot"] = w.worker.Namespace
+		pool.Labels["gardener.cloud/worker"] = w.worker.Name
+
 		generateMachineClassAndDeployment := func(zone *zoneInfo, machineSet *machineSetInfo, subnetName, workerPoolHash string, workerConfig *azureapi.WorkerConfig) (worker.MachineDeployment, map[string]interface{}) {
 			var (
 				machineDeployment = worker.MachineDeployment{
