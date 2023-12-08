@@ -29,15 +29,10 @@ import (
 )
 
 const (
-	allocatableOriginalValue = "allocatable.csi.gardener.cloud/%s"
-	errMsg                   = "failed to mutate CSINode %s: %v"
-	shootAnnotation          = "gardener.cloud/shoot"
-	workerAnnotation         = "gardener.cloud/worker"
+	errMsg           = "failed to mutate CSINode %s: %v"
+	shootAnnotation  = "gardener.cloud/shoot"
+	workerAnnotation = "gardener.cloud/worker"
 )
-
-func GetAnnotationKey(driver string) string {
-	return fmt.Sprintf(allocatableOriginalValue, driver)
-}
 
 type Args struct {
 	Drivers map[string]func(log logr.Logger, csiNode *v1.CSINodeDriver, worker *extensionsv1alpha1.WorkerPool) error
