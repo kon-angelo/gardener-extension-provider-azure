@@ -225,6 +225,7 @@ github.com/gardener/gardener/extensions/pkg/webhook/context
 github.com/gardener/gardener/extensions/pkg/webhook/controlplane
 github.com/gardener/gardener/extensions/pkg/webhook/controlplane/genericmutator
 github.com/gardener/gardener/extensions/pkg/webhook/controlplane/test
+github.com/gardener/gardener/extensions/pkg/webhook/csinode
 github.com/gardener/gardener/extensions/pkg/webhook/network
 github.com/gardener/gardener/extensions/pkg/webhook/shoot
 github.com/gardener/gardener/hack

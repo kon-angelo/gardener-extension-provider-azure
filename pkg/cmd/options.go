@@ -28,6 +28,7 @@ import (
 	extensionscloudproviderwebhook "github.com/gardener/gardener/extensions/pkg/webhook/cloudprovider"
 	webhookcmd "github.com/gardener/gardener/extensions/pkg/webhook/cmd"
 	extensionscontrolplanewebhook "github.com/gardener/gardener/extensions/pkg/webhook/controlplane"
+	extensionscsinodewebhook "github.com/gardener/gardener/extensions/pkg/webhook/csinode"
 	extensionsnetworkwebhook "github.com/gardener/gardener/extensions/pkg/webhook/network"
 
 	backupbucketcontroller "github.com/gardener/gardener-extension-provider-azure/pkg/controller/backupbucket"
@@ -40,6 +41,7 @@ import (
 	workercontroller "github.com/gardener/gardener-extension-provider-azure/pkg/controller/worker"
 	acceleratednetworkwebhook "github.com/gardener/gardener-extension-provider-azure/pkg/webhook/acceleratednetwork"
 	cloudproviderwebhook "github.com/gardener/gardener-extension-provider-azure/pkg/webhook/cloudprovider"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/webhook/csinode"
 	controlplanewebhook "github.com/gardener/gardener-extension-provider-azure/pkg/webhook/controlplane"
 	controlplaneexposurewebhook "github.com/gardener/gardener-extension-provider-azure/pkg/webhook/controlplaneexposure"
 	infrastructurewebhook "github.com/gardener/gardener-extension-provider-azure/pkg/webhook/infrastructure"
@@ -71,6 +73,7 @@ func WebhookSwitchOptions() *webhookcmd.SwitchOptions {
 		webhookcmd.Switch(extensionscontrolplanewebhook.WebhookName, controlplanewebhook.AddToManager),
 		webhookcmd.Switch(extensionscontrolplanewebhook.ExposureWebhookName, controlplaneexposurewebhook.AddToManager),
 		webhookcmd.Switch(extensionscloudproviderwebhook.WebhookName, cloudproviderwebhook.AddToManager),
+		webhookcmd.Switch(extensionscsinodewebhook.WebhookName, csinode.AddToManager),
 		webhookcmd.Switch(topology.WebhookName, topology.AddToManager),
 	)
 }
