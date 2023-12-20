@@ -40,7 +40,7 @@ func init() {
 // AddToManager creates the cloudprovider webhook and adds it to the manager.
 func AddToManager(mgr manager.Manager) (*extensionswebhook.Webhook, error) {
 	logger.Info("adding webhook to manager")
-	return csinode.New(mgr, csinode.Args{
+	return csinode.New(mgr, &csinode.Args{
 		Drivers: map[string]csinode.CSINodeMutateFunc{
 			AzureDiskCSIName: csinode.GenericCSINodeMutate,
 		},
