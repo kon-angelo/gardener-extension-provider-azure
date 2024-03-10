@@ -27,10 +27,8 @@ func (a *actuator) reconcile(ctx context.Context, logger logr.Logger, selector S
 	}
 
 	factory := ReconcilerFactoryImpl{
-		ctx:   ctx,
-		log:   logger,
-		a:     a,
-		infra: infra,
+		log: logger,
+		a:   a,
 	}
 
 	reconciler, err := factory.Build(useFlow)

@@ -23,9 +23,9 @@ import (
 )
 
 // NewTerraformReconciler creates a new TerraformReconciler
-func NewTerraformReconciler(a *actuator, logger logr.Logger, restConfig *rest.Config, disableProjectedTokenMount bool) (Reconciler, error) {
+func NewTerraformReconciler(client client.Client, restConfig *rest.Config, logger logr.Logger, disableProjectedTokenMount bool) (Reconciler, error) {
 	return &TerraformReconciler{
-		Client:                     a.client,
+		Client:                     client,
 		Logger:                     logger,
 		RestConfig:                 restConfig,
 		disableProjectedTokenMount: disableProjectedTokenMount,
@@ -55,6 +55,7 @@ func (r *TerraformReconciler) Restore(ctx context.Context, infra *extensionsv1al
 	if err != nil {
 		return err
 	}
+
 	initializer = terraformer.CreateOrUpdateState{State: &terraformState.Data}
 	patch := client.MergeFrom(infra.DeepCopy())
 	infra.Status.ProviderStatus = infraState.SavedProviderStatus
@@ -67,7 +68,8 @@ func (r *TerraformReconciler) Restore(ctx context.Context, infra *extensionsv1al
 
 // Reconcile manages infrastructure resources according to desired spec.
 func (r *TerraformReconciler) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
-	return r.reconcile(ctx, infra, cluster, terraformer.StateConfigMapInitializerFunc(terraformer.CreateState))
+	err := r.reconcile(ctx, infra, cluster, terraformer.StateConfigMapInitializerFunc(terraformer.CreateState))
+	return util.DetermineError(err, helper.KnownCodes)
 }
 
 // Reconcile reconciles the infrastructure resource according to spec.
@@ -83,7 +85,7 @@ func (r *TerraformReconciler) reconcile(ctx context.Context, infra *extensionsv1
 
 	tf, err := internal.NewTerraformerWithAuth(r.Logger, r.RestConfig, infrastructure.TerraformerPurpose, infra, r.disableProjectedTokenMount)
 	if err != nil {
-		return util.DetermineError(err, helper.KnownCodes)
+		return err
 	}
 
 	if err := tf.
@@ -128,12 +130,15 @@ func (r *TerraformReconciler) getState(ctx context.Context, tf terraformer.Terra
 	return infraState.ToRawExtension()
 }
 
-// Delete removes any created infrastructure resource on the provider.
 func (r *TerraformReconciler) Delete(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
+	return util.DetermineError(r.delete(ctx, infra, cluster), helper.KnownCodes)
+}
 
-	tf, err := internal.NewTerraformer(r.Logger, r.RestConfig, infrastructure.TerraformerPurpose, infra, r.disableProjectedTokenMount)
+// Delete removes any created infrastructure resource on the provider.
+func (r *TerraformReconciler) delete(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) error {
+	tf, err := internal.NewTerraformerWithAuth(r.Logger, r.RestConfig, infrastructure.TerraformerPurpose, infra, r.disableProjectedTokenMount)
 	if err != nil {
-		return util.DetermineError(err, helper.KnownCodes)
+		return err
 	}
 
 	// terraform pod from previous reconciliation might still be running, ensure they are gone before doing any operations
@@ -189,7 +194,6 @@ func (r *TerraformReconciler) Delete(ctx context.Context, infra *extensionsv1alp
 
 	return tf.
 		InitializeWith(ctx, terraformer.DefaultInitializer(r.Client, terraformFiles.Main, terraformFiles.Variables, terraformFiles.TFVars, terraformer.StateConfigMapInitializerFunc(NoOpStateInitializer))).
-		SetEnvVars(internal.TerraformerEnvVars(infra.Spec.SecretRef)...).
 		Destroy(ctx)
 }
 

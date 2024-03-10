@@ -2,12 +2,20 @@ package infrastructure
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/gardener/gardener/extensions/pkg/controller"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	"github.com/gardener/gardener/pkg/extensions"
 	"github.com/go-logr/logr"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/pointer"
+
+	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
+	azuretypes "github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 )
 
 // Reconciler is an interface for the infrastructure reconciliation.
@@ -28,23 +36,21 @@ type ReconcilerFactory interface {
 
 // ReconcilerFactoryImpl is an implementation of a ReconcilerFactory
 type ReconcilerFactoryImpl struct {
-	ctx   context.Context
-	log   logr.Logger
-	a     *actuator
-	infra *extensionsv1alpha1.Infrastructure
+	log logr.Logger
+	a   *actuator
 }
 
 // Build builds the Reconciler according to the arguments.
 func (f ReconcilerFactoryImpl) Build(useFlow bool) (Reconciler, error) {
 	if useFlow {
-		reconciler, err := NewFlowReconciler(f.a, f.log, f.a.disableProjectedTokenMount)
+		reconciler, err := NewFlowReconciler(f.a.client, f.a.restConfig, f.log, f.a.disableProjectedTokenMount)
 		if err != nil {
 			return nil, fmt.Errorf("failed to init flow reconciler: %w", err)
 		}
 		return reconciler, nil
 	}
 
-	reconciler, err := NewTerraformReconciler(f.a, f.log, f.a.restConfig, f.a.disableProjectedTokenMount)
+	reconciler, err := NewTerraformReconciler(f.a.client, f.a.restConfig, f.log, f.a.disableProjectedTokenMount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init terraform reconciler: %w", err)
 	}
@@ -70,9 +76,6 @@ func OnReconcile(infra *extensionsv1alpha1.Infrastructure, cluster *extensions.C
 	if err != nil {
 		return false, err
 	}
-	if hasState {
-		return true, nil
-	}
 	return hasState || HasFlowAnnotation(infra, cluster), nil
 }
 
@@ -83,3 +86,51 @@ func OnDelete(infra *extensionsv1alpha1.Infrastructure, _ *extensions.Cluster) (
 
 // OnRestore decides the reconciler used on migration.
 var OnRestore = OnDelete
+
+func hasFlowState(status extensionsv1alpha1.InfrastructureStatus) (bool, error) {
+	if status.State == nil {
+		return false, nil
+	}
+
+	flowState := runtime.TypeMeta{}
+	stateJson, err := status.State.MarshalJSON()
+	if err != nil {
+		return false, err
+	}
+
+	if err := json.Unmarshal(stateJson, &flowState); err != nil {
+		return false, err
+	}
+
+	if flowState.GroupVersionKind().GroupVersion() == v1alpha1.SchemeGroupVersion {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// HasFlowAnnotation returns true if the new flow reconciler should be used for the reconciliation.
+func HasFlowAnnotation(infrastructure *extensionsv1alpha1.Infrastructure, cluster *controller.Cluster) bool {
+	if ok := hasBoolAnnotation(infrastructure, azuretypes.GlobalAnnotationKeyUseFlow, azuretypes.AnnotationKeyUseFlow); ok != nil {
+		return *ok
+	}
+	if shoot := cluster.Shoot; shoot != nil {
+		if ok := hasBoolAnnotation(shoot, azuretypes.GlobalAnnotationKeyUseFlow, azuretypes.AnnotationKeyUseFlow); ok != nil {
+			return *ok
+		}
+	}
+
+	return false
+}
+
+func hasBoolAnnotation(o v1.Object, keys ...string) *bool {
+	if annotations := o.GetAnnotations(); annotations != nil {
+		for _, k := range keys {
+			if v, ok := annotations[k]; ok {
+				return pointer.Bool(strings.EqualFold(v, "true"))
+			}
+		}
+	}
+
+	return nil
+}

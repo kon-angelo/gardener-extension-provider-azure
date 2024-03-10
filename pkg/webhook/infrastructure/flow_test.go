@@ -98,7 +98,7 @@ var _ = Describe("Mutate", func() {
 			})
 
 			It("should add use-flow annotation if seed label is set to new", func() {
-				cluster.Seed.Labels[azure.SeedLabelKeyUseFlow] = azure.SeedLabelUseFlowValueNew
+				cluster.Seed.Labels[azure.SeedAnnotationKeyUseFlow] = azure.SeedAnnotationUseFlowValueNew
 				newInfra := &extensionsv1alpha1.Infrastructure{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "dummy",
@@ -114,7 +114,7 @@ var _ = Describe("Mutate", func() {
 			})
 
 			It("should do nothing if seed label is set to true", func() {
-				cluster.Seed.Labels[azure.SeedLabelKeyUseFlow] = "true"
+				cluster.Seed.Labels[azure.SeedAnnotationKeyUseFlow] = "true"
 				newInfra := &extensionsv1alpha1.Infrastructure{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "dummy",

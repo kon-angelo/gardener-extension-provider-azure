@@ -84,9 +84,18 @@ func CloudProfileConfigFromCluster(cluster *controller.Cluster) (*api.CloudProfi
 
 // InfrastructureStateFromRaw extracts the state from the Infrastructure. If no state was available, it returns a "zero" value InfrastructureState object.
 func InfrastructureStateFromRaw(raw *runtime.RawExtension) (*api.InfrastructureState, error) {
+	if raw == nil {
+		return nil, nil
+	}
+
 	state := &api.InfrastructureState{}
-	if raw != nil && raw.Raw != nil {
-		if _, _, err := lenientDecoder.Decode(raw.Raw, nil, state); err != nil {
+	if raw != nil {
+		json, err := raw.MarshalJSON()
+		if err != nil {
+			return nil, err
+		}
+
+		if _, _, err := lenientDecoder.Decode(json, nil, state); err != nil {
 			return nil, err
 		}
 	}

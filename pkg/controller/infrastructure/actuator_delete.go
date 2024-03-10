@@ -27,10 +27,8 @@ func (a *actuator) delete(ctx context.Context, log logr.Logger, selector Strateg
 	}
 
 	factory := ReconcilerFactoryImpl{
-		ctx:   ctx,
-		log:   log,
-		a:     a,
-		infra: infra,
+		log: log,
+		a:   a,
 	}
 
 	reconciler, err := factory.Build(useFlow)

@@ -29,10 +29,10 @@ type FlowReconciler struct {
 }
 
 // NewFlowReconciler creates a new flow reconciler.
-func NewFlowReconciler(a *actuator, log logr.Logger, projToken bool) (Reconciler, error) {
+func NewFlowReconciler(client client.Client, restConfig *rest.Config, log logr.Logger, projToken bool) (Reconciler, error) {
 	return &FlowReconciler{
-		client:                     a.client,
-		restConfig:                 a.restConfig,
+		client:                     client,
+		restConfig:                 restConfig,
 		log:                        log,
 		disableProjectedTokenMount: projToken,
 	}, nil
@@ -80,11 +80,7 @@ func (f *FlowReconciler) Reconcile(ctx context.Context, infra *extensionsv1alpha
 		return err
 	}
 
-	if err := patchProviderStatusAndState(ctx, f.client, infra, status, state); err != nil {
-		return err
-	}
-
-	return CleanupTerraformerResources(ctx, tf)
+	return patchProviderStatusAndState(ctx, f.client, infra, status, state)
 }
 
 // Delete deletes the infrastructure resource using the flow reconciler.
