@@ -49,67 +49,70 @@ type FlowContext struct {
 	inventory   *Inventory
 }
 
+type Opts struct {
+	Factory     client.Factory
+	Auth        *internal.ClientAuth
+	Logger      logr.Logger
+	Infra       *extensionsv1alpha1.Infrastructure
+	Cluster     *controller.Cluster
+	State       *azure.InfrastructureState
+	PersistFunc PersistStateFunc
+}
+
 // NewFlowContext creates a new FlowContext.
-func NewFlowContext(factory client.Factory,
-	auth *internal.ClientAuth,
-	logger logr.Logger,
-	infra *extensionsv1alpha1.Infrastructure,
-	cluster *controller.Cluster,
-	state *azure.InfrastructureState,
-	persistFunc PersistStateFunc,
-) (*FlowContext, error) {
+func NewFlowContext(opts Opts) (*FlowContext, error) {
 	wb := shared.NewWhiteboard()
-	for k, v := range state.Data {
+	for k, v := range opts.State.Data {
 		wb.Set(k, v)
 	}
 
-	cfg, err := helper.InfrastructureConfigFromInfrastructure(infra)
+	cfg, err := helper.InfrastructureConfigFromInfrastructure(opts.Infra)
 	if err != nil {
 		return nil, err
 	}
 
-	profile, err := helper.CloudProfileConfigFromCluster(cluster)
+	profile, err := helper.CloudProfileConfigFromCluster(opts.Cluster)
 	if err != nil {
 		return nil, err
 	}
 
 	inv := NewSimpleInventory(wb)
-	for _, r := range state.ManagedItems {
+	for _, r := range opts.State.ManagedItems {
 		if err := inv.Insert(r.ID); err != nil {
 			return nil, err
 		}
 	}
 
 	adapter, err := NewInfrastructureAdapter(
-		infra,
+		opts.Infra,
 		cfg,
 		profile,
-		cluster,
+		opts.Cluster,
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	fc := &FlowContext{
-		BasicFlowContext: shared.NewBasicFlowContext(logger, wb, nil),
-		factory:          factory,
-		auth:             auth,
-		logger:           logger,
-		infra:            infra,
-		state:            state,
-		cluster:          cluster,
+		BasicFlowContext: shared.NewBasicFlowContext(opts.Logger, wb, nil),
+		factory:          opts.Factory,
+		auth:             opts.Auth,
+		logger:           opts.Logger,
+		infra:            opts.Infra,
+		state:            opts.State,
+		cluster:          opts.Cluster,
 		cfg:              cfg,
 		whiteboard:       wb,
 		provider: &access{
-			factory,
+			opts.Factory,
 		},
 		adapter:   adapter,
 		inventory: inv,
 	}
 
-	if persistFunc != nil {
-		fc.persistFunc = persistFunc
-		fc.BasicFlowContext = shared.NewBasicFlowContext(logger, wb, fc.persist)
+	if opts.PersistFunc != nil {
+		fc.persistFunc = opts.PersistFunc
+		fc.BasicFlowContext = shared.NewBasicFlowContext(opts.Logger, wb, fc.persist)
 	}
 	return fc, nil
 }

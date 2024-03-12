@@ -70,7 +70,16 @@ func (f *FlowReconciler) Reconcile(ctx context.Context, infra *extensionsv1alpha
 		return patchProviderStatusAndState(ctx, f.client, infra, nil, state)
 	}
 
-	fctx, err := infraflow.NewFlowContext(factory, auth, f.log, infra, cluster, infraState, persistFunc)
+	opts := infraflow.Opts{
+		Factory:     factory,
+		Auth:        auth,
+		Logger:      f.log,
+		Infra:       infra,
+		Cluster:     cluster,
+		State:       infraState,
+		PersistFunc: persistFunc,
+	}
+	fctx, err := infraflow.NewFlowContext(opts)
 	if err != nil {
 		return err
 	}
@@ -95,7 +104,17 @@ func (f *FlowReconciler) Delete(ctx context.Context, infra *extensionsv1alpha1.I
 		return err
 	}
 
-	fctx, err := infraflow.NewFlowContext(factory, nil, f.log, infra, cluster, infraState, nil)
+	opts := infraflow.Opts{
+		Factory:     factory,
+		Auth:        nil,
+		Logger:      f.log,
+		Infra:       infra,
+		Cluster:     cluster,
+		State:       infraState,
+		PersistFunc: nil,
+	}
+
+	fctx, err := infraflow.NewFlowContext(opts)
 	if err != nil {
 		return err
 	}
