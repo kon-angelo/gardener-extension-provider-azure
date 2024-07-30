@@ -72,9 +72,6 @@ const (
 	// StorageKey is a constant for the key in a cloud provider secret and backup secret that holds the Azure secret storage access key.
 	StorageKey = "storageKey"
 
-	// AzureBlobStorageHostName is the host name for azure blob storage service.
-	AzureBlobStorageHostName = "blob.core.windows.net"
-
 	// MachineSetTagKey is the name of the infrastructure resource tag for machine sets.
 	MachineSetTagKey = "machineset.azure.extensions.gardener.cloud"
 
