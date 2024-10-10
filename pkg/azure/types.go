@@ -166,6 +166,10 @@ const (
 
 	// CSISnapshotValidationName is the constant for the name of the csi-snapshot-validation-webhook component.
 	CSISnapshotValidationName = "csi-snapshot-validation" // TODO(AndreasBurger): Clean up once SnapshotValidation is removed everywhere
+
+	// AnnotationSecretPossiblyOutdated is an annotation we set on BackupBucket secrets before rotating them to signal
+	// that these secrets might be outdated (in case of an error during automated rotation/cleanup).
+	AnnotationSecretPossiblyOutdated = "azure.provider.extensions.gardener.cloud/possibly-outdated"
 )
 
 // UsernamePrefix is a constant for the username prefix of components deployed by Azure.
