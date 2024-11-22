@@ -101,10 +101,16 @@ func (s *shoot) validateCreation(_ context.Context, shoot *core.Shoot, cloudProf
 		}
 	}
 
-	return s.validateShoot(shoot, nil, infraConfig, cloudProfileSpec, cpConfig).ToAggregate()
+	return s.validateShoot(shoot, nil, infraConfig, cloudProfileSpec, cpConfig, true).ToAggregate()
 }
 
-func (s *shoot) validateShoot(shoot *core.Shoot, oldInfraConfig, infraConfig *api.InfrastructureConfig, cloudProfileSpec *gardencorev1beta1.CloudProfileSpec, cpConfig *api.ControlPlaneConfig) field.ErrorList {
+func (s *shoot) validateShoot(shoot *core.Shoot,
+	oldInfraConfig,
+	infraConfig *api.InfrastructureConfig,
+	cloudProfileSpec *gardencorev1beta1.CloudProfileSpec,
+	cpConfig *api.ControlPlaneConfig,
+	isNewShoot bool,
+) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	// Network validation
@@ -114,7 +120,7 @@ func (s *shoot) validateShoot(shoot *core.Shoot, oldInfraConfig, infraConfig *ap
 		// Cloudprofile validation
 		allErrs = append(allErrs, azurevalidation.ValidateInfrastructureConfigAgainstCloudProfile(oldInfraConfig, infraConfig, shoot.Spec.Region, cloudProfileSpec, infraConfigPath)...)
 		// Provider validation
-		allErrs = append(allErrs, azurevalidation.ValidateInfrastructureConfig(infraConfig, shoot.Spec.Networking, helper.HasShootVmoAlphaAnnotation(shoot.Annotations), infraConfigPath)...)
+		allErrs = append(allErrs, azurevalidation.ValidateInfrastructureConfig(infraConfig, shoot.Spec.Networking, helper.HasShootVmoAlphaAnnotation(shoot.Annotations), isNewShoot, infraConfigPath)...)
 	}
 	if cpConfig != nil {
 		allErrs = append(allErrs, azurevalidation.ValidateControlPlaneConfig(cpConfig, shoot.Spec.Kubernetes.Version, cpConfigPath)...)
@@ -172,7 +178,7 @@ func (s *shoot) validateUpdate(oldShoot, shoot *core.Shoot, cloudProfileSpec *ga
 	allErrs = append(allErrs, azurevalidation.ValidateVmoConfigUpdate(helper.HasShootVmoAlphaAnnotation(oldShoot.Annotations), helper.HasShootVmoAlphaAnnotation(shoot.Annotations), metaDataPath)...)
 	allErrs = append(allErrs, azurevalidation.ValidateWorkersUpdate(oldShoot.Spec.Provider.Workers, shoot.Spec.Provider.Workers, workersPath)...)
 
-	allErrs = append(allErrs, s.validateShoot(shoot, oldInfraConfig, infraConfig, cloudProfileSpec, cpConfig)...)
+	allErrs = append(allErrs, s.validateShoot(shoot, oldInfraConfig, infraConfig, cloudProfileSpec, cpConfig, false)...)
 
 	return allErrs.ToAggregate()
 }

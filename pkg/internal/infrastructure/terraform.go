@@ -7,7 +7,6 @@ package infrastructure
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -118,7 +117,7 @@ func ComputeTerraformerTemplateValues(
 		}
 	)
 
-	primaryAvSetRequired, err := IsPrimaryAvailabilitySetRequired(infra, config, cluster)
+	primaryAvSetRequired, err := IsPrimaryAvailabilitySetRequired(infra)
 	if err != nil {
 		return nil, err
 	}
@@ -376,7 +375,7 @@ func ExtractTerraformState(ctx context.Context, tf terraformer.Terraformer, infr
 	}
 
 	outputKeys = append(outputKeys, computeSubnetOutputKeys(infra, config)...)
-	primaryAvSetRequired, err := IsPrimaryAvailabilitySetRequired(infra, config, cluster)
+	primaryAvSetRequired, err := IsPrimaryAvailabilitySetRequired(infra)
 	if err != nil {
 		return nil, err
 	}
@@ -606,35 +605,14 @@ func findDomainCounts(cluster *controller.Cluster, infra *extensionsv1alpha1.Inf
 }
 
 // IsPrimaryAvailabilitySetRequired determines if a cluster primary AvailabilitySet is required.
-func IsPrimaryAvailabilitySetRequired(infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig, cluster *controller.Cluster) (bool, error) {
-	if config.Zoned {
-		return false, nil
-	}
-	if cluster.Shoot == nil {
-		return false, errors.New("cannot determine if primary availability set is required as cluster.Shoot is not set")
-	}
-
-	hasVmoAnnotation := helper.HasShootVmoAlphaAnnotation(cluster.Shoot.Annotations)
-
-	// If the infrastructureStatus is not exists that mean it is a new Infrastucture.
-	if infra.Status.ProviderStatus == nil {
-		if hasVmoAnnotation {
-			return false, nil
-		}
-		return true, nil
-	}
-
-	// If the infrastructureStatus already exists that mean the Infrastucture is already created.
-	infrastructureStatus, err := helper.InfrastructureStatusFromRaw(infra.Status.ProviderStatus)
+func IsPrimaryAvailabilitySetRequired(infra *extensionsv1alpha1.Infrastructure) (bool, error) {
+	// If the infrastructureStatus already exists that mean the Infrastructure is already created.
+	infrastructureStatus, err := helper.InfrastructureStatusFromInfrastructure(infra)
 	if err != nil {
 		return false, err
 	}
-
 	if len(infrastructureStatus.AvailabilitySets) > 0 {
 		if _, err := helper.FindAvailabilitySetByPurpose(infrastructureStatus.AvailabilitySets, api.PurposeNodes); err == nil {
-			if hasVmoAnnotation {
-				return false, errors.New("cannot use vmss orchestration mode VM (VMO) as this cluster already used an availability set")
-			}
 			return true, nil
 		}
 	}

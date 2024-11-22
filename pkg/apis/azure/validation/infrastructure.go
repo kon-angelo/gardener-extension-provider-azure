@@ -75,7 +75,13 @@ func validateInfrastructureConfigZones(oldInfra, infra *apisazure.Infrastructure
 }
 
 // ValidateInfrastructureConfig validates a InfrastructureConfig object.
-func ValidateInfrastructureConfig(infra *apisazure.InfrastructureConfig, networking *core.Networking, hasVmoAlphaAnnotation bool, fldPath *field.Path) field.ErrorList {
+func ValidateInfrastructureConfig(
+	infra *apisazure.InfrastructureConfig,
+	networking *core.Networking,
+	hasVmoAlphaAnnotation bool,
+	isNewShoot bool,
+	fldPath *field.Path,
+) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	var (
@@ -105,7 +111,12 @@ func ValidateInfrastructureConfig(infra *apisazure.InfrastructureConfig, network
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("resourceGroup"), infra.ResourceGroup, "specifying an existing resource group is not supported yet"))
 	}
 
-	if infra.Zoned && hasVmoAlphaAnnotation {
+	if !infra.Zoned && !hasVmoAlphaAnnotation {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("zoned"), infra.Zoned, fmt.Sprintf("specifying a non-zonal cluster without having the %q annotation is not allowed. Please refer to https://azure.microsoft.com/en-us/updates?id=azure-basic-load-balancer-will-be-retired-on-30-september-2025-upgrade-to-standard-load-balancer", azure.ShootVmoUsageAnnotation)))
+	}
+
+	// TODO(KA): Remove after migration
+	if isNewShoot && infra.Zoned && hasVmoAlphaAnnotation {
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("zoned"), infra.Zoned, fmt.Sprintf("specifying a zoned cluster and having the %q annotation is not allowed", azure.ShootVmoUsageAnnotation)))
 	}
 
@@ -399,16 +410,16 @@ func ValidateInfrastructureConfigUpdate(oldConfig, newConfig *apisazure.Infrastr
 func ValidateVmoConfigUpdate(oldShootHasAlphaVmoAnnotation, newShootHasAlphaVmoAnnotation bool, metaDataPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	// Check if old shoot has not the vmo alpha annotation and forbid to add it.
-	if !oldShootHasAlphaVmoAnnotation && newShootHasAlphaVmoAnnotation {
-		allErrs = append(allErrs, field.Forbidden(metaDataPath.Child("annotations"), fmt.Sprintf("not allowed to add annotation %q to an already existing shoot cluster", azure.ShootVmoUsageAnnotation)))
-	}
+	// // Check if old shoot has not the vmo alpha annotation and forbid to add it.
+	// if !oldShootHasAlphaVmoAnnotation && newShootHasAlphaVmoAnnotation {
+	// 	allErrs = append(allErrs, field.Forbidden(metaDataPath.Child("annotations"), fmt.Sprintf("not allowed to add annotation %q to an already existing shoot cluster", azure.ShootVmoUsageAnnotation)))
+	// }
 
 	// Check if old shoot has the vmo alpha annotaion and forbid to remove it.
-	if oldShootHasAlphaVmoAnnotation && !newShootHasAlphaVmoAnnotation {
-		allErrs = append(allErrs, field.Forbidden(metaDataPath.Child("annotations"), fmt.Sprintf("not allowed to remove annotation %q to an already existing shoot cluster", azure.ShootVmoUsageAnnotation)))
-	}
-
+	// if oldShootHasAlphaVmoAnnotation && !newShootHasAlphaVmoAnnotation {
+	// 	allErrs = append(allErrs, field.Forbidden(metaDataPath.Child("annotations"), fmt.Sprintf("not allowed to remove annotation %q to an already existing shoot cluster", azure.ShootVmoUsageAnnotation)))
+	// }
+	//
 	return allErrs
 }
 

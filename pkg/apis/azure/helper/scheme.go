@@ -131,3 +131,25 @@ func InfrastructureStatusFromInfrastructure(infra *extensionsv1alpha1.Infrastruc
 	}
 	return status, nil
 }
+
+// WorkerStatusFromWorker extracts the WorkerStatus from the ProviderStatus section of the given Worker.
+// If the providerConfig is missing from the status, it will return a zero-value WorkerStatus.
+func WorkerStatusFromWorker(worker *extensionsv1alpha1.Worker) (*api.WorkerStatus, error) {
+	status := &api.WorkerStatus{}
+	if worker.Status.ProviderStatus != nil && worker.Status.ProviderStatus.Raw != nil {
+		return WorkerStatusFromRaw(worker.Status.ProviderStatus)
+	}
+	return status, nil
+}
+
+// WorkerStatusFromRaw extracts the state from the Worker. If no state was available, it returns a "zero" value WorkerState object.
+func WorkerStatusFromRaw(raw *runtime.RawExtension) (*api.WorkerStatus, error) {
+	status := &api.WorkerStatus{}
+	if raw != nil && raw.Raw != nil {
+		if _, _, err := lenientDecoder.Decode(raw.Raw, nil, status); err != nil {
+			return nil, err
+		}
+	}
+
+	return status, nil
+}

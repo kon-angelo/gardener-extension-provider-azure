@@ -33,7 +33,7 @@ func (w *workerDelegate) PreReconcileHook(ctx context.Context) error {
 		return err
 	}
 
-	if helper.IsVmoRequired(infrastructureStatus) {
+	if helper.IsVmoRequired(infrastructureStatus, w.worker.Annotations) {
 		vmoDependencies, err := w.reconcileVmoDependencies(ctx, infrastructureStatus, workerProviderStatus)
 		workerProviderStatus.VmoDependencies = vmoDependencies
 		if err != nil {
@@ -77,7 +77,7 @@ func (w *workerDelegate) cleanupMachineDependencies(ctx context.Context) error {
 		return err
 	}
 
-	if helper.IsVmoRequired(infrastructureStatus) {
+	if helper.IsVmoRequired(infrastructureStatus, w.cluster.Shoot.GetAnnotations()) {
 		vmoDependencies, err := w.cleanupVmoDependencies(ctx, infrastructureStatus, workerProviderStatus)
 		workerProviderStatus.VmoDependencies = vmoDependencies
 		if err != nil {

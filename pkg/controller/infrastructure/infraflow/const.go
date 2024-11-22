@@ -17,4 +17,6 @@ const (
 	KeyManagedIdentityClientId = "managed_identity_client_id"
 	// KeyManagedIdentityId is a key for the MI's identity ID.
 	KeyManagedIdentityId = "managed_identity_id"
+	// KeyAVSetMigrationComplete is a key for the migration of AvailabilitySets to VMSS.
+	KeyAVSetMigrationComplete = "av_set_migration_complete"
 )

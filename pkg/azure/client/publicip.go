@@ -6,6 +6,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -29,6 +30,7 @@ func NewPublicIPClient(auth internal.ClientAuth, tc azcore.TokenCredential, opts
 
 // CreateOrUpdate indicates an expected call of Network Public IP CreateOrUpdate.
 func (c *PublicIPClient) CreateOrUpdate(ctx context.Context, resourceGroupName, name string, parameters armnetwork.PublicIPAddress) (*armnetwork.PublicIPAddress, error) {
+	fmt.Printf("AAAAAAAAAAAAAAAAAAAAAAAAAa\n\n\n\n %s\n\n", *parameters.SKU.Name)
 	future, err := c.client.BeginCreateOrUpdate(ctx, resourceGroupName, name, parameters, nil)
 	if err != nil {
 		return nil, err

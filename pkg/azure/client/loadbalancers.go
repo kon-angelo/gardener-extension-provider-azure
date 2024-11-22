@@ -25,6 +25,15 @@ func NewLoadBalancersClient(auth internal.ClientAuth, tc azcore.TokenCredential,
 	return &LoadBalancersClient{client}, err
 }
 
+// Get gets a given virtual network by name
+func (v *LoadBalancersClient) Get(ctx context.Context, resourceGroupName, name string) (*armnetwork.LoadBalancer, error) {
+	res, err := v.client.Get(ctx, resourceGroupName, name, nil)
+	if err != nil {
+		return nil, FilterNotFoundError(err)
+	}
+	return &res.LoadBalancer, err
+}
+
 // List lists all subnets of a given virtual network.
 func (c *LoadBalancersClient) List(ctx context.Context, resourceGroupName string) ([]*armnetwork.LoadBalancer, error) {
 	pager := c.client.NewListPager(resourceGroupName, nil)

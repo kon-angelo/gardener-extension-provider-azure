@@ -126,8 +126,8 @@ func FindImageFromCloudProfile(cloudProfileConfig *api.CloudProfileConfig, image
 }
 
 // IsVmoRequired determines if VMO is required.
-func IsVmoRequired(infrastructureStatus *api.InfrastructureStatus) bool {
-	return !infrastructureStatus.Zoned && len(infrastructureStatus.AvailabilitySets) == 0
+func IsVmoRequired(infrastructureStatus *api.InfrastructureStatus, annotations map[string]string) bool {
+	return !infrastructureStatus.Zoned && (len(infrastructureStatus.AvailabilitySets) == 0 || HasShootVmoAlphaAnnotation(annotations))
 }
 
 // HasShootVmoAlphaAnnotation determines if the passed Shoot annotations contain instruction to use VMO.

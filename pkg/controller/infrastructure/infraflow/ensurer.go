@@ -8,18 +8,28 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
+	"github.com/gardener/gardener/pkg/extensions"
+	"github.com/gardener/gardener/pkg/utils/flow"
 	"github.com/go-logr/logr"
+	appsv1 "k8s.io/api/apps/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
+	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow/shared"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
@@ -164,14 +174,13 @@ func (fctx *FlowContext) ensureUserVirtualNetwork(ctx context.Context) (*armnetw
 // EnsureAvailabilitySet creates or updates an KindAvailabilitySet
 func (fctx *FlowContext) EnsureAvailabilitySet(ctx context.Context) error {
 	log := shared.LogFromContext(ctx)
-	avsetCfg := fctx.adapter.AvailabilitySetConfig()
-	if avsetCfg == nil {
-		// should not reach here
-		log.Info("skipping ensuring availability set")
+	if !fctx.adapter.IsAvailabilitySetRequired() {
+		// skip ensuring if the AvSet is not needed.
+		log.Info("av set is not required")
 		return nil
 	}
 
-	avset, err := fctx.ensureAvailabilitySet(ctx, log, *avsetCfg)
+	avset, err := fctx.ensureAvailabilitySet(ctx, log, *fctx.adapter.AvailabilitySetConfig())
 	if err != nil {
 		return err
 	}
@@ -181,7 +190,197 @@ func (fctx *FlowContext) EnsureAvailabilitySet(ctx context.Context) error {
 		return err
 	}
 	fctx.whiteboard.GetChild(ChildKeyIDs).Set(KindAvailabilitySet.String(), *avset.ID)
+	fctx.whiteboard.SetObject(KindAvailabilitySet.String(), avset)
 	return nil
+}
+
+// EnsureAvailabilitySetMigrationConditions migrates availability set clusters to VMSS Flex clusters.
+func (fctx *FlowContext) EnsureAvailabilitySetMigrationConditions(ctx context.Context) error {
+	log := shared.LogFromContext(ctx)
+	if ok := fctx.whiteboard.GetChild(ChildKeyIDs).Get(KindAvailabilitySet.String()); ok == nil {
+		return nil
+	}
+	if !fctx.adapter.VMORequired() {
+		log.Info("skipping... vmss not enabled")
+		return nil
+	}
+	// if fctx.whiteboard.Get(KeyAVSetMigrationComplete) == ptr.To("true") {
+	// 	log.Info("BOOOM")
+	// 	fctx.whiteboard.Delete(KeyAVSetMigrationComplete)
+	// 	return nil
+	// }
+
+	var (
+		f = shared.NewBasicFlowContext().WithSpan().WithLogger(fctx.log).WithPersist(fctx.persistState)
+		g = flow.NewGraph("Azure Availability Set migration flow")
+		c = fctx.client
+	)
+
+	ccm := f.AddTask(g, "scale ccm down", func(ctx context.Context) error {
+		ccmDeployment := &appsv1.Deployment{}
+		if err := fctx.client.Get(ctx, k8sclient.ObjectKey{
+			Namespace: fctx.infra.Namespace,
+			Name:      azure.CloudControllerManagerName,
+		}, ccmDeployment); err != nil {
+			return err
+		}
+
+		if ptr.Deref(ccmDeployment.Spec.Replicas, 1) == 0 {
+			return nil
+		}
+
+		patch := k8sclient.MergeFrom(ccmDeployment.DeepCopy())
+		ccmDeployment.Spec.Replicas = ptr.To(int32(0))
+		// Apply the patch on the "scale" subresource
+		if err := c.SubResource("scale").Patch(ctx, ccmDeployment, patch); err != nil {
+			return fmt.Errorf("failed to patch cloud-controller-manager replicas: %w", err)
+		}
+		return nil
+	})
+	backupIPs := f.AddTask(g, "backup IPs", func(ctx context.Context) error {
+		lbc, err := fctx.factory.LoadBalancer()
+		if err != nil {
+			return err
+		}
+		lb, err := lbc.Get(ctx, fctx.adapter.ResourceGroupName(), fctx.infra.Namespace)
+		if err != nil {
+			return err
+		}
+		if lb == nil ||
+			lb.SKU == nil ||
+			lb.SKU.Name == nil ||
+			*lb.SKU.Name != armnetwork.LoadBalancerSKUNameBasic {
+			return nil
+		}
+		if lb.Properties == nil || len(lb.Properties.FrontendIPConfigurations) == 0 {
+			return nil
+		}
+		for _, fipc := range lb.Properties.FrontendIPConfigurations {
+			if fipc.Properties == nil {
+				continue
+			}
+			if fipc.Properties.PublicIPAddress != nil {
+				resourceID, err := arm.ParseResourceID(*fipc.Properties.PublicIPAddress.ID)
+				if err != nil {
+					return err
+				}
+				fctx.whiteboard.GetChild("migration").GetChild("basic-lb").GetChild(resourceID.ResourceGroupName).Set(resourceID.Name, "true")
+			}
+		}
+		return fctx.PersistState(ctx)
+	}, shared.Dependencies(ccm))
+
+	rollVMs := f.AddTask(g, "roll VMs", func(ctx context.Context) error {
+		worker := &extensionsv1alpha1.Worker{}
+		if err := c.Get(ctx, k8sclient.ObjectKey{
+			Namespace: fctx.infra.Namespace,
+			Name:      fctx.infra.Namespace,
+		}, worker); k8sclient.IgnoreNotFound(err) != nil {
+			return err
+		} else if apierrors.IsNotFound(err) {
+			return nil
+		}
+		workerStatus, err := helper.WorkerStatusFromWorker(worker)
+		if err != nil {
+			return nil
+		}
+		if len(workerStatus.VmoDependencies) == 0 {
+			patch := k8sclient.MergeFrom(worker.DeepCopy())
+			metav1.SetMetaDataAnnotation(&worker.ObjectMeta, "gardener.cloud/operation", "reconcile")
+			if err := c.Patch(ctx, worker, patch); err != nil {
+				return fmt.Errorf("failed to 'Aborted' for shoot %q: %w", k8sclient.ObjectKeyFromObject(worker), err)
+			}
+		}
+
+		return extensions.WaitUntilExtensionObjectReady(ctx, c, log,
+			worker,
+			"Worker",
+			30*time.Second,
+			30*time.Minute,
+			30*time.Minute,
+			nil,
+		)
+	}, shared.Dependencies(ccm))
+
+	rmLbInt := f.AddTask(g, "delete LB int", func(ctx context.Context) error {
+		lbc, err := fctx.factory.LoadBalancer()
+		if err != nil {
+			return err
+		}
+
+		log.Info("Deleting load balancer", "Name", fctx.infra.Namespace)
+		return lbc.Delete(ctx, fctx.adapter.ResourceGroupName(), fctx.infra.Namespace+"-internal")
+	}, shared.Dependencies(rollVMs, backupIPs))
+
+	rmLb := f.AddTask(g, "delete LB", func(ctx context.Context) error {
+		lbc, err := fctx.factory.LoadBalancer()
+		if err != nil {
+			return err
+		}
+		log.Info("Deleting load balancer", "Name", fctx.infra.Namespace)
+		return lbc.Delete(ctx, fctx.adapter.ResourceGroupName(), fctx.infra.Namespace)
+	}, shared.Dependencies(rollVMs, backupIPs))
+
+	_ = f.AddTask(g, "update PIPs", func(ctx context.Context) error {
+		ipc, err := fctx.factory.PublicIP()
+		if err != nil {
+			return err
+		}
+		var (
+			wg   = sync.WaitGroup{}
+			errs error
+		)
+		for _, child := range fctx.whiteboard.GetChild("migration").GetChild("basic-lb").GetChildrenKeys() {
+			for _, pipName := range fctx.whiteboard.GetChild("migration").GetChild("basic-lb").GetChild(child).Keys() {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					log.Info("upgrading basic PIP", "RG", child, "Name", pipName)
+					pip, err := ipc.Get(ctx, child, pipName, nil)
+					if err != nil {
+						errs = errors.Join(err)
+						return
+					}
+					if pip == nil || pip.SKU == nil || pip.SKU.Name == nil || *pip.SKU.Name != armnetwork.PublicIPAddressSKUNameBasic {
+						return
+					}
+					pip.SKU = &armnetwork.PublicIPAddressSKU{
+						Name: to.Ptr(armnetwork.PublicIPAddressSKUNameStandard),
+						Tier: to.Ptr(armnetwork.PublicIPAddressSKUTierRegional),
+					}
+					_, err = ipc.CreateOrUpdate(ctx, child, pipName, *pip)
+					if err != nil {
+						errs = errors.Join(err)
+						return
+					}
+					fctx.whiteboard.GetChild("migration").GetChild("basic-lb").GetChild(child).Delete(pipName)
+				}()
+			}
+		}
+		wg.Wait()
+		return errs
+	}, shared.Dependencies(rmLb, rmLbInt))
+	_ = f.AddTask(g, "delete avset", func(ctx context.Context) error {
+		asClient, err := fctx.factory.AvailabilitySet()
+		if err != nil {
+			return err
+		}
+		avsetCfg, err := fctx.adapter.availabilitySetConfig()
+		if err != nil {
+			return err
+		}
+		log.Info("Deleting av set", "Name", avsetCfg.Name)
+		return asClient.Delete(ctx, avsetCfg.ResourceGroup, avsetCfg.Name)
+	}, shared.Dependencies(rollVMs, backupIPs))
+
+	err := g.Compile().Run(ctx, flow.Opts{
+		Log: log,
+	})
+	if err == nil {
+		fctx.whiteboard.Set(KeyAVSetMigrationComplete, "true")
+	}
+
+	return err
 }
 
 func (fctx *FlowContext) ensureAvailabilitySet(ctx context.Context, log logr.Logger, avsetCfg AvailabilitySetConfig) (*armcompute.AvailabilitySet, error) {
@@ -754,14 +953,14 @@ func (fctx *FlowContext) GetInfrastructureStatus(_ context.Context) (*v1alpha1.I
 	}
 	status.Networks.OutboundAccessType = outboundAccessType
 
-	if cfg := fctx.adapter.AvailabilitySetConfig(); cfg != nil {
+	if avset, ok := (fctx.whiteboard.GetObject(KindAvailabilitySet.String())).(*armcompute.AvailabilitySet); ok {
 		status.AvailabilitySets = []v1alpha1.AvailabilitySet{
 			{
 				Purpose:            v1alpha1.PurposeNodes,
-				ID:                 GetIdFromTemplate(TemplateAvailabilitySet, fctx.auth.SubscriptionID, cfg.ResourceGroup, cfg.Name),
-				Name:               cfg.Name,
-				CountFaultDomains:  cfg.CountFaultDomains,
-				CountUpdateDomains: cfg.CountUpdateDomains,
+				ID:                 *avset.ID,
+				Name:               *avset.Name,
+				CountFaultDomains:  avset.Properties.PlatformFaultDomainCount,
+				CountUpdateDomains: avset.Properties.PlatformUpdateDomainCount,
 			},
 		}
 	}
@@ -782,6 +981,7 @@ func (fctx *FlowContext) GetInfrastructureState() *runtime.RawExtension {
 	state := &v1alpha1.InfrastructureState{
 		TypeMeta:     helper.InfrastructureStateTypeMeta,
 		ManagedItems: fctx.inventory.ToList(),
+		Data:         fctx.whiteboard.ExportAsFlatMap(),
 	}
 
 	return &runtime.RawExtension{

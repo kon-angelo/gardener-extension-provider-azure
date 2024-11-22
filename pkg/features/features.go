@@ -9,6 +9,9 @@ const (
 	// DisableRemedyController controls whether the azure provider will disable the remedy-controller. Technically it will still be deployed, but scaled down to zero.
 	// alpha: v1.29.0
 	DisableRemedyController featuregate.Feature = "DisableRemedyController"
+	// MigrateAvailabilitySetToVMSS disables the creation of availability set shoots. VMSS Flex shoots should be created instead.
+	// alpha: v1.50.0
+	MigrateAvailabilitySetToVMSS featuregate.Feature = "DisableAvailabilitySetCreation"
 )
 
 // ExtensionFeatureGate is the feature gate for the extension controllers.
@@ -21,6 +24,7 @@ func init() {
 // RegisterExtensionFeatureGate registers features to the extension feature gate.
 func RegisterExtensionFeatureGate() {
 	runtime.Must(ExtensionFeatureGate.Add(map[featuregate.Feature]featuregate.FeatureSpec{
-		DisableRemedyController: {Default: false, PreRelease: featuregate.Alpha},
+		DisableRemedyController:      {Default: false, PreRelease: featuregate.Alpha},
+		MigrateAvailabilitySetToVMSS: {Default: true, PreRelease: featuregate.Alpha},
 	}))
 }

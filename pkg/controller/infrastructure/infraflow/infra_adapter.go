@@ -33,8 +33,10 @@ type InfrastructureAdapter struct {
 
 	// cached configuration
 	vnetConfig  VirtualNetworkConfig
-	avSetConfig *AvailabilitySetConfig
 	zoneConfigs []ZoneConfig
+
+	avSetConfig   *AvailabilitySetConfig
+	avSetRequired bool
 }
 
 // NewInfrastructureAdapter returns a new instance of the InfrastructureAdapter.
@@ -53,6 +55,12 @@ func NewInfrastructureAdapter(
 		status:  status,
 	}
 	ia.vnetConfig = ia.virtualNetworkConfig()
+	avSetRequired, err := infrastructure.IsPrimaryAvailabilitySetRequired(ia.infra)
+	if err != nil {
+		return nil, err
+	}
+	ia.avSetRequired = avSetRequired
+
 	avset, err := ia.availabilitySetConfig()
 	if err != nil {
 		return nil, err
@@ -157,9 +165,9 @@ type AvailabilitySetConfig struct {
 	Location           string
 }
 
-// AvailabilitySetRequired returns true if gardener should create an availability set for the shoot.
-func (ia *InfrastructureAdapter) availabilitySetRequired() (bool, error) {
-	return infrastructure.IsPrimaryAvailabilitySetRequired(ia.infra, ia.config, ia.cluster)
+// IsAvailabilitySetRequired returns true if gardener should create an availability set for the shoot.
+func (ia *InfrastructureAdapter) IsAvailabilitySetRequired() bool {
+	return ia.avSetRequired
 }
 
 // AvailabilitySetConfig returns the configuration for the shoot's availability set.
@@ -167,14 +175,16 @@ func (ia *InfrastructureAdapter) AvailabilitySetConfig() *AvailabilitySetConfig 
 	return ia.avSetConfig
 }
 
+func (ia *InfrastructureAdapter) VMORequired() bool {
+	return helper.IsVmoRequired(ia.status, ia.cluster.Shoot.Annotations)
+}
+
+func (ia *InfrastructureAdapter) HasZones() bool {
+	return ia.config.Zoned == true
+}
+
 // AvailabilitySetConfig returns the availability set's configuration.
 func (ia *InfrastructureAdapter) availabilitySetConfig() (*AvailabilitySetConfig, error) {
-	if ok, err := ia.availabilitySetRequired(); err != nil {
-		return nil, err
-	} else if !ok {
-		return nil, nil
-	}
-
 	asc := &AvailabilitySetConfig{
 		AzureResourceMetadata: AzureResourceMetadata{
 			ResourceGroup: ia.ResourceGroupName(),
