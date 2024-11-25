@@ -7,6 +7,7 @@ package infraflow
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/gardener/gardener/extensions/pkg/controller"
@@ -27,6 +28,14 @@ const (
 	defaultTimeout     = 2 * time.Minute
 	defaultLongTimeout = 4 * time.Minute
 )
+
+var setSeparator = sync.OnceFunc(func() {
+	shared.Separator = "|"
+})
+
+func init() {
+	setSeparator()
+}
 
 // FlowContext is the reconciler for all managed resources
 type FlowContext struct {
@@ -175,7 +184,7 @@ func (fctx *FlowContext) buildReconcileGraph() *flow.Graph {
 
 	_ = fctx.AddTask(g, "availability set migration", fctx.MigrateAvailabilitySet,
 		shared.Timeout(defaultLongTimeout), shared.Dependencies(reconciliationFinishedPoint),
-		shared.DoIf(fctx.adapter.IsAvailabilitySetRequired()))
+		shared.DoIf(!fctx.cfg.Zoned))
 	return g
 }
 

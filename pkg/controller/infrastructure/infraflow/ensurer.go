@@ -15,13 +15,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
-	"github.com/gardener/gardener/pkg/extensions"
 	"github.com/gardener/gardener/pkg/utils/flow"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -173,6 +169,9 @@ func (fctx *FlowContext) ensureUserVirtualNetwork(ctx context.Context) (*armnetw
 // EnsureAvailabilitySet creates or updates an KindAvailabilitySet
 func (fctx *FlowContext) EnsureAvailabilitySet(ctx context.Context) error {
 	log := shared.LogFromContext(ctx)
+	if !fctx.adapter.IsAvailabilitySetRequired() {
+		return nil
+	}
 	avsetCfg := fctx.adapter.AvailabilitySetConfig()
 	if avsetCfg == nil {
 		// should not reach here
@@ -715,11 +714,38 @@ func (fctx *FlowContext) MigrateAvailabilitySet(ctx context.Context) error {
 	)
 
 	// return early if the cluster does not use AS.
-	if !fctx.adapter.IsAvailabilitySetRequired() {
+	// if !fctx.adapter.IsAvailabilitySetRequired() {
+	// 	return nil
+	// }
+	if fctx.whiteboard.GetChild(ChildKeyIDs).Get(KindAvailabilitySet.String()) == nil {
 		return nil
 	}
 	// if the migration to VMO is not required, return early.
 	if !fctx.adapter.IsVmoRequired() {
+		return nil
+	}
+
+	// try to delete the availability set. It can only  work if it does not contain any VMs.
+	asClient, err := fctx.factory.AvailabilitySet()
+	if err != nil {
+		return err
+	}
+
+	av, err := asClient.Get(ctx, fctx.adapter.AvailabilitySetConfig().ResourceGroup, fctx.adapter.AvailabilitySetConfig().Name)
+	if err != nil {
+		return err
+	}
+	if av == nil {
+		return nil
+	}
+	// if the AS contains no VMs then we attempt to delete it and complete the migration
+	if len(av.Properties.VirtualMachines) == 0 {
+		log.Info("Deleting Availability Set", "Name", *av.Name)
+		if err := asClient.Delete(ctx, fctx.adapter.ResourceGroupName(), *av.Name); err != nil {
+			return err
+		}
+		fctx.whiteboard.GetChild(ChildKeyIDs).Delete(KindAvailabilitySet.String())
+		fctx.inventory.Delete(*av.ID)
 		return nil
 	}
 
@@ -748,12 +774,14 @@ func (fctx *FlowContext) MigrateAvailabilitySet(ctx context.Context) error {
 		return nil
 	}
 
-	flow.Parallel(func(ctx context.Context) error {
+	if err := flow.Parallel(func(ctx context.Context) error {
 		return scaleDownDeployment(ctx, k8sclient.ObjectKey{Namespace: fctx.infra.Namespace, Name: azure.CloudControllerManagerName})
 	}, func(ctx context.Context) error {
 		// we want to scale CA down to avoid VMs getting created as they may claim internal subnet IPs in the case of an existing internal loadbalancer.
 		return scaleDownDeployment(ctx, k8sclient.ObjectKey{Namespace: fctx.infra.Namespace, Name: "cluster-autoscaler"})
-	}).RetryUntilTimeout(30*time.Second, defaultTimeout)
+	}).RetryUntilTimeout(5*time.Second, defaultTimeout)(ctx); err != nil {
+		return err
+	}
 
 	log.Info("Backing-up Public IPs to be migrated")
 	// we will first backup the PIPs that we want to migrate. In the simplest case, we would only migrate PIPs in the shoot's RG. But the loadbalancer may reference PIPs from other RGs.
@@ -779,78 +807,7 @@ func (fctx *FlowContext) MigrateAvailabilitySet(ctx context.Context) error {
 		return err
 	}
 
-	log.Info("reconciling the control-plane")
-	cp := &extensionsv1alpha1.ControlPlane{}
-	if err := c.Get(ctx, k8sclient.ObjectKey{
-		Namespace: fctx.infra.Namespace,
-		Name:      fctx.cluster.Shoot.Name,
-	}, cp); k8sclient.IgnoreNotFound(err) != nil {
-		return err
-	} else if apierrors.IsNotFound(err) {
-		return nil
-	}
-	patch := k8sclient.MergeFrom(cp.DeepCopy())
-	metav1.SetMetaDataAnnotation(&cp.ObjectMeta, "gardener.cloud/operation", "reconcile")
-	if err := c.Patch(ctx, cp, patch); err != nil {
-		return fmt.Errorf("failed to patch control-plane %q: %w", k8sclient.ObjectKeyFromObject(cp), err)
-	}
-	if err := extensions.WaitUntilExtensionObjectReady(ctx, c, log,
-		cp,
-		"ControlPlane",
-		10*time.Second,
-		30*time.Minute,
-		5*time.Minute,
-		nil,
-	); err != nil {
-		return fmt.Errorf("failed to wait for control-plane %q: %w", k8sclient.ObjectKeyFromObject(cp), err)
-	}
-
-	log.Info("reconciling the worker")
-	worker := &extensionsv1alpha1.Worker{}
-	if err := c.Get(ctx, k8sclient.ObjectKey{
-		Namespace: fctx.infra.Namespace,
-		Name:      fctx.cluster.Shoot.Name,
-	}, worker); k8sclient.IgnoreNotFound(err) != nil {
-		return err
-	} else if apierrors.IsNotFound(err) {
-		return nil
-	}
-	patch = k8sclient.MergeFrom(worker.DeepCopy())
-	metav1.SetMetaDataAnnotation(&worker.ObjectMeta, "gardener.cloud/operation", "reconcile")
-	if err := c.Patch(ctx, worker, patch); err != nil {
-		return fmt.Errorf("failed to patch control-plane %q: %w", k8sclient.ObjectKeyFromObject(cp), err)
-	}
-	if err := extensions.WaitUntilExtensionObjectReady(ctx, c, log,
-		worker,
-		"Worker",
-		10*time.Second,
-		30*time.Minute,
-		5*time.Minute,
-		nil,
-	); err != nil {
-		return fmt.Errorf("failed to wait for worker %q: %w", k8sclient.ObjectKeyFromObject(cp), err)
-	}
-
-	asClient, err := fctx.factory.AvailabilitySet()
-	if err != nil {
-		return err
-	}
-
-	var tasks []flow.TaskFn
-	for _, avset := range fctx.status.AvailabilitySets {
-		tasks = append(tasks, func(ctx context.Context) error {
-			av, err := asClient.Get(ctx, fctx.adapter.ResourceGroupName(), avset.Name)
-			if err != nil {
-				return err
-			}
-			if len(av.Properties.VirtualMachines) > 0 {
-				return fmt.Errorf("Cannot delete availability set as it contains ")
-			}
-			log.Info("Deleting Availability Set", "Name", avset.Name)
-			return asClient.Delete(ctx, fctx.adapter.ResourceGroupName(), avset.Name)
-		})
-	}
-	return flow.Parallel(tasks...)(ctx)
+	return nil
 }
 
 // GetInfrastructureStatus returns the infrastructure status.
@@ -908,7 +865,7 @@ func (fctx *FlowContext) GetInfrastructureStatus(_ context.Context) (*v1alpha1.I
 	}
 	status.Networks.OutboundAccessType = outboundAccessType
 
-	if fctx.adapter.IsAvailabilitySetRequired() {
+	if fctx.whiteboard.GetChild(ChildKeyIDs).Get(KindAvailabilitySet.String()) != nil {
 		cfg := fctx.adapter.AvailabilitySetConfig()
 		status.AvailabilitySets = []v1alpha1.AvailabilitySet{
 			{
