@@ -161,7 +161,7 @@ func cleanupOrphanVMODependencies(ctx context.Context, client azureclient.Vmss, 
 }
 
 func (w *workerDelegate) determineWorkerPoolVmoDependency(ctx context.Context, infrastructureStatus *azureapi.InfrastructureStatus, workerStatus *azureapi.WorkerStatus, workerPoolName string) (*azureapi.VmoDependency, error) {
-	if !azureapihelper.IsVmoRequired(infrastructureStatus) {
+	if !azureapihelper.IsVmoRequired(infrastructureStatus, w.cluster.Shoot.Annotations) {
 		return nil, nil
 	}
 

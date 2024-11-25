@@ -493,7 +493,7 @@ func getConfigChartValues(infraStatus *apisazure.InfrastructureStatus, cp *exten
 		values["acrIdentityClientId"] = infraStatus.Identity.ClientID
 	}
 
-	return appendMachineSetValues(values, infraStatus), nil
+	return appendMachineSetValues(values, infraStatus, cluster.Shoot.GetAnnotations()), nil
 }
 
 func cloudInstanceName(cloudConfiguration apisazure.CloudConfiguration) string {
@@ -507,9 +507,9 @@ func cloudInstanceName(cloudConfiguration apisazure.CloudConfiguration) string {
 	}
 }
 
-func appendMachineSetValues(values map[string]interface{}, infraStatus *apisazure.InfrastructureStatus) map[string]interface{} {
+func appendMachineSetValues(values map[string]interface{}, infraStatus *apisazure.InfrastructureStatus, shootAnnotations map[string]string) map[string]interface{} {
 	values["vmType"] = "standard"
-	if azureapihelper.IsVmoRequired(infraStatus) {
+	if azureapihelper.IsVmoRequired(infraStatus, shootAnnotations) {
 		values["vmType"] = "vmss"
 		return values
 	}
@@ -670,7 +670,7 @@ func getCSIControllerChartValues(
 		}
 	}
 
-	if azureapihelper.IsVmoRequired(infraStatus) {
+	if azureapihelper.IsVmoRequired(infraStatus, cluster.Shoot.GetAnnotations()) {
 		values["vmType"] = "vmss"
 	} else {
 		values["vmType"] = "standard"
@@ -752,7 +752,7 @@ func getControlPlaneShootChartValues(
 		// - when the shoot is using AVSets due to using basic loadbalancers (see https://github.com/gardener/gardener-extension-provider-azure/issues/1).
 		// - when the outbound connectivity is done via a NATGateway (currently meaning that all worker subnets have a NATGateway attached).
 		azure.AllowEgressName: map[string]interface{}{
-			"enabled": (infraStatus.Zoned || azureapihelper.IsVmoRequired(infraStatus)) && infraStatus.Networks.OutboundAccessType == apisazure.OutboundAccessTypeLoadBalancer,
+			"enabled": (infraStatus.Zoned || azureapihelper.IsVmoRequired(infraStatus, cluster.Shoot.GetAnnotations())) && infraStatus.Networks.OutboundAccessType == apisazure.OutboundAccessTypeLoadBalancer,
 		},
 		azure.CloudControllerManagerName: map[string]interface{}{
 			"enabled": true,

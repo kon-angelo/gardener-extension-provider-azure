@@ -11,7 +11,6 @@ import (
 
 	api "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	. "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
-	"github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 )
 
 var (
@@ -169,22 +168,6 @@ var _ = Describe("Helper", func() {
 			Name:    "my-availabilityset",
 			Purpose: api.PurposeNodes,
 		}, false),
-	)
-
-	DescribeTable("#HasShootVmoAlphaAnnotation",
-		func(hasVmoAnnotaion, hasCorrectVmoAnnotationValue, expectedResult bool) {
-			var annotations = map[string]string{}
-			if hasVmoAnnotaion {
-				annotations[azure.ShootVmoUsageAnnotation] = "some-arbitrary-value"
-			}
-			if hasCorrectVmoAnnotationValue {
-				annotations[azure.ShootVmoUsageAnnotation] = "true"
-			}
-			Expect(HasShootVmoAlphaAnnotation(annotations)).To(Equal(expectedResult))
-		},
-		Entry("should return true as shoot annotations contain vmo alpha annotation with value true", true, true, true),
-		Entry("should return false as shoot annotations contain vmo alpha annotation with wrong value", true, false, false),
-		Entry("should return false as shoot annotations do not contain vmo alpha annotation", false, false, false),
 	)
 })
 

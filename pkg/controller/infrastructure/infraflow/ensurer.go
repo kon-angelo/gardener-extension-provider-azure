@@ -8,18 +8,27 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
+	"github.com/gardener/gardener/pkg/extensions"
+	"github.com/gardener/gardener/pkg/utils/flow"
 	"github.com/go-logr/logr"
+	appsv1 "k8s.io/api/apps/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
+	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/v1alpha1"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow/shared"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/internal/infrastructure"
@@ -697,6 +706,151 @@ func (fctx *FlowContext) EnsureManagedIdentity(ctx context.Context) (err error) 
 	fctx.whiteboard.Set(KeyManagedIdentityClientId, *res.Properties.ClientID)
 	fctx.whiteboard.Set(KeyManagedIdentityId, *res.ID)
 	return err
+}
+
+func (fctx *FlowContext) MigrateAvailabilitySet(ctx context.Context) error {
+	var (
+		log = shared.LogFromContext(ctx)
+		c   = fctx.client
+	)
+
+	// return early if the cluster does not use AS.
+	if !fctx.adapter.AvailabilitySetRequired() {
+		return nil
+	}
+	// if the migration to VMO is not required, return early.
+	if !fctx.adapter.IsVmoRequired() {
+		return nil
+	}
+
+	log.Info("Preparing for the migration to VMOs")
+	scaleDownDeployment := func(ctx context.Context, key k8sclient.ObjectKey) error {
+		log.Info("Scaling deployment to 0 replicas", "Name", key.String())
+		deployment := &appsv1.Deployment{}
+		if err := fctx.client.Get(ctx, k8sclient.ObjectKey{
+			Namespace: fctx.infra.Namespace,
+			Name:      azure.CloudControllerManagerName,
+		}, deployment); k8sclient.IgnoreNotFound(err) != nil {
+			return err
+		} else if k8sclient.IgnoreNotFound(err) != nil {
+			return nil
+		}
+
+		if ptr.Deref(deployment.Spec.Replicas, 1) == 0 {
+			return nil
+		}
+		patch := k8sclient.MergeFrom(deployment.DeepCopy())
+		deployment.Spec.Replicas = ptr.To(int32(0))
+		// Apply the patch on the "scale" subresource
+		if err := c.SubResource("scale").Patch(ctx, deployment, patch); err != nil {
+			return fmt.Errorf("failed to patch deployment %s with replicas: %w", key.String(), err)
+		}
+		return nil
+	}
+
+	flow.Parallel(func(ctx context.Context) error {
+		return scaleDownDeployment(ctx, k8sclient.ObjectKey{Namespace: fctx.infra.Namespace, Name: azure.CloudControllerManagerName})
+	}, func(ctx context.Context) error {
+		// we want to scale CA down to avoid VMs getting created as they may claim internal subnet IPs in the case of an existing internal loadbalancer.
+		return scaleDownDeployment(ctx, k8sclient.ObjectKey{Namespace: fctx.infra.Namespace, Name: "cluster-autoscaler"})
+	}).RetryUntilTimeout(30*time.Second, defaultTimeout)
+
+	log.Info("Backing-up Public IPs to be migrated")
+	// we will first backup the PIPs that we want to migrate. In the simplest case, we would only migrate PIPs in the shoot's RG. But the loadbalancer may reference PIPs from other RGs.
+	// If we delete the LB we would have no way to recover the PIPs in other RGs, hence we will back it up.
+	if err := fctx.BackupPIPsForBasicLBMigration(ctx); err != nil {
+		return err
+	}
+
+	loadbalancerClient, err := fctx.factory.LoadBalancer()
+	if err != nil {
+		return err
+	}
+	log.Info("Deleting load balancer", "Name", fctx.infra.Namespace)
+	if err := loadbalancerClient.Delete(ctx, fctx.adapter.ResourceGroupName(), fctx.adapter.TechnicalName()); err != nil {
+		return err
+	}
+	log.Info("Deleting internal load balancer", "Name", fctx.infra.Namespace)
+	if err := loadbalancerClient.Delete(ctx, fctx.adapter.ResourceGroupName(), fmt.Sprintf("%s-internal", fctx.adapter.TechnicalName())); err != nil {
+		return err
+	}
+
+	if err := fctx.UpdatePublicIPs(ctx); err != nil {
+		return err
+	}
+
+	log.Info("reconciling the control-plane")
+	cp := &extensionsv1alpha1.ControlPlane{}
+	if err := c.Get(ctx, k8sclient.ObjectKey{
+		Namespace: fctx.infra.Namespace,
+		Name:      fctx.cluster.Shoot.Name,
+	}, cp); k8sclient.IgnoreNotFound(err) != nil {
+		return err
+	} else if apierrors.IsNotFound(err) {
+		return nil
+	}
+	patch := k8sclient.MergeFrom(cp.DeepCopy())
+	metav1.SetMetaDataAnnotation(&cp.ObjectMeta, "gardener.cloud/operation", "reconcile")
+	if err := c.Patch(ctx, cp, patch); err != nil {
+		return fmt.Errorf("failed to patch control-plane %q: %w", k8sclient.ObjectKeyFromObject(cp), err)
+	}
+	if err := extensions.WaitUntilExtensionObjectReady(ctx, c, log,
+		cp,
+		"ControlPlane",
+		10*time.Second,
+		30*time.Minute,
+		5*time.Minute,
+		nil,
+	); err != nil {
+		return fmt.Errorf("failed to wait for control-plane %q: %w", k8sclient.ObjectKeyFromObject(cp), err)
+	}
+
+	log.Info("reconciling the worker")
+	worker := &extensionsv1alpha1.Worker{}
+	if err := c.Get(ctx, k8sclient.ObjectKey{
+		Namespace: fctx.infra.Namespace,
+		Name:      fctx.cluster.Shoot.Name,
+	}, worker); k8sclient.IgnoreNotFound(err) != nil {
+		return err
+	} else if apierrors.IsNotFound(err) {
+		return nil
+	}
+	patch = k8sclient.MergeFrom(worker.DeepCopy())
+	metav1.SetMetaDataAnnotation(&worker.ObjectMeta, "gardener.cloud/operation", "reconcile")
+	if err := c.Patch(ctx, worker, patch); err != nil {
+		return fmt.Errorf("failed to patch control-plane %q: %w", k8sclient.ObjectKeyFromObject(cp), err)
+	}
+	if err := extensions.WaitUntilExtensionObjectReady(ctx, c, log,
+		worker,
+		"Worker",
+		10*time.Second,
+		30*time.Minute,
+		5*time.Minute,
+		nil,
+	); err != nil {
+		return fmt.Errorf("failed to wait for worker %q: %w", k8sclient.ObjectKeyFromObject(cp), err)
+	}
+
+	asClient, err := fctx.factory.AvailabilitySet()
+	if err != nil {
+		return err
+	}
+
+	var tasks []flow.TaskFn
+	for _, avset := range fctx.status.AvailabilitySets {
+		tasks = append(tasks, func(ctx context.Context) error {
+			av, err := asClient.Get(ctx, fctx.adapter.ResourceGroupName(), avset.Name)
+			if err != nil {
+				return err
+			}
+			if len(av.Properties.VirtualMachines) > 0 {
+				return fmt.Errorf("Cannot delete availability set as it contains ")
+			}
+			log.Info("Deleting Availability Set", "Name", avset.Name)
+			return asClient.Delete(ctx, fctx.adapter.ResourceGroupName(), avset.Name)
+		})
+	}
+	return flow.Parallel(tasks...)(ctx)
 }
 
 // GetInfrastructureStatus returns the infrastructure status.
