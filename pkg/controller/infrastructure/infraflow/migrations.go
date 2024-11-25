@@ -62,12 +62,12 @@ func (fctx *FlowContext) UpdatePublicIPs(ctx context.Context) error {
 		wg   = sync.WaitGroup{}
 		errs error
 	)
-	for _, child := range fctx.whiteboard.GetChild("migration").GetChild("basic-lb").GetChildrenKeys() {
-		for _, pipName := range fctx.whiteboard.GetChild("migration").GetChild("basic-lb").GetChild(child).Keys() {
+	for _, resourceGroup := range fctx.whiteboard.GetChild("migration").GetChild("basic-lb").GetChildrenKeys() {
+		for _, pipName := range fctx.whiteboard.GetChild("migration").GetChild("basic-lb").GetChild(resourceGroup).Keys() {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				pip, err := ipc.Get(ctx, child, pipName, nil)
+				pip, err := ipc.Get(ctx, resourceGroup, pipName, nil)
 				if err != nil {
 					errs = errors.Join(err)
 					return
@@ -79,14 +79,14 @@ func (fctx *FlowContext) UpdatePublicIPs(ctx context.Context) error {
 					Name: to.Ptr(armnetwork.PublicIPAddressSKUNameStandard),
 					Tier: to.Ptr(armnetwork.PublicIPAddressSKUTierRegional),
 				}
-				log.Info("upgrading basic PIP", "RG", child, "Name", pipName)
-				_, err = ipc.CreateOrUpdate(ctx, child, pipName, *pip)
+				log.Info("upgrading basic PIP", "ResourceGroup", resourceGroup, "Name", pipName)
+				_, err = ipc.CreateOrUpdate(ctx, resourceGroup, pipName, *pip)
 				if err != nil {
 					errs = errors.Join(err)
 					return
 				}
 				// removing upgraded PIP from state.
-				fctx.whiteboard.GetChild("migration").GetChild("basic-lb").GetChild(child).Delete(pipName)
+				fctx.whiteboard.GetChild("migration").GetChild("basic-lb").GetChild(resourceGroup).Delete(pipName)
 			}()
 		}
 	}

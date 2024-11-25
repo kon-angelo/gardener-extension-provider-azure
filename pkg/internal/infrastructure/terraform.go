@@ -400,7 +400,7 @@ func ExtractTerraformState(ctx context.Context, tf terraformer.Terraformer, infr
 		tfState.VNetResourceGroupName = vars[TerraformerOutputKeyVNetResourceGroup]
 	}
 
-	if primaryAvSetRequired {
+	if IsPrimaryAvailabilitySetRequired(status) {
 		tfState.AvailabilitySetID = vars[TerraformerOutputKeyAvailabilitySetID]
 		tfState.AvailabilitySetName = vars[TerraformerOutputKeyAvailabilitySetName]
 		countFaultDomains, err := strconv.Atoi(vars[TerraformerOutputKeyCountFaultDomains])

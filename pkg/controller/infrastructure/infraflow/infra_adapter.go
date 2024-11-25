@@ -157,8 +157,8 @@ type AvailabilitySetConfig struct {
 	Location           string
 }
 
-// AvailabilitySetRequired returns true if gardener should create an availability set for the shoot.
-func (ia *InfrastructureAdapter) AvailabilitySetRequired() bool {
+// IsAvailabilitySetRequired returns true if gardener should create an availability set for the shoot.
+func (ia *InfrastructureAdapter) IsAvailabilitySetRequired() bool {
 	return infrastructure.IsPrimaryAvailabilitySetRequired(ia.status)
 }
 

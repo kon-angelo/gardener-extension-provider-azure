@@ -92,7 +92,7 @@ func (r *TerraformReconciler) reconcile(ctx context.Context, infra *extensionsv1
 	if err != nil {
 		return err
 	}
-	terraformFiles, err := infrastructure.RenderTerraformerTemplate(infra, cfg, cluster)
+	terraformFiles, err := infrastructure.RenderTerraformerTemplate(infra, cfg, currentStatus, cluster)
 	if err != nil {
 		return err
 	}
@@ -229,7 +229,7 @@ func (r *TerraformReconciler) Delete(ctx context.Context, infra *extensionsv1alp
 		return tf.CleanupConfiguration(ctx)
 	}
 
-	terraformFiles, err := infrastructure.RenderTerraformerTemplate(infra, cfg, cluster)
+	terraformFiles, err := infrastructure.RenderTerraformerTemplate(infra, cfg, status, cluster)
 	if err != nil {
 		return err
 	}

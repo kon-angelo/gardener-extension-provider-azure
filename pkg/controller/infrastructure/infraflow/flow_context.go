@@ -150,7 +150,7 @@ func (fctx *FlowContext) buildReconcileGraph() *flow.Graph {
 		fctx.EnsureVirtualNetwork, shared.Timeout(defaultTimeout), shared.Dependencies(resourceGroup))
 
 	_ = fctx.AddTask(g, "ensure availability set",
-		fctx.EnsureAvailabilitySet, shared.DoIf(fctx.adapter.AvailabilitySetRequired()),
+		fctx.EnsureAvailabilitySet, shared.DoIf(fctx.adapter.IsAvailabilitySetRequired()),
 		shared.Timeout(defaultTimeout), shared.Dependencies(resourceGroup))
 
 	_ = fctx.AddTask(g, "ensure managed identity",
@@ -175,7 +175,7 @@ func (fctx *FlowContext) buildReconcileGraph() *flow.Graph {
 
 	_ = fctx.AddTask(g, "availability set migration", fctx.MigrateAvailabilitySet,
 		shared.Timeout(defaultLongTimeout), shared.Dependencies(reconciliationFinishedPoint),
-		shared.DoIf(fctx.adapter.AvailabilitySetRequired()))
+		shared.DoIf(fctx.adapter.IsAvailabilitySetRequired()))
 	return g
 }
 

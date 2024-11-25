@@ -715,7 +715,7 @@ func (fctx *FlowContext) MigrateAvailabilitySet(ctx context.Context) error {
 	)
 
 	// return early if the cluster does not use AS.
-	if !fctx.adapter.AvailabilitySetRequired() {
+	if !fctx.adapter.IsAvailabilitySetRequired() {
 		return nil
 	}
 	// if the migration to VMO is not required, return early.
@@ -908,7 +908,8 @@ func (fctx *FlowContext) GetInfrastructureStatus(_ context.Context) (*v1alpha1.I
 	}
 	status.Networks.OutboundAccessType = outboundAccessType
 
-	if cfg := fctx.adapter.AvailabilitySetConfig(); cfg != nil {
+	if fctx.adapter.IsAvailabilitySetRequired() {
+		cfg := fctx.adapter.AvailabilitySetConfig()
 		status.AvailabilitySets = []v1alpha1.AvailabilitySet{
 			{
 				Purpose:            v1alpha1.PurposeNodes,
@@ -936,6 +937,7 @@ func (fctx *FlowContext) GetInfrastructureState() *runtime.RawExtension {
 	state := &v1alpha1.InfrastructureState{
 		TypeMeta:     helper.InfrastructureStateTypeMeta,
 		ManagedItems: fctx.inventory.ToList(),
+		Data:         fctx.whiteboard.ExportAsFlatMap(),
 	}
 
 	return &runtime.RawExtension{
