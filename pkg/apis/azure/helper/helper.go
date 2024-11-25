@@ -139,6 +139,15 @@ func HasShootVmoAlphaAnnotation(shootAnnotations map[string]string) bool {
 	return false
 }
 
+// HasShootVmoMigrationAnnotation determines if the passed Shoot annotations contain instruction to use VMO.
+func HasShootVmoMigrationAnnotation(shootAnnotations map[string]string) bool {
+	value, exists := shootAnnotations[azure.ShootVmoMigrationAnnotation]
+	if exists && value == "true" {
+		return true
+	}
+	return false
+}
+
 // InfrastructureZoneToString translates the zone from the string format used in Gardener core objects to the int32 format used by the Azure provider extension.
 func InfrastructureZoneToString(zone int32) string {
 	return fmt.Sprintf("%d", zone)
