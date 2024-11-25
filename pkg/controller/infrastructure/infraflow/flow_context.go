@@ -170,7 +170,7 @@ func (fctx *FlowContext) buildReconcileGraph() *flow.Graph {
 
 	_ = fctx.AddTask(g, "ensure availability set migration conditions",
 		fctx.EnsureAvailabilitySetMigrationConditions,
-		shared.Timeout(15*time.Minute), shared.Dependencies(resourceGroup, avset))
+		shared.Timeout(15*time.Minute), shared.Dependencies(avset))
 
 	return g
 }

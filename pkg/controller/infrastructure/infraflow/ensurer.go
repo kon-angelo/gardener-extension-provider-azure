@@ -274,7 +274,7 @@ func (fctx *FlowContext) EnsureAvailabilitySetMigrationConditions(ctx context.Co
 		worker := &extensionsv1alpha1.Worker{}
 		if err := c.Get(ctx, k8sclient.ObjectKey{
 			Namespace: fctx.infra.Namespace,
-			Name:      fctx.infra.Namespace,
+			Name:      fctx.cluster.Shoot.Name,
 		}, worker); k8sclient.IgnoreNotFound(err) != nil {
 			return err
 		} else if apierrors.IsNotFound(err) {

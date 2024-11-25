@@ -132,7 +132,7 @@ func IsVmoRequired(infrastructureStatus *api.InfrastructureStatus, annotations m
 
 // HasShootVmoAlphaAnnotation determines if the passed Shoot annotations contain instruction to use VMO.
 func HasShootVmoAlphaAnnotation(shootAnnotations map[string]string) bool {
-	value, exists := shootAnnotations[azure.ShootVmoUsageAnnotation]
+	value, exists := shootAnnotations[azure.MigrateVmoUsageAnnotation]
 	if exists && value == "true" {
 		return true
 	}
