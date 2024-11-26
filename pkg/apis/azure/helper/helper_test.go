@@ -11,6 +11,7 @@ import (
 
 	api "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	. "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 )
 
 var (
@@ -151,7 +152,7 @@ var _ = Describe("Helper", func() {
 	)
 
 	DescribeTable("#IsVmoRequired",
-		func(zoned bool, availabilitySet *api.AvailabilitySet, expectedVmoRequired bool) {
+		func(zoned bool, availabilitySet *api.AvailabilitySet, annotations map[string]string, expectedVmoRequired bool) {
 			var infrastructureStatus = &api.InfrastructureStatus{
 				Zoned: zoned,
 			}
@@ -159,15 +160,20 @@ var _ = Describe("Helper", func() {
 				infrastructureStatus.AvailabilitySets = append(infrastructureStatus.AvailabilitySets, *availabilitySet)
 			}
 
-			Expect(IsVmoRequired(infrastructureStatus)).To(Equal(expectedVmoRequired))
+			Expect(IsVmoRequired(infrastructureStatus, annotations)).To(Equal(expectedVmoRequired))
 		},
-		Entry("should require a VMO", false, nil, true),
-		Entry("should not require VMO for zoned cluster", true, nil, false),
+		Entry("should require a VMO", false, nil, nil, true),
+		Entry("should not require VMO for zoned cluster", true, nil, nil, false),
 		Entry("should not require VMO for a cluster with primary availabilityset (non zoned)", false, &api.AvailabilitySet{
 			ID:      "/my/azure/availabilityset/id",
 			Name:    "my-availabilityset",
 			Purpose: api.PurposeNodes,
-		}, false),
+		}, nil, false),
+		Entry("should require VMO for a cluster with primary availabilityset (non zoned) and migration annotation", false, &api.AvailabilitySet{
+			ID:      "/my/azure/availabilityset/id",
+			Name:    "my-availabilityset",
+			Purpose: api.PurposeNodes,
+		}, map[string]string{azure.ShootVmoMigrationAnnotation: "true"}, true),
 	)
 })
 
