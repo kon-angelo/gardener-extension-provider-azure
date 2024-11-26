@@ -11,7 +11,6 @@ import (
 
 	api "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	. "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
-	"github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 )
 
 var (
@@ -152,28 +151,29 @@ var _ = Describe("Helper", func() {
 	)
 
 	DescribeTable("#IsVmoRequired",
-		func(zoned bool, availabilitySet *api.AvailabilitySet, annotations map[string]string, expectedVmoRequired bool) {
+		func(zoned bool, availabilitySet *api.AvailabilitySet, migrateToVMO bool, expectedVmoRequired bool) {
 			var infrastructureStatus = &api.InfrastructureStatus{
 				Zoned: zoned,
 			}
 			if availabilitySet != nil {
 				infrastructureStatus.AvailabilitySets = append(infrastructureStatus.AvailabilitySets, *availabilitySet)
 			}
+			infrastructureStatus.MigratedToVMO = migrateToVMO
 
-			Expect(IsVmoRequired(infrastructureStatus, annotations)).To(Equal(expectedVmoRequired))
+			Expect(IsVmoRequired(infrastructureStatus)).To(Equal(expectedVmoRequired))
 		},
-		Entry("should require a VMO", false, nil, nil, true),
-		Entry("should not require VMO for zoned cluster", true, nil, nil, false),
+		Entry("should require a VMO", false, nil, false, true),
+		Entry("should not require VMO for zoned cluster", true, nil, false, false),
 		Entry("should not require VMO for a cluster with primary availabilityset (non zoned)", false, &api.AvailabilitySet{
 			ID:      "/my/azure/availabilityset/id",
 			Name:    "my-availabilityset",
 			Purpose: api.PurposeNodes,
-		}, nil, false),
-		Entry("should require VMO for a cluster with primary availabilityset (non zoned) and migration annotation", false, &api.AvailabilitySet{
+		}, false, false),
+		Entry("should require VMO for a cluster with primary availabilityset with migration to VMO", false, &api.AvailabilitySet{
 			ID:      "/my/azure/availabilityset/id",
 			Name:    "my-availabilityset",
 			Purpose: api.PurposeNodes,
-		}, map[string]string{azure.ShootVmoMigrationAnnotation: "true"}, true),
+		}, true, true),
 	)
 })
 

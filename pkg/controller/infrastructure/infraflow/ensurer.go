@@ -707,6 +707,7 @@ func (fctx *FlowContext) EnsureManagedIdentity(ctx context.Context) (err error) 
 	return err
 }
 
+// MigrateAvailabilitySet prepares an AS-based shoot to be migrated to VMSS-Flex.
 func (fctx *FlowContext) MigrateAvailabilitySet(ctx context.Context) error {
 	var (
 		log = shared.LogFromContext(ctx)
@@ -806,7 +807,6 @@ func (fctx *FlowContext) MigrateAvailabilitySet(ctx context.Context) error {
 	if err := fctx.UpdatePublicIPs(ctx); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -875,6 +875,9 @@ func (fctx *FlowContext) GetInfrastructureStatus(_ context.Context) (*v1alpha1.I
 				CountFaultDomains:  cfg.CountFaultDomains,
 				CountUpdateDomains: cfg.CountUpdateDomains,
 			},
+		}
+		if fctx.adapter.IsVmoRequired() {
+			status.MigratedToVMO = true
 		}
 	}
 

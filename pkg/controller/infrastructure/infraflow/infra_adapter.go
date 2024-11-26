@@ -159,12 +159,18 @@ type AvailabilitySetConfig struct {
 
 // IsAvailabilitySetRequired returns true if gardener should create an availability set for the shoot.
 func (ia *InfrastructureAdapter) IsAvailabilitySetRequired() bool {
-	return infrastructure.IsPrimaryAvailabilitySetRequired(ia.status)
+	// If the infrastructureStatus already exists that mean the Infrastucture is already created.
+	if len(ia.status.AvailabilitySets) > 0 {
+		if _, err := helper.FindAvailabilitySetByPurpose(ia.status.AvailabilitySets, azure.PurposeNodes); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // IsVmoRequired determines if VMO is required.
 func (ia *InfrastructureAdapter) IsVmoRequired() bool {
-	return helper.IsVmoRequired(ia.status, ia.cluster.Shoot.GetAnnotations())
+	return !ia.config.Zoned && (len(ia.status.AvailabilitySets) == 0 || helper.HasShootVmoMigrationAnnotation(ia.cluster.Shoot.GetAnnotations()))
 }
 
 // AvailabilitySetConfig returns the configuration for the shoot's availability set.
@@ -172,6 +178,7 @@ func (ia *InfrastructureAdapter) AvailabilitySetConfig() *AvailabilitySetConfig 
 	return ia.avSetConfig
 }
 
+// AvailabilitySetName is the name of the availability set of the shoot.
 func (ia *InfrastructureAdapter) AvailabilitySetName() string {
 	return fmt.Sprintf("%s-avset-workers", ia.TechnicalName())
 }

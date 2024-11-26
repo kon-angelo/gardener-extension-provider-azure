@@ -7,6 +7,7 @@ package infrastructure
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -66,13 +67,12 @@ var StatusTypeMeta = metav1.TypeMeta{
 func RenderTerraformerTemplate(
 	infra *extensionsv1alpha1.Infrastructure,
 	config *api.InfrastructureConfig,
-	status *api.InfrastructureStatus,
 	cluster *controller.Cluster,
 ) (
 	*TerraformFiles,
 	error,
 ) {
-	values, err := ComputeTerraformerTemplateValues(infra, config, status, cluster)
+	values, err := ComputeTerraformerTemplateValues(infra, config, cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,6 @@ func RenderTerraformerTemplate(
 func ComputeTerraformerTemplateValues(
 	infra *extensionsv1alpha1.Infrastructure,
 	config *api.InfrastructureConfig,
-	status *api.InfrastructureStatus,
 	cluster *controller.Cluster,
 ) (
 	map[string]interface{},
@@ -119,6 +118,11 @@ func ComputeTerraformerTemplateValues(
 		}
 	)
 
+	primaryAvSetRequired, err := IsPrimaryAvailabilitySetRequired(infra, config, cluster)
+	if err != nil {
+		return nil, err
+	}
+
 	// check if we should use an existing ResourceGroupName or create a new one
 	if config.ResourceGroup != nil {
 		createResourceGroup = false
@@ -133,7 +137,7 @@ func ComputeTerraformerTemplateValues(
 		outputKeys[k] = v
 	}
 
-	if IsPrimaryAvailabilitySetRequired(status) {
+	if primaryAvSetRequired {
 		createAvailabilitySet = true
 		outputKeys["availabilitySetID"] = TerraformerOutputKeyAvailabilitySetID
 		outputKeys["availabilitySetName"] = TerraformerOutputKeyAvailabilitySetName
@@ -363,7 +367,7 @@ type terraformSubnet struct {
 }
 
 // ExtractTerraformState extracts the TerraformState from the given Terraformer.
-func ExtractTerraformState(ctx context.Context, tf terraformer.Terraformer, infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig, status *api.InfrastructureStatus, cluster *controller.Cluster) (*TerraformState, error) {
+func ExtractTerraformState(ctx context.Context, tf terraformer.Terraformer, infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig, cluster *controller.Cluster) (*TerraformState, error) {
 	outputKeys := []string{
 		TerraformerOutputKeyResourceGroupName,
 		TerraformerOutputKeyRouteTableName,
@@ -372,11 +376,16 @@ func ExtractTerraformState(ctx context.Context, tf terraformer.Terraformer, infr
 	}
 
 	outputKeys = append(outputKeys, computeSubnetOutputKeys(infra, config)...)
+	primaryAvSetRequired, err := IsPrimaryAvailabilitySetRequired(infra, config, cluster)
+	if err != nil {
+		return nil, err
+	}
+
 	if config.Networks.VNet.Name != nil && config.Networks.VNet.ResourceGroup != nil {
 		outputKeys = append(outputKeys, TerraformerOutputKeyVNetResourceGroup)
 	}
 
-	if IsPrimaryAvailabilitySetRequired(status) {
+	if primaryAvSetRequired {
 		outputKeys = append(outputKeys, TerraformerOutputKeyAvailabilitySetID, TerraformerOutputKeyAvailabilitySetName, TerraformerOutputKeyCountFaultDomains, TerraformerOutputKeyCountUpdateDomains)
 	}
 
@@ -400,7 +409,7 @@ func ExtractTerraformState(ctx context.Context, tf terraformer.Terraformer, infr
 		tfState.VNetResourceGroupName = vars[TerraformerOutputKeyVNetResourceGroup]
 	}
 
-	if IsPrimaryAvailabilitySetRequired(status) {
+	if primaryAvSetRequired {
 		tfState.AvailabilitySetID = vars[TerraformerOutputKeyAvailabilitySetID]
 		tfState.AvailabilitySetName = vars[TerraformerOutputKeyAvailabilitySetName]
 		countFaultDomains, err := strconv.Atoi(vars[TerraformerOutputKeyCountFaultDomains])
@@ -514,8 +523,8 @@ func StatusFromTerraformState(config *api.InfrastructureConfig, tfState *Terrafo
 }
 
 // ComputeTerraformStatus computes the status based on the Terraformer and the given InfrastructureConfig.
-func ComputeTerraformStatus(ctx context.Context, tf terraformer.Terraformer, infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig, infraStatus *api.InfrastructureStatus, cluster *controller.Cluster) (*apiv1alpha1.InfrastructureStatus, error) {
-	state, err := ExtractTerraformState(ctx, tf, infra, config, infraStatus, cluster)
+func ComputeTerraformStatus(ctx context.Context, tf terraformer.Terraformer, infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig, cluster *controller.Cluster) (*apiv1alpha1.InfrastructureStatus, error) {
+	state, err := ExtractTerraformState(ctx, tf, infra, config, cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -597,15 +606,40 @@ func findDomainCounts(cluster *controller.Cluster, infra *extensionsv1alpha1.Inf
 }
 
 // IsPrimaryAvailabilitySetRequired determines if a cluster primary AvailabilitySet is required.
-func IsPrimaryAvailabilitySetRequired(infrastructureStatus *api.InfrastructureStatus) bool {
-	// If the infrastructureStatus already exists that mean the Infrastructure is already created.
+func IsPrimaryAvailabilitySetRequired(infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig, cluster *controller.Cluster) (bool, error) {
+	if config.Zoned {
+		return false, nil
+	}
+	if cluster.Shoot == nil {
+		return false, errors.New("cannot determine if primary availability set is required as cluster.Shoot is not set")
+	}
+
+	hasVmoAnnotation := helper.HasShootVmoAlphaAnnotation(cluster.Shoot.Annotations)
+
+	// If the infrastructureStatus is not exists that mean it is a new Infrastucture.
+	if infra.Status.ProviderStatus == nil {
+		if hasVmoAnnotation {
+			return false, nil
+		}
+		return true, nil
+	}
+
+	// If the infrastructureStatus already exists that mean the Infrastucture is already created.
+	infrastructureStatus, err := helper.InfrastructureStatusFromRaw(infra.Status.ProviderStatus)
+	if err != nil {
+		return false, err
+	}
+
 	if len(infrastructureStatus.AvailabilitySets) > 0 {
 		if _, err := helper.FindAvailabilitySetByPurpose(infrastructureStatus.AvailabilitySets, api.PurposeNodes); err == nil {
-			return true
+			if hasVmoAnnotation {
+				return false, errors.New("cannot use vmss orchestration mode VM (VMO) as this cluster already used an availability set")
+			}
+			return true, nil
 		}
 	}
 
-	return false
+	return false, nil
 }
 
 func computeSubnetOutputKeys(infra *extensionsv1alpha1.Infrastructure, config *api.InfrastructureConfig) []string {

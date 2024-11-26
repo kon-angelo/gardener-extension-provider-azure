@@ -26,8 +26,8 @@ func NewLoadBalancersClient(auth internal.ClientAuth, tc azcore.TokenCredential,
 }
 
 // Get gets a given virtual load balancer by name
-func (v *LoadBalancersClient) Get(ctx context.Context, resourceGroupName, name string) (*armnetwork.LoadBalancer, error) {
-	res, err := v.client.Get(ctx, resourceGroupName, name, nil)
+func (c *LoadBalancersClient) Get(ctx context.Context, resourceGroupName, name string) (*armnetwork.LoadBalancer, error) {
+	res, err := c.client.Get(ctx, resourceGroupName, name, nil)
 	if err != nil {
 		return nil, FilterNotFoundError(err)
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/gardener/gardener-extension-provider-azure/pkg/controller/infrastructure/infraflow/shared"
 )
 
+// BackupPIPsForBasicLBMigration saves the Public IPs attached to the basic load balancer of the shoot to the state.
 func (fctx *FlowContext) BackupPIPsForBasicLBMigration(ctx context.Context) error {
 	loadbalancerClient, err := fctx.factory.LoadBalancer()
 	if err != nil {
@@ -52,6 +53,7 @@ func (fctx *FlowContext) BackupPIPsForBasicLBMigration(ctx context.Context) erro
 	return fctx.PersistState(ctx)
 }
 
+// UpdatePublicIPs updates the public IPs saved in the state from basic to standard SKU.
 func (fctx *FlowContext) UpdatePublicIPs(ctx context.Context) error {
 	log := shared.LogFromContext(ctx)
 	ipc, err := fctx.factory.PublicIP()
