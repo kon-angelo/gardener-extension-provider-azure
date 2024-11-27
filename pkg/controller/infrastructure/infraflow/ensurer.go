@@ -722,32 +722,34 @@ func (fctx *FlowContext) MigrateAvailabilitySet(ctx context.Context) error {
 		return nil
 	}
 	// if the migration to VMO is not required, return early.
-	if !fctx.adapter.IsVmoRequired() {
+	if !fctx.adapter.IsVmoRequiredForInfrastructure() || fctx.status.MigratingToVMO {
 		return nil
 	}
 
-	// try to delete the availability set. It can only  work if it does not contain any VMs.
-	asClient, err := fctx.factory.AvailabilitySet()
-	if err != nil {
-		return err
-	}
-
-	av, err := asClient.Get(ctx, fctx.adapter.AvailabilitySetConfig().ResourceGroup, fctx.adapter.AvailabilitySetConfig().Name)
-	if err != nil {
-		return err
-	}
-	if av == nil {
-		return nil
-	}
-	// if the AS contains no VMs then we attempt to delete it and complete the migration
-	if len(av.Properties.VirtualMachines) == 0 {
-		log.Info("Deleting Availability Set", "Name", *av.Name)
-		if err := asClient.Delete(ctx, fctx.adapter.ResourceGroupName(), *av.Name); err != nil {
+	if fctx.status.MigratingToVMO {
+		// try to delete the availability set. It can only  work if it does not contain any VMs.
+		asClient, err := fctx.factory.AvailabilitySet()
+		if err != nil {
 			return err
 		}
-		fctx.whiteboard.GetChild(ChildKeyIDs).Delete(KindAvailabilitySet.String())
-		fctx.inventory.Delete(*av.ID)
-		return nil
+
+		av, err := asClient.Get(ctx, fctx.adapter.AvailabilitySetConfig().ResourceGroup, fctx.adapter.AvailabilitySetConfig().Name)
+		if err != nil {
+			return err
+		}
+		if av == nil {
+			return nil
+		}
+		// if the AS contains no VMs then we attempt to delete it and complete the migration
+		if len(av.Properties.VirtualMachines) == 0 {
+			log.Info("Deleting Availability Set", "Name", *av.Name)
+			if err := asClient.Delete(ctx, fctx.adapter.ResourceGroupName(), *av.Name); err != nil {
+				return err
+			}
+			fctx.whiteboard.GetChild(ChildKeyIDs).Delete(KindAvailabilitySet.String())
+			fctx.inventory.Delete(*av.ID)
+			return nil
+		}
 	}
 
 	log.Info("Preparing for the migration to VMOs")
@@ -876,8 +878,8 @@ func (fctx *FlowContext) GetInfrastructureStatus(_ context.Context) (*v1alpha1.I
 				CountUpdateDomains: cfg.CountUpdateDomains,
 			},
 		}
-		if fctx.adapter.IsVmoRequired() {
-			status.MigratedToVMO = true
+		if fctx.adapter.IsVmoRequiredForInfrastructure() {
+			status.MigratingToVMO = true
 		}
 	}
 

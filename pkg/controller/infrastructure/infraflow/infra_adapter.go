@@ -168,8 +168,8 @@ func (ia *InfrastructureAdapter) IsAvailabilitySetRequired() bool {
 	return false
 }
 
-// IsVmoRequired determines if VMO is required.
-func (ia *InfrastructureAdapter) IsVmoRequired() bool {
+// IsVmoRequiredForInfrastructure determines if VMO is required.
+func (ia *InfrastructureAdapter) IsVmoRequiredForInfrastructure() bool {
 	return !ia.config.Zoned && (len(ia.status.AvailabilitySets) == 0 || helper.HasShootVmoMigrationAnnotation(ia.cluster.Shoot.GetAnnotations()))
 }
 

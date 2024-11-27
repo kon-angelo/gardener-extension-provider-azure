@@ -28,6 +28,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 		services    = "100.64.0.0/13"
 		vnetCIDR    = "10.0.0.0/8"
 		invalidCIDR = "invalid-cidr"
+		shoot       = core.Shoot{}
 		networking  = core.Networking{}
 
 		workers      = "10.250.3.0/24"
@@ -43,6 +44,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 			Services: &services,
 			Nodes:    &nodes,
 		}
+		shoot.Spec.Networking = &networking
 		infrastructureConfig = &apisazure.InfrastructureConfig{
 			Networks: apisazure.NetworkConfig{
 				Workers: &workers,
@@ -58,7 +60,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 		It("should forbid specifying a resource group configuration", func() {
 			infrastructureConfig.ResourceGroup = &apisazure.ResourceGroup{}
 
-			errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+			errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 
 			Expect(errorList).To(ConsistOfFields(Fields{
 				"Type":  Equal(field.ErrorTypeInvalid),
@@ -72,7 +74,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 				infrastructureConfig.Networks.VNet = apisazure.VNet{
 					Name: &vnetName,
 				}
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 
 				Expect(errorList).To(ConsistOfFields(
 					Fields{
@@ -87,7 +89,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 				infrastructureConfig.Networks.VNet = apisazure.VNet{
 					ResourceGroup: &vnetGroup,
 				}
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 
 				Expect(errorList).To(ConsistOfFields(
 					Fields{
@@ -102,7 +104,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 					Name:          ptr.To(""),
 					ResourceGroup: ptr.To(""),
 				}
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 
 				Expect(errorList).To(ConsistOfFields(
 					Fields{
@@ -125,7 +127,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 					ResourceGroup: &vnetGroup,
 					CIDR:          &vnetCIDR,
 				}
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 
 				Expect(errorList).To(ConsistOfFields(
 					Fields{
@@ -144,7 +146,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 				infrastructureConfig.ResourceGroup = &apisazure.ResourceGroup{
 					Name: resourceGroup,
 				}
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 
 				Expect(errorList).To(ConsistOfFields(
 					Fields{
@@ -164,7 +166,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 				infrastructureConfig.Networks = apisazure.NetworkConfig{
 					Workers: &workers,
 				}
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 				Expect(errorList).To(HaveLen(0))
 			})
 
@@ -172,7 +174,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 				networking.Nodes = ptr.To("10.250.3.0/24")
 				infrastructureConfig.ResourceGroup = nil
 				infrastructureConfig.Networks.VNet.DDosProtectionPlanID = &ddosProtectionPlanID
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 				Expect(errorList).To(HaveLen(0))
 			})
 
@@ -183,7 +185,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 					ResourceGroup:        &resourceGroup,
 					DDosProtectionPlanID: &ddosProtectionPlanID,
 				}
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 
 				Expect(errorList).To(ConsistOfFields(
 					Fields{
@@ -197,7 +199,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 			It("should forbid invalid VNet CIDRs", func() {
 				infrastructureConfig.Networks.VNet.CIDR = &invalidCIDR
 
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 
 				Expect(errorList).To(ConsistOfFields(Fields{
 					"Type":   Equal(field.ErrorTypeInvalid),
@@ -209,7 +211,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 			It("should forbid invalid workers CIDR", func() {
 				infrastructureConfig.Networks.Workers = &invalidCIDR
 
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 
 				Expect(errorList).To(ConsistOfFields(Fields{
 					"Type":   Equal(field.ErrorTypeInvalid),
@@ -222,7 +224,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 				emptyStr := ""
 				infrastructureConfig.Networks.Workers = &emptyStr
 
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 
 				Expect(errorList).To(ConsistOfFields(
 					Fields{
@@ -235,7 +237,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 			It("should forbid nil workers CIDR", func() {
 				infrastructureConfig.Networks.Workers = nil
 
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 
 				Expect(errorList).To(ConsistOfFields(
 					Fields{
@@ -249,7 +251,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 				notOverlappingCIDR := "1.1.1.1/32"
 				infrastructureConfig.Networks.Workers = &notOverlappingCIDR
 
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 
 				Expect(errorList).To(ConsistOfFields(Fields{
 					"Type":   Equal(field.ErrorTypeInvalid),
@@ -265,7 +267,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 			It("should forbid Pod CIDR to overlap with VNet CIDR", func() {
 				networking.Pods = ptr.To("10.0.0.1/32")
 
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 
 				Expect(errorList).To(ConsistOfFields(Fields{
 					"Type":   Equal(field.ErrorTypeInvalid),
@@ -276,7 +278,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 			It("should forbid Services CIDR to overlap with VNet CIDR", func() {
 				networking.Services = ptr.To("10.0.0.1/32")
 
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 
 				Expect(errorList).To(ConsistOfFields(Fields{
 					"Type":   Equal(field.ErrorTypeInvalid),
@@ -294,7 +296,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 				infrastructureConfig.Networks.Workers = &workers
 				infrastructureConfig.Networks.VNet = apisazure.VNet{CIDR: &vpcCIDR}
 
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 
 				Expect(errorList).To(HaveLen(2))
 				Expect(errorList).To(ConsistOfFields(Fields{
@@ -315,14 +317,14 @@ var _ = Describe("InfrastructureConfig validation", func() {
 					Name:          "test-identiy",
 					ResourceGroup: "identity-resource-group",
 				}
-				Expect(ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)).To(BeEmpty())
+				Expect(ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)).To(BeEmpty())
 			})
 
 			It("should return errors because no name or resource group is given", func() {
 				infrastructureConfig.Identity = &apisazure.IdentityConfig{
 					Name: "test-identiy",
 				}
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 				Expect(errorList).To(ConsistOfFields(Fields{
 					"Type":  Equal(field.ErrorTypeInvalid),
 					"Field": Equal("identity"),
@@ -338,19 +340,19 @@ var _ = Describe("InfrastructureConfig validation", func() {
 
 			It("should pass as there is no NatGateway config is provided", func() {
 				infrastructureConfig.Networks.NatGateway = nil
-				Expect(ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)).To(BeEmpty())
+				Expect(ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)).To(BeEmpty())
 			})
 
 			It("should pass as the NatGateway is disabled", func() {
 				infrastructureConfig.Networks.NatGateway.Enabled = false
-				Expect(ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)).To(BeEmpty())
+				Expect(ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)).To(BeEmpty())
 			})
 
 			It("should fail as NatGatway is disabled but additional config for the NatGateway is supplied", func() {
 				infrastructureConfig.Networks.NatGateway.Enabled = false
 				infrastructureConfig.Networks.NatGateway.Zone = ptr.To[int32](2)
 
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 				Expect(errorList).To(ConsistOfFields(Fields{
 					"Type":   Equal(field.ErrorTypeInvalid),
 					"Field":  Equal("networks.natGateway"),
@@ -360,7 +362,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 
 			It("should pass as the NatGateway has a zone", func() {
 				infrastructureConfig.Networks.NatGateway.Zone = ptr.To[int32](2)
-				Expect(ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)).To(BeEmpty())
+				Expect(ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)).To(BeEmpty())
 			})
 
 			Context("User provided public IP", func() {
@@ -375,7 +377,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 
 				It("should fail as NatGateway has no zone but an external public ip", func() {
 					infrastructureConfig.Networks.NatGateway.Zone = nil
-					errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+					errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 					Expect(errorList).To(ConsistOfFields(Fields{
 						"Type":   Equal(field.ErrorTypeInvalid),
 						"Field":  Equal("networks.natGateway.zone"),
@@ -385,7 +387,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 
 				It("should fail as resource is in a different zone as the NatGateway", func() {
 					infrastructureConfig.Networks.NatGateway.IPAddresses[0].Zone = 2
-					errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+					errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 					Expect(errorList).To(ConsistOfFields(Fields{
 						"Type":   Equal(field.ErrorTypeInvalid),
 						"Field":  Equal("networks.natGateway.ipAddresses[0].zone"),
@@ -395,7 +397,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 
 				It("should fail as name is empty", func() {
 					infrastructureConfig.Networks.NatGateway.IPAddresses[0].Name = ""
-					errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+					errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 					Expect(errorList).To(ConsistOfFields(Fields{
 						"Type":   Equal(field.ErrorTypeRequired),
 						"Field":  Equal("networks.natGateway.ipAddresses[0].name"),
@@ -405,7 +407,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 
 				It("should fail as resource group is empty", func() {
 					infrastructureConfig.Networks.NatGateway.IPAddresses[0].ResourceGroup = ""
-					errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+					errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 					Expect(errorList).To(ConsistOfFields(Fields{
 						"Type":   Equal(field.ErrorTypeRequired),
 						"Field":  Equal("networks.natGateway.ipAddresses[0].resourceGroup"),
@@ -419,7 +421,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 					var timeoutValue int32 = 0
 					infrastructureConfig.Zoned = true
 					infrastructureConfig.Networks.NatGateway = &apisazure.NatGatewayConfig{Enabled: true, IdleConnectionTimeoutMinutes: &timeoutValue}
-					errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+					errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 					Expect(errorList).To(HaveLen(1))
 					Expect(errorList).To(ConsistOfFields(Fields{
 						"Type":   Equal(field.ErrorTypeInvalid),
@@ -432,7 +434,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 					var timeoutValue int32 = 121
 					infrastructureConfig.Zoned = true
 					infrastructureConfig.Networks.NatGateway = &apisazure.NatGatewayConfig{Enabled: true, IdleConnectionTimeoutMinutes: &timeoutValue}
-					errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+					errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 					Expect(errorList).To(HaveLen(1))
 					Expect(errorList).To(ConsistOfFields(Fields{
 						"Type":   Equal(field.ErrorTypeInvalid),
@@ -445,7 +447,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 					var timeoutValue int32 = 120
 					infrastructureConfig.Zoned = true
 					infrastructureConfig.Networks.NatGateway = &apisazure.NatGatewayConfig{Enabled: true, IdleConnectionTimeoutMinutes: &timeoutValue}
-					Expect(ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)).To(BeEmpty())
+					Expect(ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)).To(BeEmpty())
 				})
 			})
 		})
@@ -480,13 +482,13 @@ var _ = Describe("InfrastructureConfig validation", func() {
 			})
 
 			It("should succeed", func() {
-				Expect(ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)).To(BeEmpty())
+				Expect(ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)).To(BeEmpty())
 			})
 
 			It("should succeed for nil service and pod CIDR", func() {
 				networking.Pods = nil
 				networking.Services = nil
-				Expect(ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)).To(BeEmpty())
+				Expect(ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)).To(BeEmpty())
 			})
 
 			It("should succeed with NAT Gateway", func() {
@@ -496,7 +498,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 				infrastructureConfig.Networks.Zones[1].NatGateway = &apisazure.ZonedNatGatewayConfig{
 					Enabled: true,
 				}
-				Expect(ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)).To(BeEmpty())
+				Expect(ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)).To(BeEmpty())
 			})
 
 			It("should succeed with NAT Gateway and  public IPs", func() {
@@ -509,12 +511,12 @@ var _ = Describe("InfrastructureConfig validation", func() {
 						},
 					},
 				}
-				Expect(ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)).To(BeEmpty())
+				Expect(ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)).To(BeEmpty())
 			})
 
 			It("should forbid non canonical CIDRs", func() {
 				infrastructureConfig.Networks.Zones[0].CIDR = "10.250.0.1/24"
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 				Expect(errorList).NotTo(BeEmpty())
 				Expect(errorList).To(HaveLen(1))
 				Expect(errorList).To(ConsistOfFields(Fields{
@@ -525,7 +527,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 
 			It("should forbid overlapping zone CIDRs", func() {
 				infrastructureConfig.Networks.Zones[0].CIDR = zoneCIDR1
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 				Expect(errorList).NotTo(BeEmpty())
 				Expect(errorList).To(HaveLen(1))
 				Expect(errorList).To(ConsistOfFields(Fields{
@@ -537,7 +539,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 
 			It("should forbid not specifying VNet when using Zones", func() {
 				infrastructureConfig.Networks.VNet = apisazure.VNet{}
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 				Expect(errorList).NotTo(BeEmpty())
 				Expect(errorList).To(HaveLen(1))
 				Expect(errorList).To(ConsistOfFields(Fields{
@@ -552,7 +554,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 				networking.Nodes = ptr.To("10.150.0.0/16")
 
 				infrastructureConfig.Networks.VNet.CIDR = &vpcCIDR
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 
 				Expect(errorList).NotTo(BeEmpty())
 				Expect(errorList).To(HaveLen(2))
@@ -570,7 +572,7 @@ var _ = Describe("InfrastructureConfig validation", func() {
 			It("should forbid specifying zone multiple times", func() {
 				infrastructureConfig.Networks.Zones[0].Name = zoneName1
 
-				errorList := ValidateInfrastructureConfig(infrastructureConfig, &networking, providerPath)
+				errorList := ValidateInfrastructureConfig(infrastructureConfig, &shoot, providerPath)
 				Expect(errorList).NotTo(BeEmpty())
 				Expect(errorList).To(HaveLen(1))
 				Expect(errorList).To(ConsistOfFields(Fields{

@@ -113,7 +113,7 @@ func (s *shoot) validateShoot(shoot *core.Shoot, oldInfraConfig, infraConfig *ap
 		// Cloudprofile validation
 		allErrs = append(allErrs, azurevalidation.ValidateInfrastructureConfigAgainstCloudProfile(oldInfraConfig, infraConfig, shoot.Spec.Region, cloudProfileSpec, infraConfigPath)...)
 		// Provider validation
-		allErrs = append(allErrs, azurevalidation.ValidateInfrastructureConfig(infraConfig, shoot.Spec.Networking, infraConfigPath)...)
+		allErrs = append(allErrs, azurevalidation.ValidateInfrastructureConfig(infraConfig, shoot, infraConfigPath)...)
 	}
 	if cpConfig != nil {
 		allErrs = append(allErrs, azurevalidation.ValidateControlPlaneConfig(cpConfig, shoot.Spec.Kubernetes.Version, cpConfigPath)...)

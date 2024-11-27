@@ -74,8 +74,9 @@ func validateInfrastructureConfigZones(oldInfra, infra *apisazure.Infrastructure
 }
 
 // ValidateInfrastructureConfig validates a InfrastructureConfig object.
-func ValidateInfrastructureConfig(infra *apisazure.InfrastructureConfig, networking *core.Networking, fldPath *field.Path) field.ErrorList {
+func ValidateInfrastructureConfig(infra *apisazure.InfrastructureConfig, shoot *core.Shoot, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
+	networking := shoot.Spec.Networking
 
 	var (
 		nodes, pods, services             cidrvalidation.CIDR
@@ -104,7 +105,7 @@ func ValidateInfrastructureConfig(infra *apisazure.InfrastructureConfig, network
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("resourceGroup"), infra.ResourceGroup, "specifying an existing resource group is not supported yet"))
 	}
 
-	allErrs = append(allErrs, validateNetworkConfig(infra, nodes, pods, services, fldPath)...)
+	allErrs = append(allErrs, validateNetworkConfig(shoot, infra, nodes, pods, services, fldPath)...)
 
 	if infra.Identity != nil && (infra.Identity.Name == "" || infra.Identity.ResourceGroup == "") {
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("identity"), infra.Identity, "specifying an identity requires the name of the identity and the resource group which hosts the identity"))
@@ -114,6 +115,7 @@ func ValidateInfrastructureConfig(infra *apisazure.InfrastructureConfig, network
 }
 
 func validateNetworkConfig(
+	shoot *core.Shoot,
 	infra *apisazure.InfrastructureConfig,
 	nodes cidrvalidation.CIDR,
 	pods cidrvalidation.CIDR,
@@ -166,10 +168,13 @@ func validateNetworkConfig(
 	if !infra.Zoned {
 		allErrs = append(allErrs, field.Forbidden(zonesPath, "cannot specify zones in an non-zonal cluster"))
 	}
-
 	if config.NatGateway != nil {
 		allErrs = append(allErrs, field.Forbidden(workersPath, "natGateway cannot be specified when workers field is missing"))
 	}
+	if config.NatGateway != nil && helper.HasShootVmoMigrationAnnotation(shoot.GetAnnotations()) {
+		allErrs = append(allErrs, field.Forbidden(workersPath, "natGateway cannot be specified when the migration is taking place"))
+	}
+
 	if len(config.ServiceEndpoints) > 0 {
 		allErrs = append(allErrs, field.Forbidden(workersPath, "serviceEndpoints cannot be specified when workers field is missing"))
 	}

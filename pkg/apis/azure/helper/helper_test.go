@@ -150,7 +150,7 @@ var _ = Describe("Helper", func() {
 			"ubuntu", "1", ptr.To("foo"), &api.MachineImage{Name: "ubuntu", Version: "1", Image: api.Image{SharedGalleryImageID: &profileSharedImageId}, Architecture: ptr.To("foo")}),
 	)
 
-	DescribeTable("#IsVmoRequired",
+	DescribeTable("#IsVmoRequiredForInfrastructure",
 		func(zoned bool, availabilitySet *api.AvailabilitySet, migrateToVMO bool, expectedVmoRequired bool) {
 			var infrastructureStatus = &api.InfrastructureStatus{
 				Zoned: zoned,
@@ -158,7 +158,7 @@ var _ = Describe("Helper", func() {
 			if availabilitySet != nil {
 				infrastructureStatus.AvailabilitySets = append(infrastructureStatus.AvailabilitySets, *availabilitySet)
 			}
-			infrastructureStatus.MigratedToVMO = migrateToVMO
+			infrastructureStatus.MigratingToVMO = migrateToVMO
 
 			Expect(IsVmoRequired(infrastructureStatus)).To(Equal(expectedVmoRequired))
 		},

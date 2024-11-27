@@ -1027,13 +1027,13 @@ Deprecated: Will be removed in future versions.</p>
 </tr>
 <tr>
 <td>
-<code>migratedToVMO</code></br>
+<code>migratingToVMO</code></br>
 <em>
 bool
 </em>
 </td>
 <td>
-<p>MigratedToVMO indicates whether the infrastructure controller has prepared the migration from Availability set.
+<p>MigratingToVMO indicates whether the infrastructure controller has prepared the migration from Availability set.
 Deprecated: Will be removed in future versions.</p>
 </td>
 </tr>

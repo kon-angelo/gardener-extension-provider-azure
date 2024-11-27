@@ -107,9 +107,9 @@ type InfrastructureStatus struct {
 	// AvailabilitySets is a list of created availability sets
 	// Deprecated: Will be removed in future versions.
 	AvailabilitySets []AvailabilitySet
-	// MigratedToVMO indicates whether the infrastructure controller has prepared the migration from Availability set.
+	// MigratingToVMO indicates whether the infrastructure controller has prepared the migration from Availability set.
 	// Deprecated: Will be removed in future versions.
-	MigratedToVMO bool
+	MigratingToVMO bool
 	// RouteTables is a list of created route tables
 	RouteTables []RouteTable
 	// SecurityGroups is a list of created security groups
