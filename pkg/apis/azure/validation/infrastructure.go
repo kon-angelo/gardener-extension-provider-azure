@@ -172,7 +172,7 @@ func validateNetworkConfig(
 		allErrs = append(allErrs, field.Forbidden(workersPath, "natGateway cannot be specified when workers field is missing"))
 	}
 	if config.NatGateway != nil && helper.HasShootVmoMigrationAnnotation(shoot.GetAnnotations()) {
-		allErrs = append(allErrs, field.Forbidden(workersPath, "natGateway cannot be specified when the migration is taking place"))
+		allErrs = append(allErrs, field.Forbidden(networksPath.Child("natGateway").Child("enabled"), "natGateway cannot be specified when the migration is taking place"))
 	}
 
 	if len(config.ServiceEndpoints) > 0 {

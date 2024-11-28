@@ -157,8 +157,11 @@ type AvailabilitySetConfig struct {
 	Location           string
 }
 
-// IsAvailabilitySetRequired returns true if gardener should create an availability set for the shoot.
-func (ia *InfrastructureAdapter) IsAvailabilitySetRequired() bool {
+// IsAvailabilitySetReconciliationRequired returns true if gardener should create an availability set for the shoot.
+func (ia *InfrastructureAdapter) IsAvailabilitySetReconciliationRequired() bool {
+	if ia.config.Zoned {
+		return false
+	}
 	// If the infrastructureStatus already exists that mean the Infrastucture is already created.
 	if len(ia.status.AvailabilitySets) > 0 {
 		if _, err := helper.FindAvailabilitySetByPurpose(ia.status.AvailabilitySets, azure.PurposeNodes); err == nil {

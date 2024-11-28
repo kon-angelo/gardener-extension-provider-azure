@@ -169,9 +169,6 @@ func (fctx *FlowContext) ensureUserVirtualNetwork(ctx context.Context) (*armnetw
 // EnsureAvailabilitySet creates or updates an KindAvailabilitySet
 func (fctx *FlowContext) EnsureAvailabilitySet(ctx context.Context) error {
 	log := shared.LogFromContext(ctx)
-	if !fctx.adapter.IsAvailabilitySetRequired() {
-		return nil
-	}
 	avsetCfg := fctx.adapter.AvailabilitySetConfig()
 	if avsetCfg == nil {
 		// should not reach here
@@ -179,7 +176,16 @@ func (fctx *FlowContext) EnsureAvailabilitySet(ctx context.Context) error {
 		return nil
 	}
 
-	avset, err := fctx.ensureAvailabilitySet(ctx, log, *avsetCfg)
+	// complete AS migration.
+	if v := fctx.whiteboard.GetChild("migration").GetChild(KindAvailabilitySet.String()).Get("complete"); v != nil && *v == "true" {
+		err := fctx.deleteAvailabilitySet(ctx, log)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	avset, err := fctx.ensureAvailabilitySet(ctx, log)
 	if err != nil {
 		return err
 	}
@@ -191,13 +197,41 @@ func (fctx *FlowContext) EnsureAvailabilitySet(ctx context.Context) error {
 	fctx.whiteboard.GetChild(ChildKeyIDs).Set(KindAvailabilitySet.String(), *avset.ID)
 	return nil
 }
+func (fctx *FlowContext) deleteAvailabilitySet(ctx context.Context, log logr.Logger) error {
+	// try to delete the availability set. It can only  work if it does not contain any VMs.
+	asClient, err := fctx.factory.AvailabilitySet()
+	if err != nil {
+		return err
+	}
 
-func (fctx *FlowContext) ensureAvailabilitySet(ctx context.Context, log logr.Logger, avsetCfg AvailabilitySetConfig) (*armcompute.AvailabilitySet, error) {
+	av, err := asClient.Get(ctx, fctx.adapter.AvailabilitySetConfig().ResourceGroup, fctx.adapter.AvailabilitySetConfig().Name)
+	if err != nil {
+		return err
+	}
+	if av == nil {
+		return nil
+	}
+	// if the AS contains no VMs then we attempt to delete it and complete the migration
+	if len(av.Properties.VirtualMachines) == 0 {
+		log.Info("Deleting Availability Set", "Name", *av.Name)
+		if err := asClient.Delete(ctx, fctx.adapter.ResourceGroupName(), *av.Name); err != nil {
+			return err
+		}
+		fctx.whiteboard.GetChild(ChildKeyIDs).Delete(KindAvailabilitySet.String())
+		fctx.inventory.Delete(*av.ID)
+		return nil
+	}
+	log.Info("Skipping deleting Availability Set because it still contains VMs", "Name", *av.Name)
+	return nil
+}
+
+func (fctx *FlowContext) ensureAvailabilitySet(ctx context.Context, log logr.Logger) (*armcompute.AvailabilitySet, error) {
 	asClient, err := fctx.factory.AvailabilitySet()
 	if err != nil {
 		return nil, err
 	}
 
+	avsetCfg := fctx.adapter.AvailabilitySetConfig()
 	avset, err := asClient.Get(ctx, avsetCfg.ResourceGroup, avsetCfg.Name)
 	if err != nil {
 		return nil, err
@@ -714,42 +748,18 @@ func (fctx *FlowContext) MigrateAvailabilitySet(ctx context.Context) error {
 		c   = fctx.client
 	)
 
-	// return early if the cluster does not use AS.
-	// if !fctx.adapter.IsAvailabilitySetRequired() {
-	// 	return nil
-	// }
+	// return early if the migration has already been complete
+	if v := fctx.whiteboard.GetChild("migration").GetChild(KindAvailabilitySet.String()).Get("complete"); v != nil && *v == "true" {
+		return nil
+	}
+	// return early if the cluster does not have AS.
 	if fctx.whiteboard.GetChild(ChildKeyIDs).Get(KindAvailabilitySet.String()) == nil {
 		return nil
 	}
-	// if the migration to VMO is not required, return early.
-	if !fctx.adapter.IsVmoRequiredForInfrastructure() || fctx.status.MigratingToVMO {
+
+	// IF VMOs are not needed, or the migration is already done, return early.
+	if !helper.HasShootVmoMigrationAnnotation(fctx.cluster.Shoot.GetAnnotations()) {
 		return nil
-	}
-
-	if fctx.status.MigratingToVMO {
-		// try to delete the availability set. It can only  work if it does not contain any VMs.
-		asClient, err := fctx.factory.AvailabilitySet()
-		if err != nil {
-			return err
-		}
-
-		av, err := asClient.Get(ctx, fctx.adapter.AvailabilitySetConfig().ResourceGroup, fctx.adapter.AvailabilitySetConfig().Name)
-		if err != nil {
-			return err
-		}
-		if av == nil {
-			return nil
-		}
-		// if the AS contains no VMs then we attempt to delete it and complete the migration
-		if len(av.Properties.VirtualMachines) == 0 {
-			log.Info("Deleting Availability Set", "Name", *av.Name)
-			if err := asClient.Delete(ctx, fctx.adapter.ResourceGroupName(), *av.Name); err != nil {
-				return err
-			}
-			fctx.whiteboard.GetChild(ChildKeyIDs).Delete(KindAvailabilitySet.String())
-			fctx.inventory.Delete(*av.ID)
-			return nil
-		}
 	}
 
 	log.Info("Preparing for the migration to VMOs")
@@ -787,7 +797,7 @@ func (fctx *FlowContext) MigrateAvailabilitySet(ctx context.Context) error {
 	}
 
 	log.Info("Backing-up Public IPs to be migrated")
-	// we will first backup the PIPs that we want to migrate. In the simplest case, we would only migrate PIPs in the shoot's RG. But the loadbalancer may reference PIPs from other RGs.
+	// we will first back up the PIPs that we want to migrate. In the simplest case, we would only migrate PIPs in the shoot's RG. But the loadbalancer may reference PIPs from other RGs.
 	// If we delete the LB we would have no way to recover the PIPs in other RGs, hence we will back it up.
 	if err := fctx.BackupPIPsForBasicLBMigration(ctx); err != nil {
 		return err
@@ -809,7 +819,8 @@ func (fctx *FlowContext) MigrateAvailabilitySet(ctx context.Context) error {
 	if err := fctx.UpdatePublicIPs(ctx); err != nil {
 		return err
 	}
-	return nil
+	fctx.whiteboard.GetChild("migration").GetChild(KindAvailabilitySet.String()).Set("complete", "true")
+	return fctx.PersistState(ctx)
 }
 
 // GetInfrastructureStatus returns the infrastructure status.
@@ -878,7 +889,7 @@ func (fctx *FlowContext) GetInfrastructureStatus(_ context.Context) (*v1alpha1.I
 				CountUpdateDomains: cfg.CountUpdateDomains,
 			},
 		}
-		if fctx.adapter.IsVmoRequiredForInfrastructure() {
+		if v := fctx.whiteboard.GetChild("migration").GetChild(KindAvailabilitySet.String()).Get("complete"); v != nil && *v == "true" {
 			status.MigratingToVMO = true
 		}
 	}
