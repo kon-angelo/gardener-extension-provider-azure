@@ -16,6 +16,7 @@ import (
 
 	apisazure "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
+	azuretypes "github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 )
 
 const (
@@ -160,7 +161,7 @@ func validateNetworkConfig(
 			allErrs = append(allErrs, nodes.ValidateSubset(workerCIDR)...)
 		}
 
-		allErrs = append(allErrs, validateNatGatewayConfig(config.NatGateway, networksPath.Child("natGateway"))...)
+		allErrs = append(allErrs, validateNatGatewayConfig(config.NatGateway, helper.HasShootVmoMigrationAnnotation(shoot.GetAnnotations()), networksPath.Child("natGateway"))...)
 		return allErrs
 	}
 
@@ -170,9 +171,6 @@ func validateNetworkConfig(
 	}
 	if config.NatGateway != nil {
 		allErrs = append(allErrs, field.Forbidden(workersPath, "natGateway cannot be specified when workers field is missing"))
-	}
-	if config.NatGateway != nil && helper.HasShootVmoMigrationAnnotation(shoot.GetAnnotations()) {
-		allErrs = append(allErrs, field.Forbidden(networksPath.Child("natGateway").Child("enabled"), "natGateway cannot be specified when the migration is taking place"))
 	}
 
 	if len(config.ServiceEndpoints) > 0 {
@@ -281,7 +279,7 @@ func validateZones(zones []apisazure.Zone, nodes, pods, services cidrvalidation.
 	return allErrs
 }
 
-func validateNatGatewayConfig(natGatewayConfig *apisazure.NatGatewayConfig, natGatewayPath *field.Path) field.ErrorList {
+func validateNatGatewayConfig(natGatewayConfig *apisazure.NatGatewayConfig, hasShootVmoMigrationAnnotation bool, natGatewayPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	if natGatewayConfig == nil {
@@ -293,6 +291,10 @@ func validateNatGatewayConfig(natGatewayConfig *apisazure.NatGatewayConfig, natG
 			return append(allErrs, field.Invalid(natGatewayPath, natGatewayConfig, "NatGateway is disabled but additional NatGateway config is passed"))
 		}
 		return nil
+	}
+
+	if hasShootVmoMigrationAnnotation {
+		allErrs = append(allErrs, field.Forbidden(natGatewayPath.Child("enabled"), fmt.Sprintf("natGateway cannot be enabled with the annotation %s", azuretypes.ShootVmoMigrationAnnotation)))
 	}
 
 	if natGatewayConfig.IdleConnectionTimeoutMinutes != nil && (*natGatewayConfig.IdleConnectionTimeoutMinutes < natGatewayMinTimeoutInMinutes || *natGatewayConfig.IdleConnectionTimeoutMinutes > natGatewayMaxTimeoutInMinutes) {
