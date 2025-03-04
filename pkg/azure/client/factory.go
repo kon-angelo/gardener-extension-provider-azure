@@ -46,7 +46,7 @@ func NewAzureClientFactoryFromSecret(
 		return nil, err
 	}
 	if isDNSSecret {
-		acc, err := cloudConfigurationFromSecret(secret)
+		acc, err := AzureCloudConfigurationFromSecret(secret)
 		if err != nil {
 			return nil, err
 		}

@@ -199,11 +199,8 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 				"subnet": subnetName,
 			}
 
-			cloudConfiguration, err := azureclient.CloudConfiguration(nil, &w.worker.Spec.Region)
-			if err == nil {
-				machineClassSpec["cloudConfiguration"] = map[string]interface{}{
-					"name": cloudConfiguration.Name,
-				}
+			machineClassSpec["cloudConfiguration"] = map[string]interface{}{
+				"name": azureclient.Default(w.cloudProfileConfig.CloudConfiguration).Name,
 			}
 
 			if infrastructureStatus.Networks.VNet.ResourceGroup != nil {
