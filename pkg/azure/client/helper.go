@@ -70,7 +70,7 @@ func IsAzureAPIUnauthorized(err error) bool {
 	return errors.As(err, &inErr)
 }
 
-func Default(cloudConfiguration *azure.CloudConfiguration) azure.CloudConfiguration {
+func DefaultCloudConfiguration(cloudConfiguration *azure.CloudConfiguration) azure.CloudConfiguration {
 	if cloudConfiguration == nil {
 		return azure.CloudConfiguration{
 			Name: azure.AzurePublicCloudName,
@@ -92,7 +92,7 @@ func AzureCloudConfigurationFromSecret(secret *corev1.Secret) (cloud.Configurati
 
 // AzureCloudConfigurationFromCloudConfiguration returns the cloud.Configuration corresponding to the given cloud configuration name (as part of our CloudConfiguration).
 func AzureCloudConfigurationFromCloudConfiguration(cloudConfiguration *azure.CloudConfiguration) (cloud.Configuration, error) {
-	cloudConfigurationName := Default(cloudConfiguration).Name
+	cloudConfigurationName := DefaultCloudConfiguration(cloudConfiguration).Name
 	switch {
 	case strings.EqualFold(cloudConfigurationName, azure.AzurePublicCloudName):
 		return cloud.AzurePublic, nil

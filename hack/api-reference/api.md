@@ -68,6 +68,19 @@ CloudConfiguration
 <p>CloudConfiguration contains config that controls which cloud to connect to.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>credentialRotation</code></br>
+<em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.CredentialRotation">
+CredentialRotation
+</a>
+</em>
+</td>
+<td>
+<p>CredentialRotation controls the behavior of the BackupBucket credential rotation.</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="azure.provider.extensions.gardener.cloud/v1alpha1.CloudProfileConfig">CloudProfileConfig
@@ -694,6 +707,35 @@ map[string]bool
 <td>
 <em>(Optional)</em>
 <p>FeatureGates contains information about enabled feature gates.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="azure.provider.extensions.gardener.cloud/v1alpha1.CredentialRotation">CredentialRotation
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.BackupBucketConfig">BackupBucketConfig</a>)
+</p>
+<p>
+<p>CredentialRotation controls the behavior of the BackupBucket credential rotation.</p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>Enabled</code></br>
+<em>
+bool
+</em>
+</td>
+<td>
 </td>
 </tr>
 </tbody>

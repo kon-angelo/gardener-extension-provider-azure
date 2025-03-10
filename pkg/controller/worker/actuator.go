@@ -37,14 +37,12 @@ type delegateFactory struct {
 
 // NewActuator creates a new Actuator that updates the status of the handled WorkerPoolConfigs.
 func NewActuator(mgr manager.Manager, gardenCluster cluster.Cluster) worker.Actuator {
-	var (
-		workerDelegate = &delegateFactory{
-			seedClient:   mgr.GetClient(),
-			restConfig:   mgr.GetConfig(),
-			scheme:       mgr.GetScheme(),
-			gardenReader: gardenCluster.GetAPIReader(),
-		}
-	)
+	workerDelegate := &delegateFactory{
+		seedClient:   mgr.GetClient(),
+		restConfig:   mgr.GetConfig(),
+		scheme:       mgr.GetScheme(),
+		gardenReader: gardenCluster.GetAPIReader(),
+	}
 
 	return genericactuator.NewActuator(
 		mgr,
@@ -82,7 +80,7 @@ func (d *delegateFactory) WorkerDelegate(ctx context.Context, worker *extensions
 		cloudConfiguration = cloudProfile.CloudConfiguration
 	}
 
-	azCloudConfiguration, err := azureclient.AzureCloudConfiguration(cloudConfiguration, &cluster.Shoot.Spec.Region)
+	azCloudConfiguration, err := azureclient.AzureCloudConfigurationFromCloudConfiguration(cloudConfiguration)
 	if err != nil {
 		return nil, err
 	}

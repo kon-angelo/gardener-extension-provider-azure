@@ -15,4 +15,12 @@ type BackupBucketConfig struct {
 	metav1.TypeMeta
 	// CloudConfiguration contains config that controls which cloud to connect to.
 	CloudConfiguration *CloudConfiguration
+	// CredentialRotation controls the behavior of the BackupBucket credential rotation.
+	CredentialRotation *CredentialRotation
+}
+
+// CredentialRotation controls the behavior of the BackupBucket credential rotation.
+type CredentialRotation struct {
+	Enabled      bool
+	RotatePeriod metav1.Duration
 }

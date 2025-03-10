@@ -17,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
 	azuretypes "github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 	azureclient "github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
@@ -25,7 +24,8 @@ import (
 
 var (
 	// DefaultBlobStorageClient is the default function to get a backupbucket client. Can be overridden for tests.
-	DefaultBlobStorageClient = azureclient.NewBlobStorageClientFromSecret
+	DefaultBlobStorageClient = azureclient.NewBlobStorageClientFromSecretRef
+	DefaultAzureClient       = azureclient.NewAzureClientFactoryFromSecret
 )
 
 type actuator struct {
@@ -39,59 +39,45 @@ func newActuator(mgr manager.Manager) backupbucket.Actuator {
 	}
 }
 
-func (a *actuator) Reconcile(ctx context.Context, _ logr.Logger, backupBucket *extensionsv1alpha1.BackupBucket) error {
+func (a *actuator) Reconcile(ctx context.Context, log logr.Logger, backupBucket *extensionsv1alpha1.BackupBucket) error {
+	return util.DetermineError(a.reconcile(ctx, log, backupBucket), helper.KnownCodes)
+}
+
+func (a *actuator) reconcile(ctx context.Context, _ logr.Logger, backupBucket *extensionsv1alpha1.BackupBucket) error {
 	backupConfig, err := helper.BackupConfigFromBackupBucket(backupBucket)
 	if err != nil {
 		return err
 	}
 
-	azCloudConfiguration, err := azureclient.AzureCloudConfiguration(backupConfig.CloudConfiguration, &backupBucket.Spec.Region)
+	bucketCloudConfig, err := azureclient.AzureCloudConfigurationFromCloudConfiguration(backupConfig.CloudConfiguration)
 	if err != nil {
 		return err
 	}
 
-	factory, err := azureclient.NewAzureClientFactoryFromSecret(
+	factory, err := DefaultAzureClient(
 		ctx,
 		a.client,
 		backupBucket.Spec.SecretRef,
 		false,
-		azureclient.WithCloudConfiguration(azCloudConfiguration),
+		azureclient.WithCloudConfiguration(bucketCloudConfig),
 	)
-	if err != nil {
+	if err != nil /**/ {
 		return err
 	}
 
-	bucketCloudConfiguration, err := azureclient.CloudConfiguration(backupConfig.CloudConfiguration, &backupBucket.Spec.Region)
-	if err != nil {
-		return err
-	}
-
-	storageDomain, err := azureclient.BlobStorageDomainFromCloudConfiguration(bucketCloudConfiguration)
+	storageDomain, err := azureclient.BlobStorageDomainFromCloudConfiguration(backupConfig.CloudConfiguration)
 	if err != nil {
 		return fmt.Errorf("failed to determine blob storage service domain: %w", err)
 	}
 
-	// If the generated secret in the backupbucket status not exists that means
-	// no backupbucket exists and it need to be created.
-	if backupBucket.Status.GeneratedSecretRef == nil {
-		storageAccountName, storageAccountKey, err := ensureBackupBucket(ctx, factory, backupBucket)
-		if err != nil {
-			return util.DetermineError(err, helper.KnownCodes)
-		}
-		// Create the generated backupbucket secret.
-		if err := a.createBackupBucketGeneratedSecret(ctx, backupBucket, storageAccountName, storageAccountKey, storageDomain); err != nil {
-			return util.DetermineError(err, helper.KnownCodes)
-		}
-	}
-
-	backupSecret, err := a.getBackupBucketGeneratedSecret(ctx, backupBucket)
+	storageAccountName, err := ensureStorageAccount(ctx, factory, backupBucket)
 	if err != nil {
 		return err
 	}
 
-	blobStorageClient, err := DefaultBlobStorageClient(ctx, backupSecret)
+	storageAccountKey, err := a.ensureStorageAccountKey(ctx, factory, storageAccountName, storageDomain, backupBucket)
 	if err != nil {
-		return util.DetermineError(err, helper.KnownCodes)
+		return err
 	}
 
 	doRotation, err := shouldBeRotated(*backupSecret)
@@ -127,8 +113,45 @@ func (a *actuator) Reconcile(ctx context.Context, _ logr.Logger, backupBucket *e
 			return err
 		}
 	}
+	if err := a.ensureBackupBucketGeneratedSecret(ctx, storageAccountName, storageDomain, backupBucket); err != nil {
+		return err
+	}
+	blobStorageClient, err := DefaultBlobStorageClient(ctx, a.client, backupBucket.Status.GeneratedSecretRef)
+	if err != nil {
+		return err
+	}
 
-	return util.DetermineError(blobStorageClient.CreateContainerIfNotExists(ctx, backupBucket.Name), helper.KnownCodes)
+	return blobStorageClient.CreateContainerIfNotExists(ctx, backupBucket.Name)
+}
+
+func (a *actuator) ensureStorageAccountKey(ctx context.Context,
+	factory azureclient.Factory,
+	storageAccountName string,
+	storageDomain string,
+	backupBucket *extensionsv1alpha1.BackupBucket) (string, error) {
+
+	storageAccountClient, err := factory.StorageAccount()
+	if err != nil {
+		return "", err
+	}
+	if err := storageAccountClient.ListStorageAccountKey(ctx, backupBucket.Name, storageAccountName, backupBucket.Spec.Region); err != nil {
+		return "", err
+	}
+
+	backupSecret, err := kutil.GetSecretByReference(ctx, a.client, backupBucket.Status.GeneratedSecretRef)
+	// If the generated secret in the backupbucket status not exists that means no backupbucket exists and it need to be
+	// created.
+	if backupBucket.Status.GeneratedSecretRef == nil {
+		// Create the generated backupbucket secret.
+		if err := a.createBackupBucketGeneratedSecret(ctx, backupBucket, storageAccountName, storageAccountKey, storageDomain); err != nil {
+			return err
+		}
+	} else {
+		backupSecret, err = a.getBackupBucketGeneratedSecret(ctx, backupBucket)
+		if err != nil {
+			return err
+		}
+	}
 }
 
 func (a *actuator) Delete(ctx context.Context, logger logr.Logger, backupBucket *extensionsv1alpha1.BackupBucket) error {
@@ -152,17 +175,7 @@ func (a *actuator) delete(ctx context.Context, _ logr.Logger, backupBucket *exte
 		return err
 	}
 
-	var (
-		cloudConfiguration *azure.CloudConfiguration
-		region             *string
-	)
-
-	if backupBucket != nil {
-		cloudConfiguration = backupBucketConfig.CloudConfiguration
-		region = &backupBucket.Spec.Region
-	}
-
-	cloudConfiguration, err = azureclient.CloudConfiguration(cloudConfiguration, region)
+	cloudConfiguration, err = azureclient.AzureCloudConfigurationFromSecret(cloudConfiguration)
 	if err != nil {
 		return err
 	}
@@ -190,7 +203,6 @@ func (a *actuator) delete(ctx context.Context, _ logr.Logger, backupBucket *exte
 		false,
 		azureclient.WithCloudConfiguration(azCloudConfiguration),
 	)
-
 	if err != nil {
 		return err
 	}

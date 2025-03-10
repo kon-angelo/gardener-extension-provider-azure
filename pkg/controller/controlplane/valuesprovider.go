@@ -42,6 +42,7 @@ import (
 
 	"github.com/gardener/gardener-extension-provider-azure/charts"
 	apisazure "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
+	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
 	azureapihelper "github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/azure"
 	azureclient "github.com/gardener/gardener-extension-provider-azure/pkg/azure/client"
@@ -75,7 +76,8 @@ func secretConfigsFunc(namespace string) []extensionssecretsmanager.SecretConfig
 				SkipPublishingCACertificate: true,
 			},
 			Options: []secretsmanager.GenerateOption{secretsmanager.SignedByCA(caNameControlPlane)},
-		}}
+		},
+	}
 }
 
 func shootAccessSecretsFunc(namespace string) []*gutil.AccessSecret {
@@ -452,7 +454,7 @@ func getConfigChartValues(infraStatus *apisazure.InfrastructureStatus, cp *exten
 		maxNodes = maxNodes + worker.Maximum
 	}
 
-	var useWorkloadIdentity = false
+	useWorkloadIdentity := false
 	if ca.TokenRetriever != nil {
 		useWorkloadIdentity = true
 	}
@@ -473,13 +475,11 @@ func getConfigChartValues(infraStatus *apisazure.InfrastructureStatus, cp *exten
 		"maxNodes":            maxNodes,
 	}
 
-	cloudConfiguration, err := azureclient.CloudConfiguration(nil, &cluster.Shoot.Spec.Region)
+	cloudProfile, err := helper.CloudProfileConfigFromCluster(cluster)
 	if err != nil {
 		return nil, err
 	}
-
-	values["cloud"] = cloudInstanceName(*cloudConfiguration)
-
+	values["cloud"] = cloudInstanceName(azureclient.DefaultCloudConfiguration(cloudProfile.CloudConfiguration))
 	if infraStatus.Networks.VNet.ResourceGroup != nil {
 		values["vnetResourceGroup"] = *infraStatus.Networks.VNet.ResourceGroup
 	}
@@ -672,9 +672,8 @@ func getRemedyControllerChartValues(
 	gep19Monitoring bool,
 	useWorkloadIdentity bool,
 ) (map[string]interface{}, error) {
-	disableRemedyController :=
-		cluster.Shoot.Annotations[azure.DisableRemedyControllerAnnotation] == "true" ||
-			features.ExtensionFeatureGate.Enabled(features.DisableRemedyController)
+	disableRemedyController := cluster.Shoot.Annotations[azure.DisableRemedyControllerAnnotation] == "true" ||
+		features.ExtensionFeatureGate.Enabled(features.DisableRemedyController)
 
 	if disableRemedyController {
 		return map[string]interface{}{"enabled": true, "replicas": 0}, nil

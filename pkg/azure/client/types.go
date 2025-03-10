@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 )
 
 // Factory represents a factory to produce clients for various Azure services.
@@ -140,7 +141,8 @@ type VirtualNetwork interface {
 // StorageAccount represents an Azure storage account k8sClient.
 type StorageAccount interface {
 	CreateStorageAccount(context.Context, string, string, string) error
-	ListStorageAccountKey(context.Context, string, string) (string, error)
+	ListStorageAccountKey(context.Context, string, string) (*armstorage.AccountKey, error)
+	ListStorageAccountKeys(context.Context, string, string) ([]*armstorage.AccountKey, error)
 	RotateKey(context.Context, string, string, string) (string, error)
 }
 

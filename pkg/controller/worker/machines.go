@@ -200,7 +200,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			}
 
 			machineClassSpec["cloudConfiguration"] = map[string]interface{}{
-				"name": azureclient.Default(w.cloudProfileConfig.CloudConfiguration).Name,
+				"name": azureclient.DefaultCloudConfiguration(w.cloudProfileConfig.CloudConfiguration).Name,
 			}
 
 			if infrastructureStatus.Networks.VNet.ResourceGroup != nil {

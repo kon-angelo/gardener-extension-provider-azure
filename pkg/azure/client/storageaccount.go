@@ -42,7 +42,6 @@ func (c *StorageAccountClient) CreateStorageAccount(ctx context.Context, resourc
 			MinimumTLSVersion:      ptr.To(armstorage.MinimumTLSVersionTLS12),
 		},
 	}, nil)
-
 	if err != nil {
 		return err
 	}
@@ -53,21 +52,28 @@ func (c *StorageAccountClient) CreateStorageAccount(ctx context.Context, resourc
 }
 
 // ListStorageAccountKey lists the first key of a storage account.
-func (c *StorageAccountClient) ListStorageAccountKey(ctx context.Context, resourceGroupName, storageAccountName string) (string, error) {
+func (c *StorageAccountClient) ListStorageAccountKey(ctx context.Context, resourceGroupName, storageAccountName string) (*armstorage.AccountKey, error) {
 	keys, err := c.listStorageAccountKeys(ctx, resourceGroupName, storageAccountName)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return *keys[0].Value, nil
+	return keys[0], nil
+}
+
+func (c *StorageAccountClient) ListStorageAccountKeys(ctx context.Context, resourceGroupName, storageAccountName string) ([]*armstorage.AccountKey, error) {
+	keys, err := c.listStorageAccountKeys(ctx, resourceGroupName, storageAccountName)
+	if err != nil {
+		return nil, err
+	}
+	return keys, nil
 }
 
 // ListStorageAccountKeys lists the keys of a storage account.
 func (c *StorageAccountClient) listStorageAccountKeys(ctx context.Context, resourceGroupName, storageAccountName string) ([]*armstorage.AccountKey, error) {
 	response, err := c.client.ListKeys(ctx, resourceGroupName, storageAccountName, &armstorage.AccountsClientListKeysOptions{
-		// doc: "Specifies type of the key to be listed. Possible value is kerb.. Specifying any value will set the value to kerb."
+		// doc: "Specifies type of the key to be listed. Possible value is kerb. Specifying any value will set the value to kerb."
 		Expand: ptr.To("kerb"),
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +111,6 @@ func (c *StorageAccountClient) RotateKey(ctx context.Context, resourceGroupName,
 		armstorage.AccountRegenerateKeyParameters{KeyName: keyToRotate},
 		nil,
 	)
-
 	if err != nil {
 		return "", err
 	}
@@ -118,5 +123,4 @@ func (c *StorageAccountClient) RotateKey(ctx context.Context, resourceGroupName,
 	}
 
 	return "", fmt.Errorf("error rotating storage account key '%v'", keyToRotate)
-
 }

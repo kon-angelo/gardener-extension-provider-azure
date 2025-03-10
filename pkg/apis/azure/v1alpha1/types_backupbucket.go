@@ -17,4 +17,14 @@ type BackupBucketConfig struct {
 	// CloudConfiguration contains config that controls which cloud to connect to.
 	// +optional
 	CloudConfiguration *CloudConfiguration `json:"cloudConfiguration,omitempty"`
+	// CredentialRotation controls the behavior of the BackupBucket credential rotation.
+	CredentialRotation *CredentialRotation `json:"credentialRotation,omitempty"`
+}
+
+// CredentialRotation controls the behavior of the BackupBucket credential rotation.
+type CredentialRotation struct {
+	// Enabled specifies if the credential rotation for backupbuckets should be enabled.
+	Enabled bool `json:"enabled"`
+	// RotatePeriod is the period after which the credential will not be used anymore. The actual rotation will happen
+	RotatePeriod metav1.Duration `json:"rotatePeriod"`
 }
