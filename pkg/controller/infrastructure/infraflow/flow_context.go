@@ -161,6 +161,17 @@ func (fctx *FlowContext) buildReconcileGraph() *flow.Graph {
 		fctx.EnsureAvailabilitySet,
 		shared.Timeout(defaultTimeout), shared.Dependencies(resourceGroup), shared.DoIf(fctx.adapter.IsAvailabilitySetReconciliationRequired()))
 
+	ip := fctx.AddTask(g, "ensure public IPs",
+		fctx.EnsurePublicIps, shared.Timeout(defaultLongTimeout), shared.Dependencies(resourceGroup))
+
+	loadbalancer := fctx.AddTask(g, "ensure loadbalancer",
+		fctx.EnsureLoadBalancer,
+		shared.Timeout(defaultTimeout), shared.Dependencies(resourceGroup, ip))
+
+	_ = fctx.AddTask(g, "ensure backend pool",
+		fctx.EnsureBackendPool,
+		shared.Timeout(defaultTimeout), shared.Dependencies(resourceGroup, loadbalancer))
+
 	_ = fctx.AddTask(g, "ensure managed identity",
 		fctx.EnsureManagedIdentity, shared.DoIf(fctx.cfg.Identity != nil))
 
@@ -170,8 +181,6 @@ func (fctx *FlowContext) buildReconcileGraph() *flow.Graph {
 	securityGroup := fctx.AddTask(g, "ensure security group",
 		fctx.EnsureSecurityGroup, shared.Timeout(defaultTimeout), shared.Dependencies(resourceGroup))
 
-	ip := fctx.AddTask(g, "ensure public IPs",
-		fctx.EnsurePublicIps, shared.Timeout(defaultLongTimeout), shared.Dependencies(resourceGroup))
 	nat := fctx.AddTask(g, "ensure nats",
 		fctx.EnsureNatGateways, shared.Timeout(defaultLongTimeout), shared.Dependencies(resourceGroup, ip))
 

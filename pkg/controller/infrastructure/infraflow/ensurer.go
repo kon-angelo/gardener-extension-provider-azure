@@ -347,6 +347,44 @@ func (fctx *FlowContext) ensureSecurityGroup(ctx context.Context) (*armnetwork.S
 	return sg, nil
 }
 
+func (fctx *FlowContext) EnsureLoadBalancer(ctx context.Context) error {
+	log := shared.LogFromContext(ctx)
+	lbCfg := fctx.adapter.LoadBalancerConfig()
+
+	c, err := fctx.factory.LoadBalancer()
+	if err != nil {
+		return err
+	}
+
+	lb, err := c.Get(ctx, lbCfg.ResourceGroup, lbCfg.Name)
+	if err != nil {
+		return err
+	}
+
+	if lb != nil {
+		if location := ptr.Deref(lb.Location, ""); location != lbCfg.Location {
+			return NewSpecMismatchError(lbCfg.AzureResourceMetadata, "location", lbCfg.Location, location,
+				to.Ptr("the location of the load balancer does not match expected location"))
+		}
+	}
+
+	lb = lbCfg.ToProvider(lb)
+	log.Info("reconciling load balancer", "name", lbCfg.Name)
+	log.V(1).Info("reconciling load balancer with spec", "spec", *lb)
+	lb, err = c.CreateOrUpdate(ctx, lbCfg.ResourceGroup, lbCfg.Name, *lb)
+	if err != nil {
+		return err
+	}
+
+	err = fctx.inventory.Insert(*lb.ID)
+	if err != nil {
+		return err
+	}
+	fctx.whiteboard.GetChild(ChildKeyIDs).Set(KindLoadBalancer.String(), *lb.ID)
+
+	return nil
+}
+
 // EnsurePublicIps reconciles the public IPs for the shoot.
 func (fctx *FlowContext) EnsurePublicIps(ctx context.Context) error {
 	return errors.Join(fctx.ensurePublicIps(ctx), fctx.ensureUserPublicIps(ctx))

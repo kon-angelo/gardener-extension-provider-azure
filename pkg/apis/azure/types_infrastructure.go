@@ -41,6 +41,16 @@ type NetworkConfig struct {
 	ServiceEndpoints []string
 	// Zones is a list of zones with their respective configuration.
 	Zones []Zone
+	// LoadBalancer is the configuration for the load balancer.
+	LoadBalancer *LoadBalancerConfig
+}
+
+// LoadBalancerConfig contains configuration for the load balancer and the attached resources.
+type LoadBalancerConfig struct {
+	// ManagedPublicIPAddresses is the number of managed public IP addresses that should be created for the load balancer.
+	ManagedPublicIPAddresses int
+	// IPAddresses is a list of ip addresses which should be assigned to the load balancer.
+	IPAddresses []PublicIPReference
 }
 
 // NatGatewayConfig contains configuration for the NAT gateway and the attached resources.

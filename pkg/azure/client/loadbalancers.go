@@ -6,6 +6,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -55,4 +56,17 @@ func (c *LoadBalancersClient) Delete(ctx context.Context, resourceGroupName, loa
 
 	_, err = poller.PollUntilDone(ctx, nil)
 	return err
+}
+
+// CreateOrUpdate creates or updates a load balancer.
+func (c *LoadBalancersClient) CreateOrUpdate(ctx context.Context, resourceGroupName string, name string, parameters armnetwork.LoadBalancer) (*armnetwork.LoadBalancer, error) {
+	poller, err := c.client.BeginCreateOrUpdate(ctx, resourceGroupName, name, parameters, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create loadbalancer: %v", err)
+	}
+	res, err := poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create loadbalancer: %v", err)
+	}
+	return &res.LoadBalancer, err
 }

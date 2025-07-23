@@ -35,6 +35,8 @@ const (
 	KindSubnet AzureResourceKind = "Microsoft.Network/virtualNetworks/subnets"
 	// KindVirtualNetwork is the kind for a virtual network.
 	KindVirtualNetwork AzureResourceKind = "Microsoft.Network/virtualNetworks"
+	// KindLoadBalancer is the kind for a load balancer.
+	KindLoadBalancer AzureResourceKind = "Microsoft.Network/loadBalancers"
 )
 
 const (

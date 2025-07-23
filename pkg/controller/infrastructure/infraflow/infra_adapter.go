@@ -14,6 +14,7 @@ import (
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	"github.com/gardener/gardener/pkg/utils"
+	"k8s.io/utils/ptr"
 
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure"
 	"github.com/gardener/gardener-extension-provider-azure/pkg/apis/azure/helper"
@@ -34,6 +35,7 @@ type InfrastructureAdapter struct {
 	// cached configuration
 	vnetConfig  VirtualNetworkConfig
 	avSetConfig *AvailabilitySetConfig
+	lbConfig    *LoadBalancerConfig
 	zoneConfigs []ZoneConfig
 }
 
@@ -703,4 +705,55 @@ func (r *RouteTableConfig) ToProvider(base *armnetwork.RouteTable) *armnetwork.R
 	}
 
 	return desired
+}
+
+type LoadBalancerConfig struct {
+	AzureResourceMetadata
+	Location string
+	Name     string
+	// Managed is true if the load balancer is managed by gardener. If false, it is managed by the cloud-controller-manager.
+	Managed                bool
+	BackendPoolName        string
+	FrontEndIPRuleOutBound string
+}
+
+func (ia *InfrastructureAdapter) LoadBalancerConfig() LoadBalancerConfig {
+	name := ia.TechnicalName()
+	rg := ia.ResourceGroupName()
+	lbc := LoadBalancerConfig{
+		AzureResourceMetadata: AzureResourceMetadata{
+			Name:          name,
+			ResourceGroup: rg,
+			Kind:          KindVirtualNetwork,
+		},
+		Location:               ia.Region(),
+		Managed:                ia.config.Networks.LoadBalancer != nil,
+		BackendPoolName:        fmt.Sprintf("%s-outbound", name),
+		FrontEndIPRuleOutBound: fmt.Sprintf("%s-outbound", name),
+	}
+
+	return lbc
+}
+
+func (l *LoadBalancerConfig) ToProvider(base *armnetwork.LoadBalancer) *armnetwork.LoadBalancer {
+	target := base
+	if target == nil {
+		target = &armnetwork.LoadBalancer{
+			ExtendedLocation: nil,
+			ID:               nil,
+			Location:         ptr.To(l.Location),
+			Properties: &armnetwork.LoadBalancerPropertiesFormat{
+				BackendAddressPools:      nil,
+				FrontendIPConfigurations: nil,
+			},
+			SKU: &armnetwork.LoadBalancerSKU{
+				Name: ptr.To(armnetwork.LoadBalancerSKUNameStandard),
+				Tier: ptr.To(armnetwork.LoadBalancerSKUTierRegional),
+			},
+		}
+	}
+	target.Tags = utils.MergeStringMaps(base.Tags, map[string]*string{
+		TagManagedByGardener: to.Ptr("true"),
+	})
+	return target
 }
