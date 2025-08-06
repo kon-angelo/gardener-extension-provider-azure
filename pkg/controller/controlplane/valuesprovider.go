@@ -531,7 +531,7 @@ func getControlPlaneChartValues(
 	map[string]interface{},
 	error,
 ) {
-	ccm, err := getCCMChartValues(cpConfig, cp, cluster, secretsReader, checksums, scaledDown, useWorkloadIdentity)
+	ccm, err := getCCMChartValues(cpConfig, cp, cluster, infraStatus, secretsReader, checksums, scaledDown, useWorkloadIdentity)
 	if err != nil {
 		return nil, err
 	}
@@ -558,6 +558,7 @@ func getCCMChartValues(
 	cpConfig *apisazure.ControlPlaneConfig,
 	cp *extensionsv1alpha1.ControlPlane,
 	cluster *extensionscontroller.Cluster,
+	infrastructureStatus *apisazure.InfrastructureStatus,
 	secretsReader secretsmanager.Reader,
 	checksums map[string]string,
 	scaledDown bool,
@@ -590,6 +591,13 @@ func getCCMChartValues(
 
 	if cpConfig.CloudControllerManager != nil {
 		values["featureGates"] = cpConfig.CloudControllerManager.FeatureGates
+	}
+
+	if infrastructureStatus != nil && infrastructureStatus.LoadBalancer != nil {
+		values["loadBalancer"] = map[string]interface{}{
+			"name":          infrastructureStatus.LoadBalancer.Name,
+			"resourceGroup": infrastructureStatus.LoadBalancer.ResourceGroup,
+		}
 	}
 
 	return values, nil

@@ -128,6 +128,13 @@ type InfrastructureStatus struct {
 	Identity *IdentityStatus
 	// Zoned indicates whether the cluster uses zones
 	Zoned bool
+	// LoadBalancer is the status of the load balancer.
+	LoadBalancer *LoadBalancerStatus
+}
+
+type LoadBalancerStatus struct {
+	ResourceGroup string
+	Name          string
 }
 
 // NetworkStatus is the current status of the infrastructure networks.

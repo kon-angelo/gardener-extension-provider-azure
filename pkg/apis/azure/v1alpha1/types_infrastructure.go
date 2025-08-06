@@ -143,6 +143,14 @@ type InfrastructureStatus struct {
 	// Zoned indicates whether the cluster uses zones
 	// +optional
 	Zoned bool `json:"zoned,omitempty"`
+	// LoadBalancer is the status of the load balancer.
+	LoadBalancer *LoadBalancerStatus
+}
+
+// LoadBalancerStatus contains information about the load balancer and the attached resources.
+type LoadBalancerStatus struct {
+	ResourceGroup string `json:"resourceGroup"`
+	Name          string `json:"name"`
 }
 
 // NetworkStatus is the current status of the infrastructure networks.

@@ -168,10 +168,6 @@ func (fctx *FlowContext) buildReconcileGraph() *flow.Graph {
 		fctx.EnsureLoadBalancer,
 		shared.Timeout(defaultTimeout), shared.Dependencies(resourceGroup, ip))
 
-	_ = fctx.AddTask(g, "ensure backend pool",
-		fctx.EnsureBackendPool,
-		shared.Timeout(defaultTimeout), shared.Dependencies(resourceGroup, loadbalancer))
-
 	_ = fctx.AddTask(g, "ensure managed identity",
 		fctx.EnsureManagedIdentity, shared.DoIf(fctx.cfg.Identity != nil))
 
@@ -182,7 +178,7 @@ func (fctx *FlowContext) buildReconcileGraph() *flow.Graph {
 		fctx.EnsureSecurityGroup, shared.Timeout(defaultTimeout), shared.Dependencies(resourceGroup))
 
 	nat := fctx.AddTask(g, "ensure nats",
-		fctx.EnsureNatGateways, shared.Timeout(defaultLongTimeout), shared.Dependencies(resourceGroup, ip))
+		fctx.EnsureNatGateways, shared.Timeout(defaultLongTimeout), shared.Dependencies(resourceGroup, ip, loadbalancer))
 
 	subnet := fctx.AddTask(g, "ensure subnets", fctx.EnsureSubnets,
 		shared.Timeout(defaultLongTimeout), shared.Dependencies(vnet, routeTable, securityGroup, nat))
