@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -435,6 +436,21 @@ func (fctx *FlowContext) EnsureLoadBalancer(ctx context.Context) error {
 		lb.Properties.FrontendIPConfigurations = append(lb.Properties.FrontendIPConfigurations, fipc)
 	}
 
+	bap := fctx.adapter.BackendAddressPoolConfig().ToProvider(nil)
+	bap.Properties.VirtualNetwork = &armnetwork.SubResource{
+		ID: to.Ptr(GetIdFromTemplate(TemplateVirtualNetwork, fctx.auth.SubscriptionID, lbCfg.ResourceGroup, fctx.adapter.VirtualNetworkConfig().Name)),
+	}
+	found := false
+	for _, bap := range lb.Properties.BackendAddressPools {
+		if ptr.Deref(bap.Name, "") == fctx.adapter.BackendAddressPoolName() {
+			found = true
+			break
+		}
+	}
+	if !found {
+		lb.Properties.BackendAddressPools = append(lb.Properties.BackendAddressPools, bap)
+	}
+
 	lb, err = c.CreateOrUpdate(ctx, lbCfg.ResourceGroup, lbCfg.Name, *lb)
 	if err != nil {
 		return err
@@ -446,13 +462,11 @@ func (fctx *FlowContext) EnsureLoadBalancer(ctx context.Context) error {
 	}
 	fctx.whiteboard.GetChild(ChildKeyIDs).Set(KindLoadBalancer.String(), *lb.ID)
 
-	bap, err := bapClient.Get(ctx, lbCfg.ResourceGroup, lbCfg.Name, fctx.adapter.BackendAddressPoolName())
-
-	bap = fctx.adapter.BackendAddressPoolConfig().ToProvider(bap)
-	bap, err = bapClient.CreateOrUpdate(ctx, lbCfg.ResourceGroup, lbCfg.Name, *bap.Name, *bap)
-	if err != nil {
-		return err
-	}
+	// bap = fctx.adapter.BackendAddressPoolConfig().ToProvider(bap)
+	// bap, err = bapClient.CreateOrUpdate(ctx, lbCfg.ResourceGroup, lbCfg.Name, *bap.Name, *bap)
+	// if err != nil {
+	// 	return err
+	// }
 
 	var outboundRule *armnetwork.OutboundRule
 	for _, rule := range lb.Properties.OutboundRules {
@@ -468,7 +482,8 @@ func (fctx *FlowContext) EnsureLoadBalancer(ctx context.Context) error {
 		}
 		lb.Properties.OutboundRules = append(lb.Properties.OutboundRules, outboundRule)
 	}
-	outboundRule.Properties.BackendAddressPool = &armnetwork.SubResource{ID: bap.ID}
+	outboundRule.Properties.BackendAddressPool = &armnetwork.SubResource{ID: ptr.To(GetIdFromTemplateWithParent(TemplateBackendAddressPool, fctx.auth.SubscriptionID, lbCfg.ResourceGroup, lbCfg.Name, fctx.adapter.BackendAddressPoolName()))}
+	// outboundRule.Properties.BackendAddressPool = &armnetwork.SubResource{ID: bap.ID}
 	outboundRule.Properties.FrontendIPConfigurations = make([]*armnetwork.SubResource, 0, len(lb.Properties.FrontendIPConfigurations))
 	outboundRule.Properties.Protocol = ptr.To(armnetwork.LoadBalancerOutboundRuleProtocolAll)
 
@@ -506,25 +521,33 @@ func (fctx *FlowContext) ensureUserPublicIps(ctx context.Context) error {
 		return err
 	}
 
+	var resErr error
+	egressCIDRs := GetObject[[]string](fctx.whiteboard, "EgressCIDRs")
 	for _, ipFromConfig := range fctx.adapter.IpConfigs() {
-		if !ipFromConfig.Managed {
+		if ipFromConfig.Managed {
 			continue
 		}
-		err = errors.Join(err, fctx.ensureUserPublicIp(ctx, c, ipFromConfig))
+
+		if pip, err := fctx.ensureUserPublicIp(ctx, c, ipFromConfig); err != nil {
+			resErr = errors.Join(resErr, err)
+		} else {
+			egressCIDRs = append(egressCIDRs, ptr.Deref(pip.Properties.IPAddress, ""))
+		}
 	}
+	fctx.whiteboard.SetObject("EgressCIDRs", egressCIDRs)
 	return err
 }
 
-func (fctx *FlowContext) ensureUserPublicIp(ctx context.Context, c client.PublicIP, ipCfg PublicIPConfig) error {
+func (fctx *FlowContext) ensureUserPublicIp(ctx context.Context, c client.PublicIP, ipCfg PublicIPConfig) (*armnetwork.PublicIPAddress, error) {
 	userIP, err := c.Get(ctx, ipCfg.ResourceGroup, ipCfg.Name, nil)
 	if err != nil {
-		return err
+		return nil, err
 	} else if userIP == nil {
-		return fmt.Errorf("failed to locate user public IP: %s, %s", ipCfg.ResourceGroup, ipCfg.Name)
+		return nil, fmt.Errorf("failed to locate user public IP: %s, %s", ipCfg.ResourceGroup, ipCfg.Name)
 	}
 
 	fctx.whiteboard.GetChild(ChildKeyIDs).GetChild(ipCfg.ResourceGroup).GetChild(KindPublicIP.String()).Set(ipCfg.Name, *userIP.ID)
-	return nil
+	return userIP, nil
 }
 
 func (fctx *FlowContext) ensurePublicIps(ctx context.Context) error {
@@ -561,6 +584,7 @@ func (fctx *FlowContext) ensurePublicIps(ctx context.Context) error {
 	}
 
 	for _, resource := range fctx.inventory.ByKind(KindPublicIP) {
+
 		if _, ok := nameToCurrentIps[resource.Name]; !ok {
 			log.Info("Removing public IP from inventory", "id", resource.String())
 			fctx.inventory.Delete(resource.String())
@@ -607,6 +631,7 @@ func (fctx *FlowContext) ensurePublicIps(ctx context.Context) error {
 		return joinError
 	}
 
+	egressCIDRs := GetObject[[]string](fctx.whiteboard, "EgressCIDRs")
 	for ipName, ip := range toReconcile {
 		ip, err = c.CreateOrUpdate(ctx, fctx.adapter.ResourceGroupName(), ipName, *ip)
 		if err != nil {
@@ -618,7 +643,9 @@ func (fctx *FlowContext) ensurePublicIps(ctx context.Context) error {
 			return err
 		}
 		fctx.whiteboard.GetChild(KindPublicIP.String()).GetChild(fctx.adapter.ResourceGroupName()).Set(ipName, *ip.ID)
+		egressCIDRs = append(egressCIDRs, ptr.Deref(ip.Properties.IPAddress, ""))
 	}
+	fctx.whiteboard.SetObject("EgressCIDRs", egressCIDRs)
 
 	return joinError
 }
@@ -735,8 +762,6 @@ func (fctx *FlowContext) ensureNatGateways(ctx context.Context) error {
 			}
 		}
 	}
-
-	fctx.whiteboard.GetChild(KindNatGateway.String()).SetObject(KeyPublicIPAddresses, ipAddresses)
 
 	return joinError
 }
@@ -1055,6 +1080,14 @@ func (fctx *FlowContext) GetInfrastructureStatus(_ context.Context) (*v1alpha1.I
 		}
 	}
 
+	if fctx.whiteboard.GetChild(ChildKeyIDs).Get(KindLoadBalancer.String()) != nil {
+		lbCfg, _ := fctx.adapter.LoadBalancerConfig()
+		status.Networks.OutboundAccessType = v1alpha1.OutboundAccessTypeLoadBalancer
+		status.Networks.LoadBalancer = &v1alpha1.LoadBalancerStatus{
+			Name: lbCfg.Name,
+		}
+	}
+
 	return status, nil
 }
 
@@ -1080,18 +1113,15 @@ func (fctx *FlowContext) GetInfrastructureState() *runtime.RawExtension {
 
 // GetEgressIpCidrs retrieves the CIDRs of the IP ranges used for egress from the FlowContext
 func (fctx *FlowContext) GetEgressIpCidrs() []string {
-	if fctx.whiteboard.HasChild(KindNatGateway.String()) && fctx.whiteboard.GetChild(KindNatGateway.String()).HasObject(KeyPublicIPAddresses) {
-		ipAddresses, ok := fctx.whiteboard.GetChild(KindNatGateway.String()).GetObject(KeyPublicIPAddresses).([]string)
-		if !ok {
-			return nil
+	egressCIDRs := slices.Clone(GetObject[[]string](fctx.whiteboard, "EgressCIDRs"))
+	if egressCIDRs != nil {
+		for idx := range egressCIDRs {
+			if egressCIDRs[idx] != "" {
+				egressCIDRs[idx] = egressCIDRs[idx] + "/32"
+			}
 		}
-		cidrs := []string{}
-		for _, address := range ipAddresses {
-			cidrs = append(cidrs, address+"/32")
-		}
-		return cidrs
 	}
-	return nil
+	return egressCIDRs
 }
 
 // DeleteResourceGroup deletes the shoot's resource group.

@@ -143,14 +143,12 @@ type InfrastructureStatus struct {
 	// Zoned indicates whether the cluster uses zones
 	// +optional
 	Zoned bool `json:"zoned,omitempty"`
-	// LoadBalancer is the status of the load balancer.
-	LoadBalancer *LoadBalancerStatus
 }
 
 // LoadBalancerStatus contains information about the load balancer and the attached resources.
 type LoadBalancerStatus struct {
-	ResourceGroup string `json:"resourceGroup"`
-	Name          string `json:"name"`
+	// Name is the name of the load balancer.
+	Name string `json:"name"`
 }
 
 // NetworkStatus is the current status of the infrastructure networks.
@@ -166,6 +164,9 @@ type NetworkStatus struct {
 
 	// OutboundAccessType is the type of outbound access configured for the shoot. It indicates how egress traffic flows outside the shoot.
 	OutboundAccessType OutboundAccessType `json:"outboundAccessType"`
+
+	// LoadBalancer is the status of the load balancer.
+	LoadBalancer *LoadBalancerStatus `json:"loadBalancer,omitempty"`
 }
 
 // Purpose is a purpose of a subnet.

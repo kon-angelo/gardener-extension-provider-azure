@@ -473,11 +473,6 @@ func (in *InfrastructureStatus) DeepCopyInto(out *InfrastructureStatus) {
 		*out = new(IdentityStatus)
 		**out = **in
 	}
-	if in.LoadBalancer != nil {
-		in, out := &in.LoadBalancer, &out.LoadBalancer
-		*out = new(LoadBalancerStatus)
-		**out = **in
-	}
 	return
 }
 
@@ -748,6 +743,11 @@ func (in *NetworkStatus) DeepCopyInto(out *NetworkStatus) {
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
+	}
+	if in.LoadBalancer != nil {
+		in, out := &in.LoadBalancer, &out.LoadBalancer
+		*out = new(LoadBalancerStatus)
+		**out = **in
 	}
 	return
 }

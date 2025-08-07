@@ -32,6 +32,7 @@ cloudProviderRateLimitBucketWrite: {{ ( max .Values.maxNodes 100 ) }}
 loadBalancerName: "{{ .Values.loadBalancer.resourceGroup }}"
 loadBalancerResourceGroup: "{{ .Values.loadBalancer.resourceGroup }}"
 preConfiguredBackendPoolLoadBalancerTypes: "external"
+disableOutboundSNAT: true
 {{- end -}}
 {{- end -}}
 

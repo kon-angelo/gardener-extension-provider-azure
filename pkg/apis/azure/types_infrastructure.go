@@ -128,13 +128,10 @@ type InfrastructureStatus struct {
 	Identity *IdentityStatus
 	// Zoned indicates whether the cluster uses zones
 	Zoned bool
-	// LoadBalancer is the status of the load balancer.
-	LoadBalancer *LoadBalancerStatus
 }
 
 type LoadBalancerStatus struct {
-	ResourceGroup string
-	Name          string
+	Name string
 }
 
 // NetworkStatus is the current status of the infrastructure networks.
@@ -147,6 +144,8 @@ type NetworkStatus struct {
 	Layout NetworkLayout
 	// OutboundAccessType is the type of outbound access configured for the shoot. It indicates how egress traffic flows outside the shoot.
 	OutboundAccessType OutboundAccessType
+	// LoadBalancer is the status of the load balancer.
+	LoadBalancer *LoadBalancerStatus
 }
 
 // Purpose is a purpose of a subnet.

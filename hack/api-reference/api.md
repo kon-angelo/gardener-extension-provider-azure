@@ -1243,19 +1243,6 @@ bool
 <p>Zoned indicates whether the cluster uses zones</p>
 </td>
 </tr>
-<tr>
-<td>
-<code>LoadBalancer</code></br>
-<em>
-<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.LoadBalancerStatus">
-LoadBalancerStatus
-</a>
-</em>
-</td>
-<td>
-<p>LoadBalancer is the status of the load balancer.</p>
-</td>
-</tr>
 </tbody>
 </table>
 <h3 id="azure.provider.extensions.gardener.cloud/v1alpha1.LoadBalancerConfig">LoadBalancerConfig
@@ -1305,7 +1292,7 @@ int
 </h3>
 <p>
 (<em>Appears on:</em>
-<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.InfrastructureStatus">InfrastructureStatus</a>)
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.NetworkStatus">NetworkStatus</a>)
 </p>
 <p>
 <p>LoadBalancerStatus contains information about the load balancer and the attached resources.</p>
@@ -1320,22 +1307,13 @@ int
 <tbody>
 <tr>
 <td>
-<code>resourceGroup</code></br>
-<em>
-string
-</em>
-</td>
-<td>
-</td>
-</tr>
-<tr>
-<td>
 <code>name</code></br>
 <em>
 string
 </em>
 </td>
 <td>
+<p>Name is the name of the load balancer.</p>
 </td>
 </tr>
 </tbody>
@@ -1872,6 +1850,19 @@ OutboundAccessType
 </td>
 <td>
 <p>OutboundAccessType is the type of outbound access configured for the shoot. It indicates how egress traffic flows outside the shoot.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>loadBalancer</code></br>
+<em>
+<a href="#azure.provider.extensions.gardener.cloud/v1alpha1.LoadBalancerStatus">
+LoadBalancerStatus
+</a>
+</em>
+</td>
+<td>
+<p>LoadBalancer is the status of the load balancer.</p>
 </td>
 </tr>
 </tbody>

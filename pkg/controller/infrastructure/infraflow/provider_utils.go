@@ -37,8 +37,6 @@ const (
 	KindVirtualNetwork AzureResourceKind = "Microsoft.Network/virtualNetworks"
 	// KindLoadBalancer is the kind for a load balancer.
 	KindLoadBalancer AzureResourceKind = "Microsoft.Network/loadBalancers"
-
-	KindBackendAddressPool AzureResourceKind = "Microsoft.Network/backendAddressPools"
 )
 
 const (
@@ -64,6 +62,7 @@ const (
 	// TemplateSubnet is the template for the id of a subnet.
 	TemplateSubnet                  = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s/subnets/%s"
 	TemplateFrontendIPConfiguration = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/loadBalancers/%s/frontendIPConfigurations/%s"
+	TemplateBackendAddressPool      = "subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/loadBalancers/%s/backendAddressPools/%s"
 )
 
 // ResourceGroupIdFromTemplate returns the id of a resource group.

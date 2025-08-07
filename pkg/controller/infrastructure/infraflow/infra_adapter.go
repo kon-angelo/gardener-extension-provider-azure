@@ -787,7 +787,6 @@ func (r *RouteTableConfig) ToProvider(base *armnetwork.RouteTable) *armnetwork.R
 type LoadBalancerConfig struct {
 	AzureResourceMetadata
 	Location string
-	Name     string
 	// Managed is true if the load balancer is managed by gardener. If false, it is managed by the cloud-controller-manager.
 	Managed bool
 	// ManagedBackendAddressPool is the name of the backend pool used for outbound connections.
@@ -821,26 +820,21 @@ type BackendAddressPoolConfig struct {
 }
 
 func (l *LoadBalancerConfig) ToProvider(base *armnetwork.LoadBalancer) *armnetwork.LoadBalancer {
-	target := base
-	if target == nil {
-		target = &armnetwork.LoadBalancer{
-			Location: ptr.To(l.Location),
-			Properties: &armnetwork.LoadBalancerPropertiesFormat{
-				BackendAddressPools:      nil,
-				FrontendIPConfigurations: nil,
-				OutboundRules:            nil,
-				ProvisioningState:        nil,
-			},
+	if base == nil {
+		base = &armnetwork.LoadBalancer{
+			Location:   ptr.To(l.Location),
+			Properties: &armnetwork.LoadBalancerPropertiesFormat{},
 			SKU: &armnetwork.LoadBalancerSKU{
 				Name: ptr.To(armnetwork.LoadBalancerSKUNameStandard),
 				Tier: ptr.To(armnetwork.LoadBalancerSKUTierRegional),
 			},
 		}
 	}
+	target := *base
 	target.Tags = utils.MergeStringMaps(base.Tags, map[string]*string{
 		TagManagedByGardener: to.Ptr("true"),
 	})
-	return target
+	return &target
 }
 
 func (ia *InfrastructureAdapter) BackendAddressPoolName() string {
@@ -855,7 +849,6 @@ func (ia *InfrastructureAdapter) BackendAddressPoolConfig() *BackendAddressPoolC
 		AzureResourceMetadata: AzureResourceMetadata{
 			Name:          name,
 			ResourceGroup: rg,
-			Kind:          KindBackendAddressPool,
 		},
 		Location: ia.Region(),
 		Name:     name,
@@ -867,7 +860,6 @@ func (b *BackendAddressPoolConfig) ToProvider(bap *armnetwork.BackendAddressPool
 		bap = &armnetwork.BackendAddressPool{
 			Name: ptr.To(b.Name),
 			Properties: &armnetwork.BackendAddressPoolPropertiesFormat{
-				Location: ptr.To(b.Location),
 				SyncMode: ptr.To(armnetwork.SyncModeAutomatic),
 			},
 		}

@@ -77,7 +77,7 @@ type BackendAddressPoolClient struct {
 }
 
 // NewBackendAddressPoolClient creates a new BackendAddressPoolClient.
-func NewBackendAddressPoolClient(auth internal.ClientAuth, tc azcore.TokenCredential, opts *arm.ClientOptions) (*BackendAddressPoolClient, error) {
+func NewBackendAddressPoolClient(auth ClientAuth, tc azcore.TokenCredential, opts *arm.ClientOptions) (*BackendAddressPoolClient, error) {
 	client, err := armnetwork.NewLoadBalancerBackendAddressPoolsClient(auth.SubscriptionID, tc, opts)
 	return &BackendAddressPoolClient{client}, err
 }
@@ -135,7 +135,7 @@ type LoadBalancersFrontEndIPConfigurationClient struct {
 }
 
 // NewLoadBalancersFrontEndIPConfiguration creates a new LoadBalancersFrontEndIPConfigurationClient.
-func NewLoadBalancersFrontEndIPConfiguration(auth internal.ClientAuth, tc azcore.TokenCredential, opts *arm.ClientOptions) (*LoadBalancersFrontEndIPConfigurationClient, error) {
+func NewLoadBalancersFrontEndIPConfiguration(auth ClientAuth, tc azcore.TokenCredential, opts *arm.ClientOptions) (*LoadBalancersFrontEndIPConfigurationClient, error) {
 	client, err := armnetwork.NewLoadBalancerFrontendIPConfigurationsClient(auth.SubscriptionID, tc, opts)
 	return &LoadBalancersFrontEndIPConfigurationClient{client}, err
 }

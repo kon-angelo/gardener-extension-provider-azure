@@ -321,10 +321,10 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 				}
 			}
 
-			if infrastructureStatus.LoadBalancer != nil {
+			if infrastructureStatus.Networks.LoadBalancer != nil {
 				machineClassSpec["loadBalancer"] = map[string]interface{}{
-					"name":          infrastructureStatus.LoadBalancer.Name,
-					"resourceGroup": infrastructureStatus.LoadBalancer.ResourceGroup,
+					"name":          infrastructureStatus.Networks.LoadBalancer.Name,
+					"resourceGroup": infrastructureStatus.ResourceGroup.Name,
 				}
 			}
 			machineDeployment.ClusterAutoscalerAnnotations = extensionsv1alpha1helper.GetMachineDeploymentClusterAutoscalerAnnotations(pool.ClusterAutoscaler)

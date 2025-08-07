@@ -24,7 +24,6 @@ type Access interface {
 	DeletePublicIP(ctx context.Context, rgName, pipName string) error
 	// DisassociatePublicIPFromNAT from the NAT Gateway it is attached.
 	DisassociatePublicIPFromNAT(ctx context.Context, rgName, natName, pipId string) error
-	// DisassociatePublicIPFromFrontEndRule(ctx context.Context, rgName, lbName, pipId string) error
 	// DeleteNatGateway deletes a NAT Gateway after disassociating from all subnets attached to it.
 	DeleteNatGateway(ctx context.Context, rgName, natName string) error
 	// DisassociateNatGateway disassociates the NAT Gateway from attached subnets.

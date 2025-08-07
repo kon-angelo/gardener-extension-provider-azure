@@ -841,7 +841,6 @@ func autoConvert_v1alpha1_InfrastructureStatus_To_azure_InfrastructureStatus(in 
 	out.SecurityGroups = *(*[]azure.SecurityGroup)(unsafe.Pointer(&in.SecurityGroups))
 	out.Identity = (*azure.IdentityStatus)(unsafe.Pointer(in.Identity))
 	out.Zoned = in.Zoned
-	out.LoadBalancer = (*azure.LoadBalancerStatus)(unsafe.Pointer(in.LoadBalancer))
 	return nil
 }
 
@@ -863,7 +862,6 @@ func autoConvert_azure_InfrastructureStatus_To_v1alpha1_InfrastructureStatus(in 
 	out.SecurityGroups = *(*[]SecurityGroup)(unsafe.Pointer(&in.SecurityGroups))
 	out.Identity = (*IdentityStatus)(unsafe.Pointer(in.Identity))
 	out.Zoned = in.Zoned
-	out.LoadBalancer = (*LoadBalancerStatus)(unsafe.Pointer(in.LoadBalancer))
 	return nil
 }
 
@@ -895,7 +893,6 @@ func Convert_azure_LoadBalancerConfig_To_v1alpha1_LoadBalancerConfig(in *azure.L
 }
 
 func autoConvert_v1alpha1_LoadBalancerStatus_To_azure_LoadBalancerStatus(in *LoadBalancerStatus, out *azure.LoadBalancerStatus, s conversion.Scope) error {
-	out.ResourceGroup = in.ResourceGroup
 	out.Name = in.Name
 	return nil
 }
@@ -906,7 +903,6 @@ func Convert_v1alpha1_LoadBalancerStatus_To_azure_LoadBalancerStatus(in *LoadBal
 }
 
 func autoConvert_azure_LoadBalancerStatus_To_v1alpha1_LoadBalancerStatus(in *azure.LoadBalancerStatus, out *LoadBalancerStatus, s conversion.Scope) error {
-	out.ResourceGroup = in.ResourceGroup
 	out.Name = in.Name
 	return nil
 }
@@ -1095,6 +1091,7 @@ func autoConvert_v1alpha1_NetworkStatus_To_azure_NetworkStatus(in *NetworkStatus
 	out.Subnets = *(*[]azure.Subnet)(unsafe.Pointer(&in.Subnets))
 	out.Layout = azure.NetworkLayout(in.Layout)
 	out.OutboundAccessType = azure.OutboundAccessType(in.OutboundAccessType)
+	out.LoadBalancer = (*azure.LoadBalancerStatus)(unsafe.Pointer(in.LoadBalancer))
 	return nil
 }
 
@@ -1110,6 +1107,7 @@ func autoConvert_azure_NetworkStatus_To_v1alpha1_NetworkStatus(in *azure.Network
 	out.Subnets = *(*[]Subnet)(unsafe.Pointer(&in.Subnets))
 	out.Layout = NetworkLayout(in.Layout)
 	out.OutboundAccessType = OutboundAccessType(in.OutboundAccessType)
+	out.LoadBalancer = (*LoadBalancerStatus)(unsafe.Pointer(in.LoadBalancer))
 	return nil
 }
 

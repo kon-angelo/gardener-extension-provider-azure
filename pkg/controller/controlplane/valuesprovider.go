@@ -593,10 +593,10 @@ func getCCMChartValues(
 		values["featureGates"] = cpConfig.CloudControllerManager.FeatureGates
 	}
 
-	if infrastructureStatus != nil && infrastructureStatus.LoadBalancer != nil {
+	if infrastructureStatus != nil && infrastructureStatus.Networks.LoadBalancer != nil {
 		values["loadBalancer"] = map[string]interface{}{
-			"name":          infrastructureStatus.LoadBalancer.Name,
-			"resourceGroup": infrastructureStatus.LoadBalancer.ResourceGroup,
+			"name":          infrastructureStatus.Networks.LoadBalancer.Name,
+			"resourceGroup": infrastructureStatus.ResourceGroup.Name,
 		}
 	}
 
