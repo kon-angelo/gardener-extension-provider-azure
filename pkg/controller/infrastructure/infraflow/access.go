@@ -66,21 +66,72 @@ func (p *access) DeletePublicIP(ctx context.Context, rgName, pipName string) err
 		if err != nil {
 			return err
 		}
-		modifiedLB := false
-		for i, frontend := range lb.Properties.FrontendIPConfigurations {
-			if frontend != nil && frontend.Properties != nil && frontend.Properties.PublicIPAddress != nil &&
-				frontend.Properties.PublicIPAddress.ID != nil && *frontend.Properties.PublicIPAddress.ID == *pip.ID {
-				// Remove the PublicIPConfig from the FrontendIPConfiguration
-				lb.Properties.FrontendIPConfigurations = append(lb.Properties.FrontendIPConfigurations[:i], lb.Properties.FrontendIPConfigurations[i+1:]...)
-				modifiedLB = true
-				break
-			}
-		}
 
-		if modifiedLB {
+		frontendIPConfigurations := make([]*armnetwork.FrontendIPConfiguration, 0)
+		modifiedLB := false
+		for _, frontend := range lb.Properties.FrontendIPConfigurations {
+			if frontend == nil || frontend.Properties == nil || frontend.Properties.PublicIPAddress == nil ||
+				frontend.Properties.PublicIPAddress.ID == nil || *frontend.Properties.PublicIPAddress.ID != *pip.ID {
+				frontendIPConfigurations = append(frontendIPConfigurations, frontend)
+				continue
+			}
+
+			modifiedLB = true
+
+			// modifiedOR := false
+			lbOutboundRules := make([]*armnetwork.OutboundRule, 0)
+			for _, ob := range lb.Properties.OutboundRules {
+				if ob.Properties.FrontendIPConfigurations != nil {
+					var outboundRuleFrontendConfigs []*armnetwork.SubResource
+					for _, fic := range ob.Properties.FrontendIPConfigurations {
+						if fic != nil && fic.ID != nil && *fic.ID == *frontend.ID {
+							continue // Skip the frontend config that is being removed
+						}
+						outboundRuleFrontendConfigs = append(outboundRuleFrontendConfigs, fic)
+					}
+					ob.Properties.FrontendIPConfigurations = outboundRuleFrontendConfigs
+				}
+				if len(ob.Properties.FrontendIPConfigurations) != 0 {
+					lbOutboundRules = append(lbOutboundRules, ob)
+					// } else {
+					// 	modifiedOR = true
+				}
+			}
+			lb.Properties.OutboundRules = lbOutboundRules
+			// if modifiedOR {
+			// 	lb, err = lbClient.CreateOrUpdate(ctx, rgName, lbName, *lb)
+			// 	if err != nil {
+			// 		return err
+			// 	}
+			// }
+
+			// if frontend != nil && frontend.Properties != nil && frontend.Properties.PublicIPAddress != nil &&
+			// 	frontend.Properties.PublicIPAddress.ID != nil && *frontend.Properties.PublicIPAddress.ID == *pip.ID {
+			// 	// Remove the PublicIPConfig from the FrontendIPConfiguration
+			// 	lb.Properties.FrontendIPConfigurations = append(lb.Properties.FrontendIPConfigurations[:i], lb.Properties.FrontendIPConfigurations[i+1:]...)
+			//
+			// 	for _, ob := range lb.Properties.OutboundRules {
+			// 		if ob.Properties.FrontendIPConfigurations != nil {
+			// 			var updatedFrontendConfigs []*armnetwork.SubResource
+			// 			for _, fic := range ob.Properties.FrontendIPConfigurations {
+			// 				if fic != nil && fic.ID != nil && *fic.ID == *frontend.ID
+			// 					continue // Skip the frontend config that is being removed
+			// 				}
+			// 				updatedFrontendConfigs = append(updatedFrontendConfigs, fic)
+			// 			}
+			// 			ob.Properties.FrontendIPConfigurations = updatedFrontendConfigs
+			// 		}
+			// 	}
+			// break
+		}
+		lb.Properties.FrontendIPConfigurations = frontendIPConfigurations
+		if len(lb.Properties.FrontendIPConfigurations) == 0 {
+			if err := lbClient.Delete(ctx, rgName, lbName); err != nil {
+				return err
+			}
+		} else if modifiedLB {
 			// Update the LoadBalancer to remove the PublicIPConfig
-			_, err = lbClient.CreateOrUpdate(ctx, rgName, lbName, *lb)
-			if err != nil {
+			if _, err = lbClient.CreateOrUpdate(ctx, rgName, lbName, *lb); err != nil {
 				return err
 			}
 		}

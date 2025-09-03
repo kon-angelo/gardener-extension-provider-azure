@@ -471,6 +471,13 @@ func getConfigChartValues(infraStatus *apisazure.InfrastructureStatus, cp *exten
 		values["acrIdentityClientId"] = infraStatus.Identity.ClientID
 	}
 
+	if infraStatus.Networks.LoadBalancer != nil {
+		values["loadBalancer"] = map[string]interface{}{
+			"name":          infraStatus.Networks.LoadBalancer.Name,
+			"resourceGroup": infraStatus.ResourceGroup.Name,
+		}
+	}
+
 	return appendMachineSetValues(values, infraStatus), nil
 }
 
@@ -591,13 +598,6 @@ func getCCMChartValues(
 
 	if cpConfig.CloudControllerManager != nil {
 		values["featureGates"] = cpConfig.CloudControllerManager.FeatureGates
-	}
-
-	if infrastructureStatus != nil && infrastructureStatus.Networks.LoadBalancer != nil {
-		values["loadBalancer"] = map[string]interface{}{
-			"name":          infrastructureStatus.Networks.LoadBalancer.Name,
-			"resourceGroup": infrastructureStatus.ResourceGroup.Name,
-		}
 	}
 
 	return values, nil
@@ -757,5 +757,5 @@ func deployAllowEgressChart(shoot *v1beta1.Shoot, infraStatus *apisazure.Infrast
 		return false
 	}
 
-	return (infraStatus.Zoned || azureapihelper.IsVmoRequired(infraStatus)) && infraStatus.Networks.OutboundAccessType == apisazure.OutboundAccessTypeLoadBalancer
+	return (infraStatus.Zoned || azureapihelper.IsVmoRequired(infraStatus)) && infraStatus.Networks.OutboundAccessType == apisazure.OutboundAccessTypeLoadBalancer && infraStatus.Networks.LoadBalancer == nil
 }

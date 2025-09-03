@@ -131,7 +131,8 @@ type InfrastructureStatus struct {
 }
 
 type LoadBalancerStatus struct {
-	Name string
+	Name                 string
+	BackendAddressPoolID string
 }
 
 // NetworkStatus is the current status of the infrastructure networks.

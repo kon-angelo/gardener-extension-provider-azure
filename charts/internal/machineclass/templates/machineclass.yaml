@@ -122,7 +122,7 @@ providerSpec:
     subnetName: {{ $machineClass.network.subnet }}
 {{- if $machineClass.backendAddressPoolID }}
   backendAddressPoolConfig:
-    id: $machineClass.backendAddressPoolID
+    id: {{ $machineClass.backendAddressPoolID }}
 {{- end }}
 {{- if $machineClass.tags }}
   tags:

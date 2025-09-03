@@ -391,6 +391,7 @@ func (fctx *FlowContext) EnsureLoadBalancer(ctx context.Context) error {
 				fctx.inventory.Delete(bapId)
 			}
 		}
+		return nil
 	}
 
 	if lb != nil {
@@ -421,7 +422,7 @@ func (fctx *FlowContext) EnsureLoadBalancer(ctx context.Context) error {
 					PrivateIPAllocationMethod: ptr.To(armnetwork.IPAllocationMethodDynamic),
 					PublicIPAddress:           &armnetwork.PublicIPAddress{ID: to.Ptr(GetIdFromTemplate(TemplatePublicIP, fctx.auth.SubscriptionID, ip.ResourceGroup, ip.Name))},
 				},
-				Zones: to.SliceOfPtrs(ip.Zones...),
+				// Zones: to.SliceOfPtrs(ip.Zones...),
 			}
 		} else {
 			if fipc.Properties == nil {
@@ -437,9 +438,9 @@ func (fctx *FlowContext) EnsureLoadBalancer(ctx context.Context) error {
 	}
 
 	bap := fctx.adapter.BackendAddressPoolConfig().ToProvider(nil)
-	bap.Properties.VirtualNetwork = &armnetwork.SubResource{
-		ID: to.Ptr(GetIdFromTemplate(TemplateVirtualNetwork, fctx.auth.SubscriptionID, lbCfg.ResourceGroup, fctx.adapter.VirtualNetworkConfig().Name)),
-	}
+	// bap.Properties.VirtualNetwork = &armnetwork.SubResource{
+	// 	ID: to.Ptr(GetIdFromTemplate(TemplateVirtualNetwork, fctx.auth.SubscriptionID, lbCfg.ResourceGroup, fctx.adapter.VirtualNetworkConfig().Name)),
+	// }
 	found := false
 	for _, bap := range lb.Properties.BackendAddressPools {
 		if ptr.Deref(bap.Name, "") == fctx.adapter.BackendAddressPoolName() {
@@ -1084,7 +1085,8 @@ func (fctx *FlowContext) GetInfrastructureStatus(_ context.Context) (*v1alpha1.I
 		lbCfg, _ := fctx.adapter.LoadBalancerConfig()
 		status.Networks.OutboundAccessType = v1alpha1.OutboundAccessTypeLoadBalancer
 		status.Networks.LoadBalancer = &v1alpha1.LoadBalancerStatus{
-			Name: lbCfg.Name,
+			Name:                 lbCfg.Name,
+			BackendAddressPoolID: GetIdFromTemplateWithParent(TemplateBackendAddressPool, fctx.auth.SubscriptionID, lbCfg.ResourceGroup, lbCfg.Name, fctx.adapter.BackendAddressPoolName()),
 		}
 	}
 

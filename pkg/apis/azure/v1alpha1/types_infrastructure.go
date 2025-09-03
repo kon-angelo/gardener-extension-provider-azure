@@ -148,7 +148,8 @@ type InfrastructureStatus struct {
 // LoadBalancerStatus contains information about the load balancer and the attached resources.
 type LoadBalancerStatus struct {
 	// Name is the name of the load balancer.
-	Name string `json:"name"`
+	Name                 string `json:"name"`
+	BackendAddressPoolID string `json:"backendAddressPoolID"`
 }
 
 // NetworkStatus is the current status of the infrastructure networks.

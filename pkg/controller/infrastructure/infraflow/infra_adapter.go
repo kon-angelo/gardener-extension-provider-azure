@@ -860,7 +860,7 @@ func (b *BackendAddressPoolConfig) ToProvider(bap *armnetwork.BackendAddressPool
 		bap = &armnetwork.BackendAddressPool{
 			Name: ptr.To(b.Name),
 			Properties: &armnetwork.BackendAddressPoolPropertiesFormat{
-				SyncMode: ptr.To(armnetwork.SyncModeAutomatic),
+				// SyncMode: ptr.To(armnetwork.SyncModeAutomatic),
 			},
 		}
 	}
