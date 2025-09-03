@@ -710,7 +710,7 @@ func (s *SubnetConfig) ToProvider(base *armnetwork.Subnet) *armnetwork.Subnet {
 
 		// For now, use whatever is already existing in the remote object. We will later overwrite them with what we consider appropriate.
 		target.Properties.NatGateway = base.Properties.NatGateway
-		target.Properties.DefaultOutboundAccess = to.Ptr(false)
+		// target.Properties.DefaultOutboundAccess = to.Ptr(false)
 		target.Properties.NetworkSecurityGroup = base.Properties.NetworkSecurityGroup
 		target.Properties.RouteTable = base.Properties.RouteTable
 

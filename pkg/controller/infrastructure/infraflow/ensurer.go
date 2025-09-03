@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -354,10 +355,6 @@ func (fctx *FlowContext) EnsureLoadBalancer(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	bapClient, err := fctx.factory.BackendAddressPool()
-	if err != nil {
-		return err
-	}
 
 	lbCfg, needsLB := fctx.adapter.LoadBalancerConfig()
 	lb, err := c.Get(ctx, lbCfg.ResourceGroup, lbCfg.Name)
@@ -372,23 +369,20 @@ func (fctx *FlowContext) EnsureLoadBalancer(ctx context.Context) error {
 		}
 
 		// rescinding control over the load balancer to CCM. If there are not k8s service of type LoadBalancer the CCM will delete the LB on it's own.
-		if lb.Tags != nil && ptr.Deref(lb.Tags[TagManagedByGardener], "") != "true" {
-			delete(lb.Tags, TagManagedByGardener)
-			lb, err = c.CreateOrUpdate(ctx, lbCfg.ResourceGroup, lbCfg.Name, *lb)
-			if err != nil {
-				return err
-			}
-			fctx.inventory.Delete(*lb.ID)
-			bap, err := bapClient.Get(ctx, lbCfg.ResourceGroup, lbCfg.Name, fctx.adapter.BackendAddressPoolName())
-			if err != nil {
-				return err
-			}
-			if bap != nil {
-				bapId := *bap.ID
-				if err := bapClient.Delete(ctx, lbCfg.ResourceGroup, lbCfg.Name, fctx.adapter.BackendAddressPoolName()); err != nil {
-					return fmt.Errorf("failed to delete backend address pool %s: %w", bapId, err)
+		if lb.Tags != nil {
+			if ok, _ := strconv.ParseBool(ptr.Deref(lb.Tags[TagManagedByGardener], "")); ok {
+				delete(lb.Tags, TagManagedByGardener)
+				if lb.Properties != nil && lb.Properties.BackendAddressPools != nil {
+					lb.Properties.BackendAddressPools = slices.DeleteFunc(lb.Properties.BackendAddressPools, func(b *armnetwork.BackendAddressPool) bool {
+						return ptr.Deref(b.Name, "") == fctx.adapter.BackendAddressPoolName()
+					})
 				}
-				fctx.inventory.Delete(bapId)
+				lb, err = c.CreateOrUpdate(ctx, lbCfg.ResourceGroup, lbCfg.Name, *lb)
+				if err != nil {
+					return err
+				}
+				fctx.inventory.Delete(*lb.ID)
+				fctx.inventory.Delete(GetIdFromTemplateWithParent(TemplateBackendAddressPool, fctx.auth.SubscriptionID, lbCfg.ResourceGroup, lbCfg.Name, fctx.adapter.BackendAddressPoolName()))
 			}
 		}
 		return nil
@@ -485,7 +479,7 @@ func (fctx *FlowContext) EnsureLoadBalancer(ctx context.Context) error {
 	}
 	outboundRule.Properties.BackendAddressPool = &armnetwork.SubResource{ID: ptr.To(GetIdFromTemplateWithParent(TemplateBackendAddressPool, fctx.auth.SubscriptionID, lbCfg.ResourceGroup, lbCfg.Name, fctx.adapter.BackendAddressPoolName()))}
 	// outboundRule.Properties.BackendAddressPool = &armnetwork.SubResource{ID: bap.ID}
-	outboundRule.Properties.FrontendIPConfigurations = make([]*armnetwork.SubResource, 0, len(lb.Properties.FrontendIPConfigurations))
+	outboundRule.Properties.FrontendIPConfigurations = make([]*armnetwork.SubResource, 0, len(fctx.adapter.lbIPConfigs))
 	outboundRule.Properties.Protocol = ptr.To(armnetwork.LoadBalancerOutboundRuleProtocolAll)
 
 	for _, ip := range fctx.adapter.lbIPConfigs {
@@ -497,12 +491,12 @@ func (fctx *FlowContext) EnsureLoadBalancer(ctx context.Context) error {
 			}
 		}
 	}
-	for _, fipc := range lb.Properties.FrontendIPConfigurations {
-		if outboundRule.Properties.FrontendIPConfigurations == nil {
-			outboundRule.Properties.FrontendIPConfigurations = make([]*armnetwork.SubResource, 0)
-		}
-		outboundRule.Properties.FrontendIPConfigurations = append(outboundRule.Properties.FrontendIPConfigurations, &armnetwork.SubResource{ID: fipc.ID})
-	}
+	// for _, fipc := range lb.Properties.FrontendIPConfigurations {
+	// 	if outboundRule.Properties.FrontendIPConfigurations == nil {
+	// 		outboundRule.Properties.FrontendIPConfigurations = make([]*armnetwork.SubResource, 0)
+	// 	}
+	// 	outboundRule.Properties.FrontendIPConfigurations = append(outboundRule.Properties.FrontendIPConfigurations, &armnetwork.SubResource{ID: fipc.ID})
+	// }
 	_, err = c.CreateOrUpdate(ctx, lbCfg.ResourceGroup, lbCfg.Name, *lb)
 	if err != nil {
 		return err
@@ -1081,7 +1075,7 @@ func (fctx *FlowContext) GetInfrastructureStatus(_ context.Context) (*v1alpha1.I
 		}
 	}
 
-	if fctx.whiteboard.GetChild(ChildKeyIDs).Get(KindLoadBalancer.String()) != nil {
+	if _, ok := fctx.adapter.LoadBalancerConfig(); ok {
 		lbCfg, _ := fctx.adapter.LoadBalancerConfig()
 		status.Networks.OutboundAccessType = v1alpha1.OutboundAccessTypeLoadBalancer
 		status.Networks.LoadBalancer = &v1alpha1.LoadBalancerStatus{
