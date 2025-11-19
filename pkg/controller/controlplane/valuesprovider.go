@@ -7,6 +7,7 @@ package controlplane
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"strings"
 
@@ -282,7 +283,7 @@ type valuesProvider struct {
 }
 
 // GetConfigChartValues returns the values for the config chart applied by the generic actuator.
-func (vp *valuesProvider) GetConfigChartValues(ctx context.Context, cp *extensionsv1alpha1.ControlPlane, cluster *extensionscontroller.Cluster) (map[string]interface{}, error) {
+func (vp *valuesProvider) GetConfigChartValues(ctx context.Context, cp *extensionsv1alpha1.ControlPlane, cluster *extensionscontroller.Cluster, checksums map[string]string) (map[string]interface{}, error) {
 	// Decode providerConfig
 	cpConfig := &apisazure.ControlPlaneConfig{}
 	if cp.Spec.ProviderConfig != nil {
@@ -316,7 +317,7 @@ func (vp *valuesProvider) GetConfigChartValues(ctx context.Context, cp *extensio
 	}
 
 	// Get config chart values
-	return getConfigChartValues(infraStatus, cp, cluster, auth)
+	return getConfigChartValues(infraStatus, cp, cluster, auth, checksums)
 }
 
 // GetControlPlaneChartValues returns the values for the control plane chart applied by the generic actuator.
@@ -424,7 +425,7 @@ func (vp *valuesProvider) removeAcrConfig(ctx context.Context, namespace string)
 }
 
 // getConfigChartValues collects and returns the configuration chart values.
-func getConfigChartValues(infraStatus *apisazure.InfrastructureStatus, cp *extensionsv1alpha1.ControlPlane, cluster *extensionscontroller.Cluster, ca *azureclient.ClientAuth) (map[string]interface{}, error) {
+func getConfigChartValues(infraStatus *apisazure.InfrastructureStatus, cp *extensionsv1alpha1.ControlPlane, cluster *extensionscontroller.Cluster, ca *azureclient.ClientAuth, checksums map[string]string) (map[string]interface{}, error) {
 	subnetName, routeTableName, securityGroupName, err := getInfraNames(infraStatus)
 	if err != nil {
 		return nil, fmt.Errorf("could not determine subnet, route table or security group name from infrastructureStatus of controlplane '%s': %w", k8sclient.ObjectKeyFromObject(cp), err)
@@ -440,20 +441,9 @@ func getConfigChartValues(infraStatus *apisazure.InfrastructureStatus, cp *exten
 		useWorkloadIdentity = true
 	}
 
-	// Collect config chart values.
-	values := map[string]interface{}{
-		"tenantId":            ca.TenantID,
-		"subscriptionId":      ca.SubscriptionID,
-		"aadClientId":         ca.ClientID,
-		"aadClientSecret":     ca.ClientSecret,
-		"useWorkloadIdentity": useWorkloadIdentity,
-		"resourceGroup":       infraStatus.ResourceGroup.Name,
-		"vnetName":            infraStatus.Networks.VNet.Name,
-		"subnetName":          subnetName,
-		"routeTableName":      routeTableName,
-		"securityGroupName":   securityGroupName,
-		"region":              cp.Spec.Region,
-		"maxNodes":            maxNodes,
+	vmType := "standard"
+	if azureapihelper.IsVmoRequired(infraStatus) {
+		vmType = "vmss"
 	}
 
 	cloudConfiguration, err := azureclient.CloudConfiguration(nil, &cluster.Shoot.Spec.Region)
@@ -461,17 +451,62 @@ func getConfigChartValues(infraStatus *apisazure.InfrastructureStatus, cp *exten
 		return nil, err
 	}
 
-	values["cloud"] = cloudInstanceName(*cloudConfiguration)
+	// Collect config chart baseValues.
+	baseValues := map[string]interface{}{
+		"cloud":             cloudInstanceName(*cloudConfiguration),
+		"location":          cp.Spec.Region,
+		"resourceGroup":     infraStatus.ResourceGroup.Name,
+		"routeTableName":    routeTableName,
+		"vnetName":          infraStatus.Networks.VNet.Name,
+		"subnetName":        subnetName,
+		"securityGroupName": securityGroupName,
+
+		"loadBalancerSKU":                   "standard",
+		"vmType":                            vmType,
+		"cloudProviderRateLimitQPS":         max(maxNodes, 10),
+		"cloudProviderRateLimitBucket":      max(maxNodes, 100),
+		"cloudProviderRateLimitQPSWrite":    max(maxNodes, 10),
+		"cloudProviderRateLimitBucketWrite": max(maxNodes, 100),
+		"cloudProviderBackoff":              true,
+		"cloudProviderBackoffRetries":       6,
+		"cloudProviderBackoffExponent":      1.5,
+		"cloudProviderBackoffDuration":      5,
+		"cloudProviderBackoffJitter":        1.0,
+		"cloudProviderRateLimit":            true,
+	}
+	subscriptionInfo := map[string]interface{}{
+		"tenantId":       ca.TenantID,
+		"subscriptionId": ca.SubscriptionID,
+	}
+	credentialInfo := map[string]interface{}{
+		"aadClientId":                           ca.ClientID,
+		"aadClientSecret":                       ca.ClientSecret,
+		"aadFederatedTokenFile":                 "/var/run/secrets/gardener.cloud/workload-identity/token",
+		"useFederatedWorkloadIdentityExtension": useWorkloadIdentity,
+	}
 
 	if infraStatus.Networks.VNet.ResourceGroup != nil {
-		values["vnetResourceGroup"] = *infraStatus.Networks.VNet.ResourceGroup
+		baseValues["vnetResourceGroup"] = *infraStatus.Networks.VNet.ResourceGroup
 	}
 
 	if infraStatus.Identity != nil && infraStatus.Identity.ACRAccess {
-		values["acrIdentityClientId"] = infraStatus.Identity.ClientID
+		baseValues["acrIdentityClientId"] = infraStatus.Identity.ClientID
 	}
 
-	return appendMachineSetValues(values, infraStatus), nil
+	diskValues := maps.Clone(baseValues)
+	maps.Copy(diskValues, subscriptionInfo)
+	checksums[azure.CloudProviderDiskConfigName] = utils.ComputeChecksum(diskValues)
+
+	ccmConfig := maps.Clone(baseValues)
+	maps.Copy(ccmConfig, subscriptionInfo)
+	maps.Copy(ccmConfig, credentialInfo)
+	checksums[azure.CloudProviderAcrConfigName] = utils.ComputeChecksum(ccmConfig)
+
+	finalValues := map[string]interface{}{
+		"cloudProviderConfig":     ccmConfig,
+		"cloudProviderDiskConfig": diskValues,
+	}
+	return finalValues, nil
 }
 
 func cloudInstanceName(cloudConfiguration apisazure.CloudConfiguration) string {
@@ -483,16 +518,6 @@ func cloudInstanceName(cloudConfiguration apisazure.CloudConfiguration) string {
 	default:
 		return "AZUREPUBLICCLOUD"
 	}
-}
-
-func appendMachineSetValues(values map[string]interface{}, infraStatus *apisazure.InfrastructureStatus) map[string]interface{} {
-	values["vmType"] = "standard"
-	if azureapihelper.IsVmoRequired(infraStatus) {
-		values["vmType"] = "vmss"
-		return values
-	}
-
-	return values
 }
 
 // getInfraNames determines the subnet, availability set, route table and security group names from the given infrastructure status.
