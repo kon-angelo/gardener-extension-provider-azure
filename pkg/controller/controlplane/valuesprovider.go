@@ -336,12 +336,6 @@ func (vp *valuesProvider) GetControlPlaneChartValues(
 			return nil, fmt.Errorf("could not decode providerConfig of controlplane '%s': %w", k8sclient.ObjectKeyFromObject(cp), err)
 		}
 	}
-	cpConfigSecret := &corev1.Secret{}
-	if err := vp.client.Get(ctx, k8sclient.ObjectKey{Namespace: cp.Namespace, Name: azure.CloudProviderConfigName}, cpConfigSecret); err != nil {
-		return nil, err
-	}
-	checksums[azure.CloudProviderConfigName] = utils.ComputeChecksum(cpConfigSecret.Data)
-
 	// Decode infrastructureProviderStatus
 	var (
 		infraStatus = &apisazure.InfrastructureStatus{}
@@ -495,12 +489,13 @@ func getConfigChartValues(infraStatus *apisazure.InfrastructureStatus, cp *exten
 
 	diskValues := maps.Clone(baseValues)
 	maps.Copy(diskValues, subscriptionInfo)
+	diskValues["useInstanceMetadata"] = true
 	checksums[azure.CloudProviderDiskConfigName] = utils.ComputeChecksum(diskValues)
 
 	ccmConfig := maps.Clone(baseValues)
 	maps.Copy(ccmConfig, subscriptionInfo)
 	maps.Copy(ccmConfig, credentialInfo)
-	checksums[azure.CloudProviderAcrConfigName] = utils.ComputeChecksum(ccmConfig)
+	checksums[azure.CloudProviderConfigName] = utils.ComputeChecksum(ccmConfig)
 
 	finalValues := map[string]interface{}{
 		"cloudProviderConfig":     ccmConfig,
@@ -626,7 +621,7 @@ func getCSIControllerChartValues(
 	values := map[string]interface{}{
 		"enabled": true,
 		"podAnnotations": map[string]interface{}{
-			"checksum/secret-" + azure.CloudProviderConfigName: checksums[azure.CloudProviderConfigName],
+			"checksum/secret-" + azure.CloudProviderDiskConfigName: checksums[azure.CloudProviderDiskConfigName],
 		},
 		"replicas": extensionscontroller.GetControlPlaneReplicas(cluster, scaledDown, 1),
 		"csiSnapshotController": map[string]interface{}{

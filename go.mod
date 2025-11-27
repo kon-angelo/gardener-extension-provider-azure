@@ -218,4 +218,4 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/gardener/gardener => ../gardener
+replace github.com/gardener/gardener => github.com/kon-angelo/gardener v1.9.1-0.20251124183334-c5e822a62525

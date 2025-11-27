@@ -1,16 +1,2 @@
-cloud: AZUREPUBLICCLOUD # aka AZURECLOUD. Other possible values: AZURECHINACLOUD/AZUREUSGOVERNMENT
-tenantId: fooTenant
-subscriptionId: barSub
-aadClientId: fooClient
-aadClientSecret: barSecret
-useWorkloadIdentity: false
-resourceGroup: foobarGroup
-vnetName: name
-# vnetResourceGroup: vnetResourceGroup
-subnetName: sname
-routeTableName: rtname
-securityGroupName: sgname
-region: location
-maxNodes: 0
-# acrIdentityClientId: identityClientID
-# vmType: standard
+cloudProviderConfig:
+cloudProviderDiskConfig:
